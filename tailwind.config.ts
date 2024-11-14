@@ -1,6 +1,5 @@
-import type { Config } from "tailwindcss";
-
-export default {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,10 +8,32 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        base: {
+          10: "rgb(253, 250, 255)",
+          50: "rgb(245, 242, 247)",
+          100: "rgb(247, 240, 252)",
+          200: "rgb(235, 228, 240)",
+          300: "rgb(224, 216, 229)",
+          400: "rgb(197, 188, 204)",
+          500: "rgb(183, 172, 191)",
+          600: "rgb(143, 130, 153)",
+          700: "rgb(103, 86, 115)",
+          800: "rgb(34, 10, 51)",
+          900: "rgb(15, 1, 26)",
+        },
+        primary: {
+          50: "rgb(247, 237, 255)",
+          100: "rgb(239, 217, 255)",
+          200: "rgb(223, 178, 255)",
+          300: "rgb(207, 139, 255)",
+          400: "rgb(186, 89, 255)",
+          500: "rgb(158, 57, 229)",
+          600: "rgb(115, 27, 178)",
+          700: "rgb(61, 5, 102)",
+          800: "rgb(30, 0, 51)",
+        },
       },
     },
   },
   plugins: [],
-} satisfies Config;
+};
