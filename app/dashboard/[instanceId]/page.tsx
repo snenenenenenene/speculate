@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -206,12 +207,12 @@ function createNewNode(type: string, position: { x: number; y: number }, instanc
 }
 
 const DashboardInstancePage = ({ params }) => {
-  const { chartStore, utilityStore } = useStores();
+  const { chartStore, utilityStore } = useStores() as any;
   const { project, zoomIn, zoomOut } = useReactFlow();
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingChart, setIsLoadingChart] = useState(true);
 
-  const instanceId = decodeURIComponent(React.use(params).instanceId);
+  const instanceId = decodeURIComponent((params as { instanceId: string }).instanceId);
 
   useEffect(() => {
     const loadData = async () => {
