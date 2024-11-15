@@ -27,7 +27,7 @@ export default function LoginPage() {
 						href="/signup"
 						className="text-sm text-gray-600 hover:text-gray-900"
 					>
-						Don't have an account?
+						Don&apos;t have an account?
 					</Link>
 				</div>
 			</nav>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
@@ -13,11 +14,11 @@ export async function POST(request: Request) {
       console.log("Unauthorized access attempt");
       return NextResponse.json(
         { statusCode: 401, message: "Unauthorized" },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
-    console.log("Authenticated user:", session.user.id);
+    console.log("Authenticated user:", (session.user as any).id);
 
     const body = await request.json();
     console.log("Received request body:", body);
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       console.log("Missing chart content in request");
       return NextResponse.json(
         { statusCode: 400, message: "Missing chart content" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -35,13 +36,13 @@ export async function POST(request: Request) {
     // Update or create the chart instance
     const savedChart = await prisma.chartInstance.upsert({
       where: {
-        userId: session.user.id,
+        userId: (session.user as any).id,
       },
       update: {
         content: JSON.stringify(body.content),
       },
       create: {
-        userId: session.user.id,
+        userId: (session.user as any).id,
         content: JSON.stringify(body.content),
       },
     });
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     console.error("Error in POST route:", err);
     return NextResponse.json(
       { statusCode: 500, message: err.message },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

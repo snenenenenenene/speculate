@@ -45,7 +45,7 @@ export default function PaymentSuccessEmail({
 						Start Validating Claims
 					</Link>
 					<Text style={footer}>
-						If you have any questions, please don't hesitate to contact our support team.
+						If you have any questions, please don&apos;t hesitate to contact our support team.
 					</Text>
 				</Container>
 			</Body>

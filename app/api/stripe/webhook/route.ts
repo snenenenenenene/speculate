@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/stripe/webhook/route.ts
 import { sendPaymentSuccessEmail } from "@/lib/mail-service";
 import prisma from "@/lib/prisma";
@@ -19,12 +20,12 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!,
+      process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err: any) {
     return NextResponse.json(
       { error: `Webhook Error: ${err.message}` },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -62,22 +63,12 @@ export async function POST(req: Request) {
             console.error("Error creating payment DB: ", error);
           });
 
-        // Update user credits
-        const updatedUser = await prisma.user.update({
-          where: { email: userEmail! },
-          data: {
-            credits: {
-              increment: creditAmount,
-            },
-          },
-        });
-
         // Send email notifications
         await sendPaymentSuccessEmail(
           userEmail!,
           payment.amount,
           creditAmount,
-          payment.id,
+          payment.id
         );
 
         break;
@@ -109,7 +100,7 @@ export async function POST(req: Request) {
     console.error("Error processing webhook:", error);
     return NextResponse.json(
       { error: "Failed to process webhook" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

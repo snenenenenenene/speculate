@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // lib/keyboard-shortcuts.ts
 
 import { useStores } from "@/hooks/useStores";

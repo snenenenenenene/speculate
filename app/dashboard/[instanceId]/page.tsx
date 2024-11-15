@@ -300,6 +300,7 @@ const DashboardInstancePage = ({ params }: { params: { instanceId: string } }) =
       await utilityStore.saveToDb(chartStore.chartInstances);
       toast.success("Flow saved successfully");
     } catch (error) {
+      console.error(error)
       toast.error("Failed to save flow");
     } finally {
       setIsLoading(false);

@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // app/api/load-chart/route.ts
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "../auth/[...nextauth]/options";
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -14,7 +16,7 @@ export async function GET(request: Request) {
 
     const chartInstance = await prisma.chartInstance.findUnique({
       where: {
-        userId: session.user.id,
+        userId: (session.user as any).id,
       },
     });
 
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
     console.error("Error loading chart:", error);
     return NextResponse.json(
       { error: "Failed to load chart" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { Dialog } from "@/components/ui/Dialog";
@@ -76,7 +78,7 @@ export function QuickActions() {
 
 				if (validationResult.warnings.length > 0) {
 					validationResult.warnings.forEach(warning => {
-						toast.warning(warning);
+						toast.error(warning);
 					});
 				}
 

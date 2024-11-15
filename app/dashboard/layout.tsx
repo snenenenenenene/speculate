@@ -20,7 +20,7 @@ export default function DashboardLayout({
   const { chartStore } = useStores();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
+  const [, setIsImportExportModalOpen] = useState(false);
 
   // Extract instanceId from pathname if we're on a flow page
   const instanceId = pathname.startsWith('/dashboard/') ? pathname.split('/')[2] : null;
