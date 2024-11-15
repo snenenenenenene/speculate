@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { StateCreator } from "zustand";
 import { VariableState } from "./types";
 
@@ -11,7 +12,7 @@ const createVariableSlice: StateCreator<VariableState> = (set, get) => ({
 
   addVariable: (
     scope: "global" | "local",
-    variable: { name: string; value: string },
+    variable: { name: string; value: string }
   ) =>
     set((state) => ({
       variables: {
@@ -31,13 +32,13 @@ const createVariableSlice: StateCreator<VariableState> = (set, get) => ({
   updateVariable: (
     scope: "global" | "local",
     index: number,
-    updatedVariable: { name: string; value: string },
+    updatedVariable: { name: string; value: string }
   ) =>
     set((state) => ({
       variables: {
         ...state.variables,
         [scope]: state.variables[scope].map((v, i) =>
-          i === index ? updatedVariable : v,
+          i === index ? updatedVariable : v
         ),
       },
     })),

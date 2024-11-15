@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 import { Edge, Node } from "reactflow";
 
 export interface ChartInstance {
@@ -56,7 +58,7 @@ export interface ChartState {
   updateNode: (
     instanceId: string,
     nodeId: string,
-    newData: Partial<Node>,
+    newData: Partial<Node>
   ) => void;
   removeNode: (instanceId: string, nodeId: string) => void;
   deleteTab: (tabId: string) => void;
@@ -103,7 +105,7 @@ export interface VariableState {
   updateVariable: (
     scope: "global" | "local",
     index: number,
-    updatedVariable: Variable,
+    updatedVariable: Variable
   ) => void;
 }
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { StateCreator } from "zustand";
 import { ChartInstance, UtilityState } from "./types";
 
@@ -40,7 +41,7 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
         console.log("Chart saved successfully:", result.id);
       } else {
         throw new Error(
-          result.message || "Unknown error occurred while saving",
+          result.message || "Unknown error occurred while saving"
         );
       }
     } catch (error) {

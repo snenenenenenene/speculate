@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { StateCreator } from "zustand";
 import { CommitState } from "./types";
 
@@ -6,12 +7,12 @@ const createCommitSlice: StateCreator<CommitState> = (set, get) => ({
   globalCommits: [],
 
   addLocalCommit: (message: string) => {
-    const { chartInstances, currentDashboardTab } = get();
+    const { chartInstances, currentDashboardTab } = get() as any;
     const currentInstance = chartInstances.find(
-      (instance) => instance.id === currentDashboardTab,
+      (instance) => instance.id === currentDashboardTab
     );
     if (currentInstance) {
-      set((state) => ({
+      set((state: any) => ({
         localCommits: [
           ...state.localCommits,
           {
@@ -26,16 +27,16 @@ const createCommitSlice: StateCreator<CommitState> = (set, get) => ({
   },
 
   revertToLocalCommit: (message: string) => {
-    const { localCommits } = get();
+    const { localCommits } = get() as any;
     const commit = localCommits.find((commit) => commit.message === message);
     if (commit && commit.chartInstances.length > 0) {
-      get().setChartInstance(commit.chartInstances[0]);
+      (get() as any).setChartInstance(commit.chartInstances[0]);
     }
   },
 
   addGlobalCommit: (message: string) => {
-    const { chartInstances } = get();
-    set((state) => ({
+    const { chartInstances } = get() as any;
+    set((state: any) => ({
       globalCommits: [
         ...state.globalCommits,
         {
@@ -49,10 +50,10 @@ const createCommitSlice: StateCreator<CommitState> = (set, get) => ({
   },
 
   revertToGlobalCommit: (message: string) => {
-    const { globalCommits } = get();
+    const { globalCommits } = get() as any;
     const commit = globalCommits.find((commit) => commit.message === message);
     if (commit) {
-      get().setChartInstances(commit.chartInstances);
+      (get() as any).setChartInstances(commit.chartInstances);
     }
   },
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // eventBus.ts
 type Listener = (data: any) => void;
 const listeners: { [key: string]: Listener[] } = {};
@@ -17,7 +18,7 @@ export const eventBus = {
   off: (event: string, callback: Listener) => {
     if (listeners[event]) {
       listeners[event] = listeners[event].filter(
-        (listener) => listener !== callback,
+        (listener) => listener !== callback
       );
     }
   },
