@@ -25,6 +25,7 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
       }
       return state;
     }),
+
   addNewTab: (newTabName: string) => {
     const newTab: ChartInstance = {
       id: uuidv4(),
@@ -44,6 +45,7 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
 
     return newTab.id;
   },
+
   updateNodes: (instanceId: string, changes: NodeChange[]) =>
     set((state) => ({
       chartInstances: state.chartInstances.map((instance) =>
@@ -235,6 +237,152 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
     );
   },
 
+  // New and updated import/export methods
+  replaceFlow: async (instanceId: string, newFlow: ChartInstance) => {
+    try {
+      const currentInstance = get().getChartInstance(instanceId);
+      const flowWithNewId = {
+        ...newFlow,
+        id: instanceId,
+        // Preserve existing settings
+        color: currentInstance?.color || newFlow.color || "#80B500",
+        onePageMode:
+          currentInstance?.onePageMode ?? newFlow.onePageMode ?? false,
+        publishedVersions: currentInstance?.publishedVersions || [],
+      };
+
+      set((state) => ({
+        chartInstances: state.chartInstances.map((instance) =>
+          instance.id === instanceId ? flowWithNewId : instance
+        ),
+      }));
+
+      return instanceId;
+    } catch (error) {
+      console.error("Error replacing flow:", error);
+      throw error;
+    }
+  },
+
+  replaceAllFlows: async (newFlows: ChartInstance[]) => {
+    try {
+      const flowsWithNewIds = newFlows.map((flow) => ({
+        ...flow,
+        id: uuidv4(),
+        color: flow.color || "#80B500",
+        onePageMode: flow.onePageMode ?? false,
+        publishedVersions: [],
+      }));
+
+      // Update references between flows
+      flowsWithNewIds.forEach((flow) => {
+        flow.nodes.forEach((node) => {
+          if (node.type === "endNode" && node.data?.endType === "redirect") {
+            const targetFlow = newFlows.find(
+              (f) => f.name === node.data.redirectTab
+            );
+            if (targetFlow) {
+              const newTargetFlow = flowsWithNewIds.find(
+                (f) => f.name === targetFlow.name
+              );
+              if (newTargetFlow) {
+                node.data.redirectTab = newTargetFlow.name;
+              }
+            }
+          }
+        });
+      });
+
+      set({
+        chartInstances: flowsWithNewIds,
+        currentDashboardTab: flowsWithNewIds[0]?.id || "",
+      });
+
+      return flowsWithNewIds[0]?.id;
+    } catch (error) {
+      console.error("Error replacing all flows:", error);
+      throw error;
+    }
+  },
+
+  importFlow: async (file: File): Promise<string | null> => {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      const validationResult = get().validateImport(data);
+      if (!validationResult.isValid) {
+        toast.error(`Import validation failed: ${validationResult.errors[0]}`);
+        return null;
+      }
+
+      if (data.type === "single") {
+        const flow = data.flow;
+        const newId = uuidv4();
+        const newFlow = {
+          ...flow,
+          id: newId,
+          color: flow.color || "#80B500",
+          onePageMode: flow.onePageMode ?? false,
+          publishedVersions: [],
+        };
+
+        set((state) => ({
+          chartInstances: [...state.chartInstances, newFlow],
+          currentDashboardTab: newId,
+        }));
+
+        return newId;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Import error:", error);
+      throw error;
+    }
+  },
+
+  importMultipleFlows: async (flows: ChartInstance[]) => {
+    try {
+      const newFlows = flows.map((flow) => ({
+        ...flow,
+        id: uuidv4(),
+        color: flow.color || "#80B500",
+        onePageMode: flow.onePageMode ?? false,
+        publishedVersions: [],
+      }));
+
+      // Update references between flows
+      newFlows.forEach((flow) => {
+        flow.nodes.forEach((node) => {
+          if (node.type === "endNode" && node.data?.endType === "redirect") {
+            const targetFlow = flows.find(
+              (f) => f.name === node.data.redirectTab
+            );
+            if (targetFlow) {
+              const newTargetFlow = newFlows.find(
+                (f) => f.name === targetFlow.name
+              );
+              if (newTargetFlow) {
+                node.data.redirectTab = newTargetFlow.name;
+              }
+            }
+          }
+        });
+      });
+
+      set((state) => ({
+        chartInstances: [...state.chartInstances, ...newFlows],
+        currentDashboardTab: newFlows[0]?.id || state.currentDashboardTab,
+      }));
+
+      return newFlows[0]?.id;
+    } catch (error) {
+      console.error("Error importing multiple flows:", error);
+      throw error;
+    }
+  },
+
   validateImport: (data: FlowExport | CompleteExport): ValidationResult => {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -385,70 +533,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
     window.URL.revokeObjectURL(url);
 
     toast.success("All flows exported successfully");
-  },
-
-  importFlow: async (file: File) => {
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-
-      const validationResult = get().validateImport(data);
-
-      if (!validationResult.isValid) {
-        toast.error(`Import validation failed: ${validationResult.errors[0]}`);
-        console.error("Validation errors:", validationResult.errors);
-        return;
-      }
-
-      if (validationResult.warnings.length > 0) {
-        validationResult.warnings.forEach((warning) => {
-          toast.warning(warning);
-        });
-      }
-
-      if (data.type === "single") {
-        const flow = data.flow;
-        flow.id = uuidv4();
-        set((state) => ({
-          chartInstances: [...state.chartInstances, flow],
-          currentDashboardTab: flow.id,
-        }));
-        toast.success(`Flow "${flow.name}" imported successfully`);
-      } else {
-        const newFlows = data.flows.map((flow) => ({
-          ...flow,
-          id: uuidv4(),
-        }));
-
-        const oldToNewIds = Object.fromEntries(
-          data.flows.map((oldFlow, index) => [oldFlow.id, newFlows[index].id])
-        );
-
-        newFlows.forEach((flow) => {
-          flow.nodes.forEach((node) => {
-            if (node.type === "endNode" && node.data?.endType === "redirect") {
-              const targetFlow = data.flows.find(
-                (f) => f.name === node.data.redirectTab
-              );
-              if (targetFlow) {
-                node.data.redirectTab =
-                  newFlows.find((f) => f.id === oldToNewIds[targetFlow.id])
-                    ?.name || node.data.redirectTab;
-              }
-            }
-          });
-        });
-
-        set((state) => ({
-          chartInstances: [...state.chartInstances, ...newFlows],
-          currentDashboardTab: newFlows[0].id,
-        }));
-        toast.success(`${newFlows.length} flows imported successfully`);
-      }
-    } catch (error) {
-      console.error("Import error:", error);
-      toast.error("Failed to import flow: Invalid file format");
-    }
   },
 });
 
