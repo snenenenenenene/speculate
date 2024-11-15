@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useStores } from '@/hooks/useStores';
@@ -22,7 +23,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const dragRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = React.useState(false);
-	const { chartStore } = useStores();
+	const { chartStore } = useStores() as any;
 	const currentInstance = chartStore.getCurrentChartInstance();
 
 	const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
