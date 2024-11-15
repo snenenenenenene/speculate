@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/payments/[sessionId]/route.ts
 import prisma from "@/lib/prisma";
@@ -7,7 +8,8 @@ import Stripe from "stripe";
 import { authOptions } from "../../auth/[...nextauth]/options";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-10-28.acacia",
+  // @ts-ignore
+  apiVersion: "2024-06-20",
 });
 
 export async function GET(request: Request, { params }) {

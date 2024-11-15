@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/stripe/webhook/route.ts
 import { sendPaymentSuccessEmail } from "@/lib/mail-service";
@@ -7,7 +8,8 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-10-28.acacia",
+  // @ts-ignore
+  apiVersion: "2024-06-20",
 });
 
 export async function POST(req: Request) {
