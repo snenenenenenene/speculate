@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { LoadingSpinner } from "@/components/ui/base";
@@ -19,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 
 export default function SettingsModal() {
-	const { chartStore, utilityStore, variableStore } = useStores();
+	const { chartStore, utilityStore, variableStore } = useStores() as any;
 	const { setCurrentTabColor, setOnePage, updateChartInstanceName, deleteTab } = chartStore;
 	const { currentTab, saveToDb } = utilityStore;
 
