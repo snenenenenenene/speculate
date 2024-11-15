@@ -1,16 +1,13 @@
+// app/dashboard/layout.tsx
 "use client";
 
-import { FlowSelector } from "@/components/dashboard/FlowSelector";
-import ImportExportModal from "@/components/dashboard/ImportExportModal";
 import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { LoadingSpinner } from "@/components/ui/base";
 import { useStores } from "@/hooks/useStores";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { toast } from "react-hot-toast";
 import { ReactFlowProvider } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -19,61 +16,24 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { chartStore, utilityStore } = useStores();
-  const { chartInstances, setChartInstances, addNewTab } = chartStore;
-  const { currentTab, setCurrentTab } = utilityStore;
-  const router = useRouter();
-
+  const pathname = usePathname();
+  const { chartStore } = useStores();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Extract instanceId from pathname if we're on a flow page
+  const instanceId = pathname.startsWith('/dashboard/') ? pathname.split('/')[2] : null;
 
   useEffect(() => {
-    const loadChartInstances = async () => {
-      try {
-        const response = await fetch("/api/load-chart");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.content) {
-            const parsedContent = JSON.parse(data.content);
-            setChartInstances(parsedContent);
-            if (parsedContent.length > 0 && !currentTab) {
-              setCurrentTab(parsedContent[0].id);
-              router.push(`/dashboard/${parsedContent[0].id}`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load chart instances:", error);
-        toast.error("Failed to load flows");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (instanceId) {
+      chartStore.setCurrentDashboardTab(instanceId);
+    }
+  }, [instanceId, chartStore]);
 
-    loadChartInstances();
-  }, [setChartInstances, setCurrentTab, currentTab, router]);
-
-  const handleAddNewFlow = () => {
-    const newTabName = `New Flow ${chartInstances.length + 1}`;
-    const newTabId = addNewTab(newTabName);
-    router.push(`/dashboard/${newTabId}`);
-  };
-
-  const currentFlow = chartInstances.find(
-    (instance) => instance.id === currentTab
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <LoadingSpinner size={40} />
-          <p className="mt-4 text-gray-600">Loading your workspace...</p>
-        </div>
-      </div>
-    );
+  // Only show sidebar and quick actions on flow pages
+  if (!instanceId) {
+    return children;
   }
 
   return (
@@ -95,24 +55,8 @@ export default function DashboardLayout({
               )}
             </button>
 
-            {/* Flow Selector */}
-            <FlowSelector
-              currentFlow={currentFlow}
-              chartInstances={chartInstances}
-              currentTab={currentTab}
-              onFlowSelect={(id) => {
-                setCurrentTab(id);
-                router.push(`/dashboard/${id}`);
-              }}
-              onNewFlow={handleAddNewFlow}
-            />
-
             {/* Quick Actions */}
-            {currentFlow && (
-              <QuickActions
-                onExportClick={() => setIsImportExportModalOpen(true)}
-              />
-            )}
+            <QuickActions onExportClick={() => setIsImportExportModalOpen(true)} />
           </div>
         </div>
 
@@ -165,15 +109,6 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
-
-      {/* Import/Export Modal */}
-      {isImportExportModalOpen && (
-        <ImportExportModal
-          isOpen={isImportExportModalOpen}
-          onClose={() => setIsImportExportModalOpen(false)}
-          chartStore={chartStore}
-        />
-      )}
 
       {/* Global Styles */}
       <style jsx global>{`

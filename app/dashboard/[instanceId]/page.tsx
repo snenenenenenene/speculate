@@ -24,6 +24,7 @@ import ReactFlow, {
   useReactFlow
 } from "reactflow";
 
+import { LoadingSpinner } from "@/components/ui/base";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -31,7 +32,6 @@ import {
   getSmoothStepPath
 } from 'reactflow';
 import SettingsModal from "./SettingsModal";
-
 
 function EditableEdge({
   id,
@@ -82,7 +82,6 @@ function EditableEdge({
     </>
   );
 }
-
 
 const nodeTypes = {
   yesNo: YesNoNode,
@@ -209,15 +208,44 @@ function createNewNode(type: string, position: { x: number; y: number }, instanc
 const DashboardInstancePage = ({ params }: { params: { instanceId: string } }) => {
   const { chartStore, utilityStore } = useStores();
   const { project, zoomIn, zoomOut } = useReactFlow();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingChart, setIsLoadingChart] = useState(true);
 
   const instanceId = decodeURIComponent(React.use(params).instanceId);
-  const currentInstance = chartStore.getChartInstance(instanceId);
 
   useEffect(() => {
-    chartStore.setCurrentDashboardTab(instanceId);
-    utilityStore.setCurrentTab(instanceId);
+    const loadData = async () => {
+      setIsLoadingChart(true);
+      try {
+        // Load chart instances if they haven't been loaded yet
+        if (chartStore.chartInstances.length === 0) {
+          const response = await fetch('/api/load-chart');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.content) {
+              const parsedContent = JSON.parse(data.content);
+              chartStore.setChartInstances(parsedContent);
+            }
+          }
+        }
+
+        // Set current tab
+        chartStore.setCurrentDashboardTab(instanceId);
+        utilityStore.setCurrentTab(instanceId);
+
+      } catch (error) {
+        console.error('Failed to load chart instance:', error);
+        toast.error('Failed to load flow');
+      } finally {
+        setIsLoadingChart(false);
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
   }, [instanceId, chartStore, utilityStore]);
+
+  const currentInstance = chartStore.getChartInstance(instanceId);
 
   const onNodesChange = useCallback(
     (changes) => {
@@ -278,12 +306,25 @@ const DashboardInstancePage = ({ params }: { params: { instanceId: string } }) =
     }
   };
 
+  // Show loading state while checking for instances and current instance
+  if (isLoadingChart) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner className="h-8 w-8 animate-spin" />
+          <p className="mt-4 text-gray-600">Loading flow...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if instance not found after loading
   if (!currentInstance) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading flow...</p>
+          <p className="text-lg text-red-600">Flow not found</p>
+          <p className="mt-2 text-gray-600">This flow may have been deleted or never existed.</p>
         </div>
       </div>
     );

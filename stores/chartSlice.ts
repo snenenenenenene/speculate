@@ -21,12 +21,10 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
   setCurrentDashboardTab: (tabId: string) =>
     set((state) => {
       if (state.currentDashboardTab !== tabId) {
-        console.log(`Updating currentDashboardTab to: ${tabId}`);
         return { currentDashboardTab: tabId };
       }
       return state;
     }),
-
   addNewTab: (newTabName: string) => {
     const newTab: ChartInstance = {
       id: uuidv4(),
@@ -38,13 +36,14 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
       publishedVersions: [],
       variables: [],
     };
+
     set((state) => ({
       chartInstances: [...state.chartInstances, newTab],
       currentDashboardTab: newTab.id,
     }));
+
     return newTab.id;
   },
-
   updateNodes: (instanceId: string, changes: NodeChange[]) =>
     set((state) => ({
       chartInstances: state.chartInstances.map((instance) =>
@@ -240,7 +239,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    // Version checks
     if (!data.version || !data.exportDate) {
       errors.push("Invalid export format: missing metadata");
     }
@@ -257,7 +255,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
         return;
       }
 
-      // Validate node references
       flow.edges.forEach((edge) => {
         const sourceExists = flow.nodes.some((node) => node.id === edge.source);
         const targetExists = flow.nodes.some((node) => node.id === edge.target);
@@ -267,7 +264,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
         }
       });
 
-      // Validate node types
       flow.nodes.forEach((node) => {
         if (
           !node.type ||
@@ -291,7 +287,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
     } else {
       (data as CompleteExport).flows.forEach(validateFlow);
 
-      // Validate references between flows
       (data as CompleteExport).references.forEach((ref) => {
         const sourceFlowExists = (data as CompleteExport).flows.some(
           (f) => f.id === ref.sourceFlowId
@@ -350,7 +345,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
   exportAllFlows: () => {
     const { chartInstances } = get();
 
-    // Collect all references between flows
     const references = chartInstances
       .flatMap((flow) =>
         flow.nodes
@@ -398,7 +392,6 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
       const text = await file.text();
       const data = JSON.parse(text);
 
-      // Validate import data
       const validationResult = get().validateImport(data);
 
       if (!validationResult.isValid) {
@@ -414,27 +407,23 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
       }
 
       if (data.type === "single") {
-        // Single flow import
         const flow = data.flow;
-        flow.id = uuidv4(); // Generate new ID to avoid conflicts
+        flow.id = uuidv4();
         set((state) => ({
           chartInstances: [...state.chartInstances, flow],
           currentDashboardTab: flow.id,
         }));
         toast.success(`Flow "${flow.name}" imported successfully`);
       } else {
-        // Complete system import
         const newFlows = data.flows.map((flow) => ({
           ...flow,
-          id: uuidv4(), // Generate new IDs for all flows
+          id: uuidv4(),
         }));
 
-        // Update references with new IDs
         const oldToNewIds = Object.fromEntries(
           data.flows.map((oldFlow, index) => [oldFlow.id, newFlows[index].id])
         );
 
-        // Update redirect references in nodes
         newFlows.forEach((flow) => {
           flow.nodes.forEach((node) => {
             if (node.type === "endNode" && node.data?.endType === "redirect") {

@@ -9,12 +9,16 @@ import {
 	GitCommit,
 	Save,
 	Settings,
-	Upload
+	Upload,
+	XCircle
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
+import { FlowSelector } from "./FlowSelector";
 
 export function QuickActions() {
+	const router = useRouter();
 	const { chartStore, commitStore, utilityStore } = useStores();
 	const [isSaving, setIsSaving] = useState(false);
 	const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
@@ -33,6 +37,16 @@ export function QuickActions() {
 		} finally {
 			setIsSaving(false);
 		}
+	};
+
+	const handleFlowSelect = (id: string) => {
+		chartStore.setCurrentDashboardTab(id);
+		router.push(`/dashboard/${id}`);
+	};
+
+	const handleNewFlow = () => {
+		const newTabId = chartStore.addNewTab(`New Flow ${chartStore.chartInstances.length + 1}`);
+		router.push(`/dashboard/${newTabId}`);
 	};
 
 	const handleCommitAndSave = async () => {
@@ -76,7 +90,18 @@ export function QuickActions() {
 	};
 
 	return (
-		<div className="flex items-center gap-2 ml-auto">
+		<div className="flex items-center gap-2">
+			{/* Flow Selector */}
+			<FlowSelector
+				currentFlow={chartStore.getCurrentChartInstance()}
+				chartInstances={chartStore.chartInstances}
+				currentTab={chartStore.currentDashboardTab}
+				onFlowSelect={handleFlowSelect}
+				onNewFlow={handleNewFlow}
+			/>
+
+			<div className="h-6 w-px bg-gray-200" />
+
 			{/* Quick Save */}
 			<button
 				onClick={handleQuickSave}
@@ -207,11 +232,17 @@ export function QuickActions() {
 			>
 				<div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-auto">
 					<div className="p-6">
-						<h2 className="text-lg font-semibold text-gray-900 mb-4">
-							Import/Export Flows
-						</h2>
+						<div className="flex items-center justify-between border-b border-gray-200 pb-4">
+							<h3 className="text-lg font-bold text-gray-900">Import/Export Flows</h3>
+							<button
+								onClick={() => setIsImportExportModalOpen(false)}
+								className="p-1 hover:bg-gray-100 rounded-md"
+							>
+								<XCircle className="h-5 w-5 text-gray-500" />
+							</button>
+						</div>
 
-						<div className="space-y-6">
+						<div className="space-y-6 mt-4">
 							{/* Import Section */}
 							<div>
 								<h3 className="text-sm font-medium text-gray-900 mb-2">Import</h3>
