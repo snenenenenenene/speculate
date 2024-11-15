@@ -5,8 +5,12 @@ import { Loader2 } from 'lucide-react';
 import React, { forwardRef } from 'react';
 
 // Base loading animation used across components
-export const LoadingSpinner = () => (
-	<Loader2 className="h-4 w-4 animate-spin" />
+export const LoadingSpinner = ({
+	className,
+}: {
+	className?: string;
+}) => (
+	<Loader2 className={`${className} h-4 w-4 animate-spin`} />
 );
 
 // Checkbox with Notion-like styling
