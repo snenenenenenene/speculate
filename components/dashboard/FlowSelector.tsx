@@ -1,14 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ChartInstance } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, LayoutGrid, Plus, Search } from "lucide-react";
 import { useState } from "react";
 
 interface FlowSelectorProps {
-	currentFlow: ChartInstance | undefined;
-	chartInstances: ChartInstance[];
+	currentFlow: any | undefined;
+	chartInstances: any[];
 	currentTab: string;
 	onFlowSelect: (id: string) => void;
 	onNewFlow: () => void;
