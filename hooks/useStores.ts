@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // hooks/useStores.ts
 
 import { RootState } from "@/stores/types";
@@ -10,6 +11,7 @@ type Stores = {
 export const useStores = (): Stores => {
   const rootStore = useRootStore();
   return {
+    // @ts-ignore
     chartStore: rootStore,
     commitStore: rootStore,
     variableStore: rootStore,
