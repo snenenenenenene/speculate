@@ -26,13 +26,13 @@ export default function AdminNotificationEmail({
 		<Html>
 			<Head />
 			<Preview>New payment received</Preview>
-			<Body style={main}>
-				<Container style={container}>
-					<Heading style={h1}>New Payment Received</Heading>
-					<Text style={text}>
+			<Body>
+				<Container>
+					<Heading>New Payment Received</Heading>
+					<Text>
 						A new payment has been processed successfully.
 					</Text>
-					<Text style={text}>
+					<Text>
 						Details:
 						<br />
 						User: {userEmail}
