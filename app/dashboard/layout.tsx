@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/dashboard/layout.tsx
 "use client";
 
@@ -17,10 +18,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [, setIsImportExportModalOpen] = useState(false);
 
   // Extract instanceId from pathname if we're on a flow page
   const instanceId = pathname.startsWith('/dashboard/') ? pathname.split('/')[2] : null;
@@ -56,7 +56,7 @@ export default function DashboardLayout({
             </button>
 
             {/* Quick Actions */}
-            <QuickActions onExportClick={() => setIsImportExportModalOpen(true)} />
+            <QuickActions />
           </div>
         </div>
 

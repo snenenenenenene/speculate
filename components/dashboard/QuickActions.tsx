@@ -22,7 +22,7 @@ import { ImportChoiceDialog } from "./ImportChoiceDialog";
 
 export function QuickActions() {
 	const router = useRouter();
-	const { chartStore, commitStore, utilityStore } = useStores();
+	const { chartStore, commitStore, utilityStore } = useStores() as any;
 	const [isSaving, setIsSaving] = useState(false);
 	const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
 	const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
