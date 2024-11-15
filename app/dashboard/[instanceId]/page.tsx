@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import ReactFlow, {
   Background,
+  BackgroundVariant,
   Connection,
   ConnectionLineType,
   Controls,
@@ -437,11 +438,10 @@ const DashboardInstancePage = ({ params }) => {
             </button>
           </motion.div>
         </Panel>
-
         <Background
           color="#94a3b8"
           className="bg-slate-50"
-          variant="dots"
+          variant={BackgroundVariant["dots"]}
           gap={12}
           size={1}
         />
