@@ -7,7 +7,7 @@ import Stripe from "stripe";
 import { authOptions } from "../../auth/[...nextauth]/options";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-06-20",
+  apiVersion: "2024-10-28.acacia",
 });
 
 export async function GET(request: Request, { params }) {
