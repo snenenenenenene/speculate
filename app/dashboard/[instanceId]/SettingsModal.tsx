@@ -18,14 +18,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 
-interface SettingsModalProps {
-	chartStore: any;
-	utilityStore: any;
-	variableStore: any;
-	currentTab: string;
-	onClose: () => void;
-}
-
 export default function SettingsModal() {
 	const { chartStore, utilityStore, variableStore } = useStores();
 	const { setCurrentTabColor, setOnePage, updateChartInstanceName, deleteTab } = chartStore;

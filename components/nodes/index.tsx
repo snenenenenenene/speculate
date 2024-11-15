@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
 import { useStores } from '@/hooks/useStores';
 import { cn } from '@/lib/utils';
