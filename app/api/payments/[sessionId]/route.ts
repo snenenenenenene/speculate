@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/payments/[sessionId]/route.ts
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -9,10 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-06-20",
 });
 
-export async function GET(
-  request: Request,
-  { params }: { params: { sessionId: string } },
-) {
+export async function GET(request: Request, { params }) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -24,7 +22,7 @@ export async function GET(
     const payment = await prisma.payment.findFirst({
       where: {
         stripeSessionId: params.sessionId,
-        userId: session.user.id,
+        userId: (session.user as any).id,
       },
     });
 
@@ -39,13 +37,13 @@ export async function GET(
 
     // If not found in database, check Stripe directly
     const stripeSession = await stripe.checkout.sessions.retrieve(
-      params.sessionId,
+      params.sessionId
     );
 
     if (!stripeSession) {
       return NextResponse.json(
         { error: "Payment session not found" },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -61,7 +59,7 @@ export async function GET(
     console.error("Error fetching payment:", error);
     return NextResponse.json(
       { error: "Failed to fetch payment details" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
