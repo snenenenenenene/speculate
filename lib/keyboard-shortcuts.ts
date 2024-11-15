@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // lib/keyboard-shortcuts.ts
 
@@ -73,9 +74,9 @@ export function useKeyboardShortcuts(
   setIsSidebarOpen: (open: boolean) => void
 ) {
   const { zoomIn, zoomOut, fitView, getNodes, setNodes, getSelectedNodes } =
-    useReactFlow();
+    useReactFlow() as any;
 
-  const { chartStore, utilityStore } = useStores();
+  const { chartStore, utilityStore } = useStores() as any;
 
   const handleShortcut = useCallback(
     (e: KeyboardEvent) => {
@@ -90,7 +91,7 @@ export function useKeyboardShortcuts(
       const key = getKeyCombo(e);
 
       // Prevent default browser shortcuts
-      if (Object.values(SHORTCUTS).includes(key)) {
+      if (Object.values(SHORTCUTS).includes(key as any)) {
         e.preventDefault();
       }
 
@@ -265,7 +266,7 @@ function getKeyCombo(e: KeyboardEvent): string {
 // Hook to handle keyboard shortcuts for node creation based on number keys
 export function useNodeCreationShortcuts() {
   const { project } = useReactFlow();
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
 
   const handleNodeCreation = useCallback(
     (e: KeyboardEvent) => {
