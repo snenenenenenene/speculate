@@ -1,11 +1,9 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/stripe/webhook/route.ts
-import { sendPaymentSuccessEmail } from "@/lib/mail-service";
-import prisma from "@/lib/prisma";
-import { headers } from "next/headers";
+import { formatAmountForStripe } from "@/lib/stripe-helper";
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { authOptions } from "../../auth/[...nextauth]/options";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   // @ts-ignore
@@ -13,95 +11,48 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 export async function POST(req: Request) {
-  const body = await req.text();
-  const signature = headers().get("stripe-signature") as string;
-
-  let event: Stripe.Event;
-
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
-      { status: 400 }
-    );
-  }
-
-  try {
-    switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const userEmail = session.customer_details?.email;
-
-        // Get credit amount from metadata
-        const creditAmount = session.metadata?.creditAmount
-          ? parseInt(session.metadata.creditAmount)
-          : 0;
-
-        // Create payment record
-        const payment = await prisma.payment
-          .create({
-            data: {
-              stripeSessionId: session.id,
-              amount: session.amount_total! / 100,
-              currency: session.currency,
-              status: "completed",
-              user: {
-                connect: {
-                  email: userEmail,
-                },
-              },
-              creditAmount,
-            },
-          })
-          .then((payment) => {
-            console.log("Payment DB created: ", payment);
-          })
-          .catch((error) => {
-            console.error("Error creating payment DB: ", error);
-          });
-
-        // Send email notifications
-        await sendPaymentSuccessEmail(
-          userEmail!,
-          payment.amount,
-          creditAmount,
-          payment.id
-        );
-
-        break;
-      }
-
-      case "payment_intent.payment_failed": {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-
-        await prisma.payment.create({
-          data: {
-            stripeSessionId: paymentIntent.id,
-            amount: paymentIntent.amount / 100,
-            currency: paymentIntent.currency,
-            status: "failed",
-            user: {
-              connect: {
-                email: paymentIntent.receipt_email!,
-              },
-            },
-            creditAmount: 0,
-          },
-        });
-        break;
-      }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    return NextResponse.json({ received: true });
+    const { amount, creditAmount } = await req.json();
+
+    const customerEmail = session.user.email ?? undefined; // Ensure type matches `string | undefined`.
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      submit_type: "pay",
+      payment_method_types: ["card"],
+      customer_email: customerEmail,
+      metadata: {
+        creditAmount: creditAmount.toString(),
+      },
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            unit_amount: formatAmountForStripe(amount, "eur"),
+            product_data: {
+              name: `${creditAmount} Credits`,
+              description: "Credits for Green Claims Validator",
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${
+        req.headers.get("origin") ?? ""
+      }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${req.headers.get("origin") ?? ""}/payments`,
+    });
+
+    return NextResponse.json(checkoutSession);
   } catch (error) {
-    console.error("Error processing webhook:", error);
+    console.error("Error creating checkout session:", error);
     return NextResponse.json(
-      { error: "Failed to process webhook" },
+      { error: "Failed to create checkout session" },
       { status: 500 }
     );
   }
