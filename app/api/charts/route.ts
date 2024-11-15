@@ -1,25 +1,32 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient
-
+const prisma = new PrismaClient();
 
 export async function GET() {
-    const data = await prisma.chartInstance.findMany()
-    return Response.json(data)
+  const data = await prisma.chartInstance.findMany();
+  return Response.json(data);
 }
 
 export async function POST(req: Request) {
-    const data: any = await req.json()
-    console.log(`${JSON.stringify(data)}`)
-    const res = prisma.chartInstance.create({
-        data: {
-            content: JSON.stringify(data)
-        }
-    }).then(() => {
-        console.log(`successfully added `)
+  const data: any = await req.json();
+  console.log(`${JSON.stringify(data)}`);
+  const res = prisma.chartInstance
+    .create({
+      data: {
+        content: JSON.stringify(data),
+        user: {
+          connect: {
+            id: data.userId, // Assuming the userId is part of the incoming data
+          },
+        },
+      },
     })
-    .catch(e => {
-        console.log(e)
+    .then(() => {
+      console.log(`successfully added `);
     })
-    return Response.json(res)
+    .catch((e) => {
+      console.log(e);
+    });
+  return Response.json(res);
 }
