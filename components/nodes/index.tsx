@@ -27,7 +27,7 @@ import { NodeWrapper } from './base/NodeWrapper';
 import { Modal } from './base/modal';
 
 export const StartNode = memo(({ id, data, selected }: NodeProps) => {
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
 
   const handleDelete = useCallback(() => {
     if (window.confirm('Are you sure you want to delete the start node?')) {
@@ -52,7 +52,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps) => {
 StartNode.displayName = 'StartNode';
 
 export const EndNode = memo(({ id, data, selected }: NodeProps) => {
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
   const chartInstances = chartStore.chartInstances;
   const otherInstances = chartInstances.filter(
     instance => instance.id !== data.instanceId
@@ -216,10 +216,8 @@ export const EndNode = memo(({ id, data, selected }: NodeProps) => {
 });
 EndNode.displayName = 'EndNode';
 
-// Continuing from previous implementation...
-
 export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
   const DEFAULT_QUESTION = "Select one of the following options:";
 
   const handleQuestionChange = useCallback((value: string) => {
@@ -336,7 +334,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
 SingleChoiceNode.displayName = 'SingleChoiceNode';
 
 export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
   const DEFAULT_QUESTION = "Select all that apply:";
 
   const handleQuestionChange = useCallback((value: string) => {
@@ -490,7 +488,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
 MultipleChoiceNode.displayName = 'MultipleChoiceNode';
 
 export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
   const DEFAULT_QUESTION = "Does your claim meet this requirement?";
 
   const handleQuestionChange = useCallback((value: string) => {
@@ -511,7 +509,6 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
       title="Yes/No Question"
       selected={selected}
       onDelete={handleDelete}
-      handles={false}
       headerClassName="bg-emerald-50/50"
     >
       <div className="space-y-4">
@@ -567,7 +564,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
 YesNoNode.displayName = 'YesNoNode';
 
 export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData>) => {
-  const { chartStore } = useStores();
+  const { chartStore } = useStores() as any;
 
   const handleWeightChange = useCallback((value: string) => {
     const weight = parseFloat(value) || 1;
@@ -588,7 +585,6 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
       title="Weight"
       selected={selected}
       onDelete={handleDelete}
-      handles={false}
       headerClassName="bg-amber-50/50"
     >
       <div className="space-y-4">
@@ -626,7 +622,7 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
 WeightNode.displayName = 'WeightNode';
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
-  const { chartStore, variableStore, utilityStore } = useStores();
+  const { chartStore, variableStore, utilityStore } = useStores() as any;
   const [nodeData, setNodeData] = useState({
     label: data?.label || "Function Node",
     variableScope: data?.variableScope || "local",
@@ -678,6 +674,9 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
       updateNodeData((prev) => {
         const newSequences = [...prev.sequences];
         if (parentIndex !== null) {
+          if (!newSequences[parentIndex].children) {
+            newSequences[parentIndex].children = [];
+          }
           newSequences[parentIndex].children.push(newOperation);
         } else {
           newSequences.push(newOperation);
@@ -716,7 +715,7 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
       const newSequences = [...prev.sequences];
       const ifBlock = newSequences[ifIndex];
 
-      if (!ifBlock.children.find((child) => child.type === "else")) {
+      if (ifBlock.children && !ifBlock.children.find((child) => child.type === "else")) {
         ifBlock.children.push({
           type: "else",
           variable: nodeData.selectedVariable,
@@ -732,7 +731,7 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
   const updateHandleForBlock = (parentIndex: number, handleId: string, blockType = "if") => {
     updateNodeData((prev) => {
       const newSequences = [...prev.sequences];
-      const block = newSequences[parentIndex].children.find(
+      const block = newSequences[parentIndex].children?.find(
         (child) => child.type === blockType
       );
 
@@ -766,9 +765,11 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
     updateNodeData((prev) => {
       const newSequences = [...prev.sequences];
       if (parentIndex !== null) {
-        newSequences[parentIndex].children = newSequences[parentIndex].children.filter(
-          (_, i) => i !== index
-        );
+        if (newSequences[parentIndex].children) {
+          newSequences[parentIndex].children = newSequences[parentIndex].children.filter(
+            (_, i) => i !== index
+          );
+        }
       } else {
         newSequences.splice(index, 1);
       }
@@ -858,7 +859,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
       title="Function"
       selected={selected}
       onDelete={handleDelete}
-      handles={false}
       headerClassName="bg-violet-50/50"
     >
       <div className="p-4 space-y-4">
