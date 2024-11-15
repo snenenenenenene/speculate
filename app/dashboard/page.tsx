@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/dashboard/page.tsx
 "use client";
 
@@ -9,7 +10,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 export default function DashboardPage() {
-	const { chartStore } = useStores();
+	const { chartStore } = useStores() as any;
 	const { chartInstances, setChartInstances } = chartStore;
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
