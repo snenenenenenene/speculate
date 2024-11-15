@@ -3,13 +3,15 @@ import { type ClassValue, clsx } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 const customTwMerge = extendTailwindMerge({
-  classGroups: {
-    // Add custom class groups here if needed
-    "font-size": [{ text: ["nav-size", "kicker-small-size"] }],
-    tracking: [
-      { tracking: ["nav-letter-spacing", "kicker-small-letter-spacing"] },
-    ],
-    leading: [{ leading: ["nav-line-height", "kicker-small-line-height"] }],
+  extend: {
+    classGroups: {
+      // Add custom class groups here if needed
+      "font-size": [{ text: ["nav-size", "kicker-small-size"] }],
+      tracking: [
+        { tracking: ["nav-letter-spacing", "kicker-small-letter-spacing"] },
+      ],
+      leading: [{ leading: ["nav-line-height", "kicker-small-line-height"] }],
+    },
   },
 });
 
