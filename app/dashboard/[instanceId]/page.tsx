@@ -205,7 +205,7 @@ function createNewNode(type: string, position: { x: number; y: number }, instanc
   }
 }
 
-const DashboardInstancePage = ({ params }: { params: { instanceId: string } }) => {
+const DashboardInstancePage = ({ params }) => {
   const { chartStore, utilityStore } = useStores();
   const { project, zoomIn, zoomOut } = useReactFlow();
   const [isLoading, setIsLoading] = useState(true);
