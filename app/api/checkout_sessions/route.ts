@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-// app/api/checkout_sessions/route.ts
 import { formatAmountForStripe } from "@/lib/stripe-helper";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
@@ -20,11 +19,13 @@ export async function POST(req: Request) {
 
     const { amount, creditAmount } = await req.json();
 
+    const customerEmail = session.user.email ?? undefined; // Ensure type matches `string | undefined`.
+
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",
       submit_type: "pay",
       payment_method_types: ["card"],
-      customer_email: session.user.email,
+      customer_email: customerEmail,
       metadata: {
         creditAmount: creditAmount.toString(),
       },
