@@ -76,7 +76,6 @@ export default function SettingsModal() {
 
 			await saveToDb(chartStore.chartInstances);
 			toast.success('Settings saved successfully');
-			closeModal();
 		} catch (error) {
 			console.error("Error saving settings:", error);
 			toast.error('Failed to save settings');
