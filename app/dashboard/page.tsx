@@ -67,5 +67,5 @@ export default function DashboardPage() {
 		);
 	}
 
-	return null; // We'll be redirected if we have instances
+	return null;
 }

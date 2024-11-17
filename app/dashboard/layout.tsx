@@ -32,9 +32,9 @@ export default function DashboardLayout({
   }, [instanceId, chartStore]);
 
   // Only show sidebar and quick actions on flow pages
-  if (!instanceId) {
-    return children;
-  }
+  // if (!instanceId) {
+  //   return children;
+  // }
 
   return (
     <ReactFlowProvider>
