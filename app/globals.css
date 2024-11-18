@@ -19,3 +19,23 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Add these to your existing styles */
+.animate-draw {
+  stroke-width: 2;
+  opacity: 0;
+  animation: fadeIn 0.1s ease-out forwards;
+}
+
+.animate-draw-delayed-1,
+.animate-draw-delayed-2 {
+  stroke-width: 2;
+  opacity: 0;
+  animation: fadeIn 0.1s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}

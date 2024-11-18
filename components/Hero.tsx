@@ -50,7 +50,7 @@ export default function Hero() {
 				</div>
 
 				{/* Editor Preview */}
-				<div className="relative mx-auto max-w-5xl">
+				<div className="relative mx-auto max-w-5xl pb-32">
 					<div className="relative">
 						{/* Gradient overlays */}
 						<div className="absolute -top-12 -left-12 w-64 h-64 bg-primary-400/10 rounded-full blur-3xl" />
@@ -72,7 +72,7 @@ export default function Hero() {
 
 							{/* Editor content */}
 							<Image
-								src="/placeholder-editor.webp"
+								src="/assets/images/placeholder-editor.png"
 								alt="Questionnaire Editor Interface"
 								width={1200}
 								height={800}
