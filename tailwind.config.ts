@@ -7,6 +7,20 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        satoshi: ["Satoshi"],
+        inter: ["Inter Tight"],
+        sans: ["Satoshi"],
+        mono: ["Inter Tight"],
+        intergral: ["Inter Tight"],
+        black: ["Sentient"],
+        normal: ["Satoshi"],
+        light: ["Inter Tigh"],
+        bold: ["Sentient"],
+        serif: ["Sentient"],
+        medium: ["Inter Tight"],
+        regular: ["Inter Tigh"],
+      },
       animation: {
         "fade-in": "fadeIn 0.5s ease-out forwards",
         draw: "draw 2s ease-out forwards",

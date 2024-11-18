@@ -14,6 +14,21 @@
   }
 }
 
+@font-face {
+  font-family: "Satoshi";
+  src: url("/assets/fonts/Satoshi/Fonts/TTF/Satoshi-Variable.ttf");
+}
+
+@font-face {
+  font-family: "Sentient";
+  src: url("/assets/fonts/Sentient/Sentient.ttf");
+}
+
+@font-face {
+  font-family: "Inter Tight";
+  src: url("/assets/fonts/Inter_Tight/InterTight-VariableFont_wght.ttf");
+}
+
 body {
   color: var(--foreground);
   background: var(--background);

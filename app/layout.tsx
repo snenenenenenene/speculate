@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`antialiased bg-base-50 min-h-screen`}
+        className={`antialiased font-satoshi bg-base-50 min-h-screen`}
       >
         <Providers>
           <Navbar />
