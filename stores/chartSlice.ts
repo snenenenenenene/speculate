@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from "uuid";
 import { StateCreator } from "zustand";
 import {
   ChartInstance,
-  ChartState,
   CompleteExport,
   EdgeChange,
   FlowExport,
@@ -15,7 +14,7 @@ import {
 
 const APPLICATION_VERSION = "1.0.0";
 
-const createChartSlice: StateCreator<ChartState> = (set, get) => ({
+const createChartSlice: StateCreator<any> = (set, get) => ({
   chartInstances: [],
   currentDashboardTab: "",
   tempGeneratedChart: null, // Temporary storage for AI-generated chart
