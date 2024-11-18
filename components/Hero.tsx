@@ -26,7 +26,7 @@ export default function Hero() {
 
 				<div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
 					<Link
-						href="/signup"
+						href="/auth"
 						className={cn(
 							"px-8 py-4 bg-primary-600 text-white rounded-full",
 							"hover:bg-primary-700 transition-colors",

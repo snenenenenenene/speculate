@@ -3,11 +3,13 @@
 import ApiSection from '@/components/ApiSection';
 import Cta from '@/components/Cta';
 import Features from '@/components/Features';
+import { GradientBackground } from '@/components/GradientBackground';
 import Hero from '@/components/Hero';
 
 export default function Home() {
   return (
-    <main>
+    <main className='relative'>
+      <GradientBackground />
       <Hero />
       <Features />
       <ApiSection />

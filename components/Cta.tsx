@@ -15,7 +15,7 @@ export default function Cta() {
 					Start building smarter questionnaires today. No credit card required.
 				</p>
 				<Link
-					href="/signup"
+					href="/auth"
 					className={cn(
 						"inline-flex items-center space-x-2",
 						"px-8 py-4 bg-white text-primary-600",

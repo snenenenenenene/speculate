@@ -147,7 +147,7 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 			)}
 
 			<Link
-				href={tier.name === "Org" ? "/contact" : "/signup"}
+				href={tier.name === "Org" ? "/contact" : "/auth"}
 				className={cn(
 					"mt-8 rounded-lg px-6 py-3 text-center text-sm font-medium transition-colors",
 					tier.popular

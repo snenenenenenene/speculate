@@ -27,7 +27,7 @@ export default function Navbar() {
 	}, []);
 
 	// Check if current route is a dashboard route
-	const isDashboardRoute = pathname.startsWith('/dashboard');
+	const isDashboardRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/auth');
 
 	const navItems = [
 		{ label: 'Features', href: '/features' },
@@ -126,7 +126,7 @@ export default function Navbar() {
 								Log in
 							</Link>
 							<Link
-								href="/signup"
+								href="/auth"
 								className={cn(
 									"px-4 py-2 rounded-full text-sm font-medium",
 									"bg-primary-600 text-white",
@@ -263,7 +263,7 @@ export default function Navbar() {
 											Log in
 										</Link>
 										<Link
-											href="/signup"
+											href="/auth"
 											onClick={() => setMobileMenuOpen(false)}
 											className={cn(
 												"bg-primary-600 text-white",
