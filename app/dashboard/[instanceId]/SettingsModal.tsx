@@ -7,28 +7,24 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import {
 	AlertTriangle,
-	Database,
-	Globe,
 	Hash,
-	Layout,
-	Plus,
-	Save,
-	Trash2,
-	X
+	Layout, Plus, Save, Trash2, X
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import React, { useState } from 'react';
 import { toast } from "react-hot-toast";
 
-export default function SettingsModal() {
+interface SettingsModalProps {
+	isOpen: boolean;
+	onClose: () => void;
+	currentInstance: any;
+}
+
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentInstance }) => {
+	const router = useRouter();
 	const { chartStore, utilityStore, variableStore } = useStores() as any;
-	const { setCurrentTabColor, setOnePage, updateChartInstanceName, deleteTab } = chartStore;
-	const { currentTab, saveToDb } = utilityStore;
-
-	const currentInstance = chartStore.getChartInstance(currentTab);
-	const modalRef = useRef<HTMLDialogElement>(null);
-
 	const [activeTab, setActiveTab] = useState("general");
-	const [newColor, setNewColor] = useState(currentInstance?.color || "#80B500");
+	const [newColor, setNewColor] = useState(currentInstance?.color || "#721d62");
 	const [onePageMode, setOnePageMode] = useState(currentInstance?.onePageMode || false);
 	const [newTabName, setNewTabName] = useState(currentInstance?.name || "");
 	const [localVariables, setLocalVariables] = useState(currentInstance?.variables || []);
@@ -37,50 +33,64 @@ export default function SettingsModal() {
 	const [newVariableValue, setNewVariableValue] = useState("");
 	const [newVariableScope, setNewVariableScope] = useState<"local" | "global">("local");
 	const [isSaving, setIsSaving] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-	useEffect(() => {
-		if (currentInstance) {
-			setNewColor(currentInstance.color || "#80B500");
-			setOnePageMode(currentInstance.onePageMode || false);
-			setNewTabName(currentInstance.name);
-			setLocalVariables(currentInstance.variables || []);
-		}
-		setGlobalVariables(variableStore.variables?.global || []);
-	}, [currentInstance, variableStore.variables]);
-
 	const handleSaveSettings = async () => {
-		if (!currentInstance) return;
-
-		if (!newTabName.trim()) {
+		if (!currentInstance || !newTabName.trim()) {
 			toast.error('Flow name cannot be empty');
 			return;
 		}
 
 		setIsSaving(true);
 		try {
-			setCurrentTabColor(currentInstance.id, newColor);
-			setOnePage(currentInstance.id, onePageMode);
-			updateChartInstanceName(currentInstance.id, newTabName);
+			chartStore.setCurrentTabColor(currentInstance.id, newColor);
+			chartStore.setOnePage(currentInstance.id, onePageMode);
+			chartStore.updateChartInstanceName(currentInstance.id, newTabName);
 
 			const updatedInstance = {
 				...currentInstance,
 				color: newColor,
-				onePageMode: onePageMode,
+				onePageMode,
 				name: newTabName,
 				variables: localVariables,
 			};
 
 			chartStore.updateChartInstance(updatedInstance);
 			variableStore.setVariables({ ...variableStore.variables, global: globalVariables });
+			await utilityStore.saveToDb(chartStore.chartInstances);
 
-			await saveToDb(chartStore.chartInstances);
+			onClose();
 			toast.success('Settings saved successfully');
 		} catch (error) {
-			console.error("Error saving settings:", error);
 			toast.error('Failed to save settings');
 		} finally {
 			setIsSaving(false);
+		}
+	};
+
+	const handleDeleteFlow = async () => {
+		if (!currentInstance) return;
+		setIsDeleting(true);
+
+		try {
+			chartStore.deleteTab(currentInstance.id);
+			await utilityStore.saveToDb(chartStore.chartInstances);
+			onClose();
+
+			const remainingFlows = chartStore.chartInstances;
+			if (remainingFlows.length > 0) {
+				await router.push(`/dashboard/${remainingFlows[0].id}`);
+			} else {
+				await router.push('/dashboard');
+			}
+
+			toast.success('Flow deleted successfully');
+		} catch (error) {
+			console.error('Error deleting flow:', error);
+			toast.error('Failed to delete flow');
+		} finally {
+			setIsDeleting(false);
 		}
 	};
 
@@ -90,274 +100,214 @@ export default function SettingsModal() {
 			return;
 		}
 
-		const isDuplicate = (newVariableScope === "local" ? localVariables : globalVariables)
-			.some(v => v.name === newVariableName);
+		const variables = newVariableScope === "local" ? localVariables : globalVariables;
+		const setVariables = newVariableScope === "local" ? setLocalVariables : setGlobalVariables;
 
-		if (isDuplicate) {
+		if (variables.some(v => v.name === newVariableName)) {
 			toast.error(`A ${newVariableScope} variable with this name already exists`);
 			return;
 		}
 
-		const newVariable = { name: newVariableName, value: newVariableValue };
-		if (newVariableScope === "local") {
-			setLocalVariables(prev => [...prev, newVariable]);
-		} else {
-			setGlobalVariables(prev => [...prev, newVariable]);
-		}
+		setVariables(prev => [...prev, { name: newVariableName, value: newVariableValue }]);
 		setNewVariableName("");
 		setNewVariableValue("");
 		toast.success(`${newVariableScope} variable added`);
 	};
 
-	const tabs = [
-		{ id: "general", label: "General", icon: Layout },
-		{ id: "variables", label: "Variables", icon: Hash },
-		{ id: "danger", label: "Danger Zone", icon: AlertTriangle },
-	];
+	if (!isOpen) return null;
 
 	return (
-		<dialog
-			ref={modalRef}
-			id="settings_modal"
-			className="modal modal-bottom sm:modal-middle"
-			onClose={() => {
-				setShowDeleteConfirm(false);
-				setActiveTab("general");
-			}}
-		>
-			<div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-auto">
-				<div className="flex items-center justify-between p-4 border-b border-gray-200">
-					<h2 className="text-lg font-semibold text-gray-900">Flow Settings</h2>
-					<button
-						onClick={() => modalRef.current?.close()}
-						className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-						aria-label="Close settings"
-					>
-						<X className="h-5 w-5 text-gray-500" />
+		<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+			<motion.div
+				initial={{ opacity: 0, scale: 0.95 }}
+				animate={{ opacity: 1, scale: 1 }}
+				exit={{ opacity: 0, scale: 0.95 }}
+				className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden"
+			>
+				<div className="flex items-center justify-between p-4 border-b">
+					<h2 className="text-lg font-medium">Settings</h2>
+					<button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+						<X className="h-5 w-5" />
 					</button>
 				</div>
 
-				<div className="flex border-b border-gray-200">
-					{tabs.map((tab) => {
-						const Icon = tab.icon;
-						return (
-							<button
-								key={tab.id}
-								onClick={() => setActiveTab(tab.id)}
-								className={cn(
-									"flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors",
-									"focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-									activeTab === tab.id
-										? "border-b-2 border-blue-500 text-blue-600"
-										: "text-gray-600 hover:text-gray-900"
-								)}
-							>
-								<Icon className="h-4 w-4" />
-								{tab.label}
-							</button>
-						);
-					})}
+				<div className="flex border-b">
+					{[
+						{ id: "general", icon: Layout, label: "General" },
+						{ id: "variables", icon: Hash, label: "Variables" },
+						{ id: "danger", icon: AlertTriangle, label: "Danger" }
+					].map((tab) => (
+						<button
+							key={tab.id}
+							onClick={() => setActiveTab(tab.id)}
+							className={cn(
+								"flex items-center gap-2 px-4 py-2 text-sm transition-colors",
+								activeTab === tab.id
+									? "border-b-2 border-purple-500 text-purple-600"
+									: "text-gray-500 hover:text-gray-700"
+							)}
+						>
+							<tab.icon className="h-4 w-4" />
+							{tab.label}
+						</button>
+					))}
 				</div>
 
-				<div className="p-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+				<div className="p-4 max-h-[60vh] overflow-y-auto">
 					<AnimatePresence mode="wait">
 						{activeTab === "general" && (
 							<motion.div
-								initial={{ opacity: 0, y: 20 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: -20 }}
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
 								className="space-y-4"
 							>
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Flow Name
-									</label>
+									<label className="text-sm font-medium text-gray-700">Flow Name</label>
 									<input
 										type="text"
 										value={newTabName}
 										onChange={(e) => setNewTabName(e.target.value)}
-										className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-										placeholder="Enter flow name"
+										className="mt-1 w-full px-3 py-2 border rounded-md"
 									/>
 								</div>
 
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Theme Color
-									</label>
-									<div className="flex items-center gap-3">
+									<label className="text-sm font-medium text-gray-700">Theme Color</label>
+									<div className="flex gap-2 mt-1">
 										<input
 											type="color"
 											value={newColor}
 											onChange={(e) => setNewColor(e.target.value)}
-											className="h-10 w-20 rounded cursor-pointer"
+											className="h-9 w-16"
 										/>
 										<input
 											type="text"
 											value={newColor}
 											onChange={(e) => setNewColor(e.target.value)}
-											className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-											placeholder="#000000"
-											pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+											className="px-3 py-2 border rounded-md"
 										/>
 									</div>
 								</div>
 
-								<div className="flex items-center gap-3">
-									<label className="relative inline-flex items-center cursor-pointer">
-										<input
-											type="checkbox"
-											checked={onePageMode}
-											onChange={(e) => setOnePageMode(e.target.checked)}
-											className="sr-only peer"
-										/>
-										<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-									</label>
-									<span className="text-sm font-medium text-gray-700">
-										Enable One Page Mode
-									</span>
-								</div>
+								<label className="flex items-center gap-2">
+									<input
+										type="checkbox"
+										checked={onePageMode}
+										onChange={(e) => setOnePageMode(e.target.checked)}
+										className="rounded text-purple-500"
+									/>
+									<span className="text-sm text-gray-700">One Page Mode</span>
+								</label>
 							</motion.div>
 						)}
 
 						{activeTab === "variables" && (
 							<motion.div
-								initial={{ opacity: 0, y: 20 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: -20 }}
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
 								className="space-y-4"
 							>
-								<div className="flex items-center gap-2 mb-4">
-									<button
-										onClick={() => setNewVariableScope("local")}
-										className={cn(
-											"flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
-											newVariableScope === "local"
-												? "bg-blue-100 text-blue-700"
-												: "bg-gray-100 text-gray-600 hover:bg-gray-200"
-										)}
-									>
-										<Database className="h-4 w-4" />
-										Local
-									</button>
-									<button
-										onClick={() => setNewVariableScope("global")}
-										className={cn(
-											"flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
-											newVariableScope === "global"
-												? "bg-blue-100 text-blue-700"
-												: "bg-gray-100 text-gray-600 hover:bg-gray-200"
-										)}
-									>
-										<Globe className="h-4 w-4" />
-										Global
-									</button>
+								<div className="flex gap-2">
+									{["local", "global"].map((scope) => (
+										<button
+											key={scope}
+											onClick={() => setNewVariableScope(scope as "local" | "global")}
+											className={cn(
+												"px-3 py-1.5 rounded text-sm",
+												newVariableScope === scope
+													? "bg-purple-100 text-purple-700"
+													: "bg-gray-100 text-gray-600"
+											)}
+										>
+											{scope.charAt(0).toUpperCase() + scope.slice(1)}
+										</button>
+									))}
 								</div>
 
 								<div className="flex gap-2">
 									<input
-										type="text"
+										placeholder="Name"
 										value={newVariableName}
 										onChange={(e) => setNewVariableName(e.target.value)}
-										placeholder="Variable name"
-										className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+										className="flex-1 px-3 py-2 border rounded-md"
 									/>
 									<input
-										type="text"
+										placeholder="Value"
 										value={newVariableValue}
 										onChange={(e) => setNewVariableValue(e.target.value)}
-										placeholder="Value"
-										className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+										className="flex-1 px-3 py-2 border rounded-md"
 									/>
 									<button
 										onClick={handleAddVariable}
-										className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+										className="p-2 bg-purple-500 text-white rounded-md hover:bg-purple-600"
 									>
 										<Plus className="h-5 w-5" />
 									</button>
 								</div>
 
 								<div className="space-y-2">
-									<h3 className="font-medium text-gray-900">
-										{newVariableScope === "local" ? "Local" : "Global"} Variables
-									</h3>
-									<div className="space-y-2">
-										{(newVariableScope === "local" ? localVariables : globalVariables).map(
-											(variable, index) => (
-												<div
-													key={index}
-													className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
-												>
-													<div>
-														<span className="font-medium text-gray-900">
-															{variable.name}
-														</span>
-														<span className="text-gray-500 ml-2">
-															= {variable.value}
-														</span>
-													</div>
-													<button
-														onClick={() =>
-															newVariableScope === "local"
-																? setLocalVariables((prev) =>
-																	prev.filter((_, i) => i !== index)
-																)
-																: setGlobalVariables((prev) =>
-																	prev.filter((_, i) => i !== index)
-																)
-														}
-														className="p-1 text-red-500 hover:bg-red-50 rounded"
-														aria-label="Remove variable"
-													>
-														<X className="h-4 w-4" />
-													</button>
+									{(newVariableScope === "local" ? localVariables : globalVariables).map(
+										(variable, index) => (
+											<div
+												key={index}
+												className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+											>
+												<div>
+													<span className="font-medium">{variable.name}</span>
+													<span className="text-gray-500 ml-2">{variable.value}</span>
 												</div>
-											)
-										)}
-									</div>
+												<button
+													onClick={() => {
+														const setVariables = newVariableScope === "local"
+															? setLocalVariables
+															: setGlobalVariables;
+														setVariables(prev => prev.filter((_, i) => i !== index));
+													}}
+													className="p-1 text-gray-400 hover:text-red-500"
+												>
+													<X className="h-4 w-4" />
+												</button>
+											</div>
+										)
+									)}
 								</div>
 							</motion.div>
 						)}
 
 						{activeTab === "danger" && (
 							<motion.div
-								initial={{ opacity: 0, y: 20 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: -20 }}
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
 								className="space-y-4"
 							>
-								<div className="bg-red-50 border border-red-200 rounded-lg p-4">
+								<div className="bg-red-50 border border-red-100 rounded-lg p-4">
 									<h3 className="text-red-800 font-medium mb-2">Delete Flow</h3>
-									<p className="text-red-600 text-sm mb-4">
-										This action cannot be undone. This will permanently delete this
-										flow and all associated data.
-									</p>
 									{!showDeleteConfirm ? (
 										<button
 											onClick={() => setShowDeleteConfirm(true)}
-											className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+											className="flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
 										>
 											<Trash2 className="h-4 w-4" />
 											Delete Flow
 										</button>
 									) : (
 										<div className="space-y-2">
-											<p className="text-red-800 font-medium">
-												Are you sure? This cannot be undone.
-											</p>
-											<div className="flex items-center gap-2">
+											<p className="text-red-600">Are you sure? This cannot be undone.</p>
+											<div className="flex gap-2">
 												<button
-													onClick={() => {
-														deleteTab(currentInstance.id);
-														modalRef.current?.close();
-													}}
-													className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+													onClick={handleDeleteFlow}
+													disabled={isDeleting}
+													className="flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50"
 												>
-													Yes, delete flow
+													{isDeleting ? <LoadingSpinner className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+													{isDeleting ? "Deleting..." : "Yes, delete"}
 												</button>
 												<button
 													onClick={() => setShowDeleteConfirm(false)}
-													className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+													className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
 												>
 													Cancel
 												</button>
@@ -370,21 +320,17 @@ export default function SettingsModal() {
 					</AnimatePresence>
 				</div>
 
-				<div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200">
+				<div className="flex justify-end gap-2 p-4 border-t">
 					<button
-						onClick={() => modalRef.current?.close()}
-						className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+						onClick={onClose}
+						className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
 					>
 						Cancel
 					</button>
 					<button
 						onClick={handleSaveSettings}
 						disabled={isSaving}
-						className={cn(
-							"flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors",
-							"bg-blue-500 hover:bg-blue-600",
-							"disabled:opacity-50 disabled:cursor-not-allowed"
-						)}
+						className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
 					>
 						{isSaving ? (
 							<>
@@ -394,16 +340,14 @@ export default function SettingsModal() {
 						) : (
 							<>
 								<Save className="h-4 w-4" />
-								Save Changes
+								Save
 							</>
 						)}
 					</button>
 				</div>
-			</div>
-
-			<form method="dialog" className="modal-backdrop">
-				<button>close</button>
-			</form>
-		</dialog>
+			</motion.div>
+		</div>
 	);
 };
+
+export default SettingsModal;

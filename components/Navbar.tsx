@@ -5,12 +5,14 @@ import { cn } from "@/lib/utils";
 import { LayoutDashboard } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from 'react';
 
 export default function Navbar() {
 	const [isHeaderHidden, setIsHeaderHidden] = useState(false);
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const { data: session } = useSession();
+	const pathname = usePathname();
 
 	useEffect(() => {
 		let lastScroll = 0;
@@ -23,11 +25,19 @@ export default function Navbar() {
 		return () => window.removeEventListener('scroll', handleScroll);
 	}, []);
 
+	// Check if current route is a dashboard route
+	const isDashboardRoute = pathname.startsWith('/dashboard');
+
 	const navItems = [
 		{ label: 'Features', href: '/features' },
 		{ label: 'Documentation', href: '/documentation' },
 		{ label: 'Pricing', href: '/pricing' }
 	];
+
+	// Return null after all hooks are called
+	if (isDashboardRoute) {
+		return null;
+	}
 
 	return (
 		<header

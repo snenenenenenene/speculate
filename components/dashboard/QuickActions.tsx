@@ -7,6 +7,7 @@ import { LoadingSpinner } from "@/components/ui/base";
 import { useStores } from "@/hooks/useStores";
 import { cn } from "@/lib/utils";
 import {
+	ArrowLeft,
 	Download,
 	GitCommit,
 	Save,
@@ -14,13 +15,18 @@ import {
 	Upload,
 	XCircle
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { FlowSelector } from "./FlowSelector";
 import { ImportChoiceDialog } from "./ImportChoiceDialog";
 
-export function QuickActions() {
+interface QuickActionsProps {
+	onOpenSettings: () => void;
+}
+
+export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const router = useRouter();
 	const { chartStore, commitStore, utilityStore } = useStores() as any;
 	const [isSaving, setIsSaving] = useState(false);
@@ -151,7 +157,16 @@ export function QuickActions() {
 
 	return (
 		<div className="flex items-center gap-2">
-			{/* Flow Selector */}
+			<Link
+				href="/"
+				className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors mr-2"
+			>
+				<ArrowLeft className="h-4 w-4" />
+				Back to Home
+			</Link>
+
+			<div className="h-6 w-px bg-gray-200" />
+
 			<FlowSelector
 				currentFlow={chartStore.getCurrentChartInstance()}
 				chartInstances={chartStore.chartInstances}
@@ -162,7 +177,6 @@ export function QuickActions() {
 
 			<div className="h-6 w-px bg-gray-200" />
 
-			{/* Quick Save */}
 			<button
 				onClick={handleQuickSave}
 				disabled={isSaving}
@@ -181,7 +195,6 @@ export function QuickActions() {
 				Save
 			</button>
 
-			{/* Commit */}
 			<button
 				onClick={() => setIsCommitModalOpen(true)}
 				className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
@@ -190,7 +203,6 @@ export function QuickActions() {
 				Commit
 			</button>
 
-			{/* Import/Export */}
 			<div className="h-6 w-px bg-gray-200" />
 
 			<button
@@ -201,22 +213,15 @@ export function QuickActions() {
 				Import/Export
 			</button>
 
-			{/* Settings */}
 			<div className="h-6 w-px bg-gray-200" />
 
 			<button
-				onClick={() => {
-					const modal = document.getElementById('settings_modal') as HTMLDialogElement;
-					if (modal) modal.showModal();
-				}}
+				onClick={() => onOpenSettings()}
 				className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
 			>
 				<Settings className="h-4 w-4" />
 				Settings
 			</button>
-
-			{/* All existing modals (Commit, Settings, etc.) remain the same */}
-			{/* ... */}
 
 			{/* Import/Export Modal */}
 			<Dialog

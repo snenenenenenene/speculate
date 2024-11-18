@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/dashboard/layout.tsx
 "use client";
 
 import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
@@ -11,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "reactflow";
 import "reactflow/dist/style.css";
+import SettingsModal from "./[instanceId]/SettingsModal";
 
 export default function DashboardLayout({
   children,
@@ -21,20 +21,17 @@ export default function DashboardLayout({
   const { chartStore } = useStores() as any;
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Extract instanceId from pathname if we're on a flow page
   const instanceId = pathname.startsWith('/dashboard/') ? pathname.split('/')[2] : null;
+  const currentInstance = instanceId ? chartStore.getChartInstance(instanceId) : null;
 
   useEffect(() => {
     if (instanceId) {
       chartStore.setCurrentDashboardTab(instanceId);
     }
   }, [instanceId, chartStore]);
-
-  // Only show sidebar and quick actions on flow pages
-  // if (!instanceId) {
-  //   return children;
-  // }
 
   return (
     <ReactFlowProvider>
@@ -56,7 +53,7 @@ export default function DashboardLayout({
             </button>
 
             {/* Quick Actions */}
-            <QuickActions />
+            <QuickActions onOpenSettings={() => setIsSettingsOpen(true)} />
           </div>
         </div>
 
@@ -109,6 +106,15 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {currentInstance && (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          currentInstance={currentInstance}
+        />
+      )}
 
       {/* Global Styles */}
       <style jsx global>{`
