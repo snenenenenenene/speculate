@@ -27,26 +27,6 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       return state;
     }),
 
-  addNewTab: (newTabName: string) => {
-    const newTab: ChartInstance = {
-      id: uuidv4(),
-      name: newTabName,
-      nodes: [],
-      edges: [],
-      color: "#80B500",
-      onePageMode: false,
-      publishedVersions: [],
-      variables: [],
-    };
-
-    set((state) => ({
-      chartInstances: [...state.chartInstances, newTab],
-      currentDashboardTab: newTab.id,
-    }));
-
-    return newTab.id;
-  },
-
   updateNodes: (instanceId: string, changes: NodeChange[]) =>
     set((state) => ({
       chartInstances: state.chartInstances.map((instance) =>
@@ -70,6 +50,32 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
           : instance
       ),
     })),
+
+  addNewTab: async (newTabName: string) => {
+    const newTab: ChartInstance = {
+      id: uuidv4(),
+      name: newTabName,
+      nodes: [],
+      edges: [],
+      color: "#80B500",
+      onePageMode: false,
+      publishedVersions: [],
+      variables: [],
+    };
+
+    set((state) => ({
+      chartInstances: [...state.chartInstances, newTab],
+      currentDashboardTab: newTab.id,
+    }));
+
+    try {
+      await get().saveToDb([...get().chartInstances]); // Save all instances
+      return newTab.id;
+    } catch (error) {
+      console.error("Failed to save new tab:", error);
+      throw error;
+    }
+  },
 
   addNode: (instanceId: string, newNode: Node) =>
     set((state: any) => ({
@@ -239,11 +245,11 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
 
   getCurrentChartInstance: () => {
     const { chartInstances, currentDashboardTab } = get();
-    return chartInstances.find(
-      (instance) => instance.id === currentDashboardTab
-    );
+    console.log(chartInstances);
+    return Array.isArray(chartInstances)
+      ? chartInstances.find((instance) => instance.id === currentDashboardTab)
+      : null;
   },
-
   addAIChart: (chartData: any) => {
     const newChart: ChartInstance = {
       id: uuidv4(),

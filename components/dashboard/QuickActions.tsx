@@ -61,9 +61,13 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 		router.push(`/dashboard/${id}`);
 	};
 
-	const handleNewFlow = () => {
-		const newTabId = chartStore.addNewTab(`New Flow ${chartStore.chartInstances.length + 1}`);
-		router.push(`/dashboard/${newTabId}`);
+	const handleNewFlow = async () => {
+		try {
+			const newTabId = await chartStore.addNewTab(`New Flow ${chartStore.chartInstances.length + 1}`);
+			await router.push(`/dashboard/${newTabId}`);
+		} catch (error) {
+			toast.error('Failed to create new flow');
+		}
 	};
 
 	const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

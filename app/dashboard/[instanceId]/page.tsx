@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -20,12 +21,118 @@ import ReactFlow, {
   Background, BackgroundVariant,
   BaseEdge,
   Connection, ConnectionLineType,
-  Controls,
   EdgeLabelRenderer, EdgeProps,
-  MiniMap,
   getSmoothStepPath,
   useReactFlow
 } from "reactflow";
+
+function createNewNode(type: string, position: { x: number; y: number }, instanceId: string) {
+  const newNodeId = `${type}-${Math.random().toString(36).substr(2, 9)}`;
+
+  const baseNode = {
+    id: newNodeId,
+    type,
+    position,
+    data: {
+      label: `${type} node`,
+      instanceId,
+    },
+    style: {
+      background: '#ffffff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      padding: '12px',
+    },
+  };
+
+  switch (type) {
+    case "yesNo":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          question: "Yes/No Question",
+          options: [
+            { label: "yes", nextNodeId: null },
+            { label: "no", nextNodeId: null },
+          ],
+        },
+      };
+
+    case "singleChoice":
+    case "multipleChoice":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          question: `${type === 'singleChoice' ? 'Single' : 'Multiple'} Choice Question`,
+          options: [
+            { id: crypto.randomUUID(), label: "Option 1", nextNodeId: null },
+            { id: crypto.randomUUID(), label: "Option 2", nextNodeId: null },
+          ],
+        },
+      };
+
+    case "weightNode":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          weight: 1,
+          nextNodeId: null,
+          previousQuestionIds: [],
+          options: [{ label: "DEFAULT", nextNodeId: null }],
+        },
+      };
+
+    case "functionNode":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          variableScope: "local",
+          selectedVariable: "",
+          sequences: [],
+          handles: ["default"],
+        },
+      };
+
+    case "startNode":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          label: "Start",
+          options: [{ label: "DEFAULT", nextNodeId: null }],
+        },
+        style: {
+          ...baseNode.style,
+          background: '#ecfdf5',
+          borderColor: '#6ee7b7',
+        },
+      };
+
+    case "endNode":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          label: "End",
+          endType: "end",
+          redirectTab: "",
+        },
+        style: {
+          ...baseNode.style,
+          background: '#fef2f2',
+          borderColor: '#fca5a5',
+        },
+      };
+
+    default:
+      return baseNode;
+  }
+}
+
 
 function EditableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }: EdgeProps) {
   const { setEdges } = useReactFlow();
@@ -328,12 +435,31 @@ function AIFlowGenerator({ onGenerate, loading }: AIFlowGeneratorProps) {
   );
 }
 const DashboardInstancePage = ({ params }) => {
-  const { chartStore } = useStores() as any;
+  const { chartStore, utilityStore } = useStores() as any;
+  const router = useRouter();
   const { project } = useReactFlow();
   const [loadingAI, setLoadingAI] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const resolvedParams: any = React.use(params);
+  const resolvedParams = React.use(params);
   const instanceId = decodeURIComponent(resolvedParams.instanceId);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (chartStore.chartInstances.length === 0) {
+        setIsLoading(true);
+
+        const savedData = await utilityStore.loadSavedData();
+        if (savedData && Array.isArray(savedData)) {
+          chartStore.setChartInstances(savedData);
+        }
+        setIsLoading(false);
+
+      }
+    };
+
+    loadData();
+  }, [chartStore, utilityStore]);
 
   const onNodesChange = useCallback(
     (changes) => {
@@ -375,26 +501,33 @@ const DashboardInstancePage = ({ params }) => {
     }
   };
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        if (chartStore.chartInstances.length === 0) {
-          const response = await fetch("/api/load-chart");
-          if (response.ok) {
-            const data = await response.json();
-            chartStore.setChartInstances(JSON.parse(data.content));
-          }
-        }
-        chartStore.setCurrentDashboardTab(instanceId);
-      } catch (error) {
-        toast.error("Failed to load flow");
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const type = event.dataTransfer.getData("application/reactflow");
+      const position = project({ x: event.clientX, y: event.clientY });
+      const newNode = createNewNode(type, position, instanceId);
+      if (newNode) {
+        chartStore.addNode(instanceId, newNode);
       }
-    };
+    },
+    [project, chartStore, instanceId]
+  );
 
-    loadData();
-  }, [instanceId, chartStore]);
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
 
   const currentInstance = chartStore.getChartInstance(instanceId);
+
+  // if (isLoading) {
+  //   return (
+  //     <div className="flex h-full items-center justify-center">
+  //       <LoadingSpinner className="h-8 w-8 text-purple-600" />
+  //     </div>
+  //   );
+  // }
 
   if (!currentInstance) {
     return (
@@ -407,6 +540,8 @@ const DashboardInstancePage = ({ params }) => {
   return (
     <div className="h-full">
       <ReactFlow
+        onDrop={onDrop}
+        onDragOver={onDragOver}
         nodes={currentInstance.nodes}
         edges={currentInstance.edges}
         onNodesChange={onNodesChange}
@@ -421,13 +556,11 @@ const DashboardInstancePage = ({ params }) => {
           onGenerate={handleGenerateAI}
           loading={loadingAI}
         />
-        <MiniMap />
-        <Controls />
+
         <Background variant={BackgroundVariant.Dots} />
       </ReactFlow>
       <Toaster />
     </div>
   );
 };
-
 export default DashboardInstancePage;
