@@ -442,7 +442,7 @@ const DashboardInstancePage = ({ params }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const resolvedParams = React.use(params);
-  const instanceId = decodeURIComponent(resolvedParams.instanceId);
+  const instanceId = decodeURIComponent((resolvedParams as any).instanceId);
 
   useEffect(() => {
     const loadData = async () => {
