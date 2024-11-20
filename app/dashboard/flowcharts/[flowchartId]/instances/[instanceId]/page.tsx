@@ -443,6 +443,7 @@ const DashboardInstancePage = ({ params }) => {
 
   const resolvedParams = React.use(params);
   const instanceId = decodeURIComponent((resolvedParams as any).instanceId);
+  const flowchartId = decodeURIComponent((resolvedParams as any).flowchartId);
 
   useEffect(() => {
     const loadData = async () => {

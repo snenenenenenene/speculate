@@ -22,7 +22,6 @@ export default function FlowchartsPage() {
 	const [newFlowchartColor, setNewFlowchartColor] = useState('#80B500');
 	const [isCreating, setIsCreating] = useState(false);
 
-	// Fetch flowcharts
 	const fetchFlowcharts = async () => {
 		try {
 			const response = await fetch('/api/flowcharts');

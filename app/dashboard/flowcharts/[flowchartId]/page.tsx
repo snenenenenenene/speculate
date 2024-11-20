@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal } from '@/components/nodes/base/modal';
+import { Modal } from '@/components/nodes/base/Modal';
 import { Button, Card, CardContent, CardHeader, Input, Label, LoadingSpinner } from '@/components/ui/base';
 import { ExternalLink, Plus, X } from 'lucide-react';
 import Link from 'next/link';
@@ -26,7 +26,6 @@ export default function FlowchartInstancesPage() {
 	const [newInstanceName, setNewInstanceName] = useState('');
 	const [isCreating, setIsCreating] = useState(false);
 
-	// Fetch instances
 	const fetchInstances = async () => {
 		try {
 			const response = await fetch(`/api/flowcharts/${flowchartId}/instances`);
