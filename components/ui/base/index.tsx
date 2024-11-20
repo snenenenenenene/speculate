@@ -136,4 +136,99 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
 ));
 Textarea.displayName = 'Textarea';
 
+// Card Components
+export const Card = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({
+	className,
+	...props
+}, ref) => (
+	<div
+		ref={ref}
+		className={cn(
+			"rounded-lg border border-gray-200 bg-white shadow-sm",
+			"transition-shadow hover:shadow-lg",
+			className
+		)}
+		{...props}
+	/>
+));
+Card.displayName = 'Card';
+
+export const CardHeader = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({
+	className,
+	...props
+}, ref) => (
+	<div
+		ref={ref}
+		className={cn("flex flex-col space-y-1.5 p-6", className)}
+		{...props}
+	/>
+));
+CardHeader.displayName = 'CardHeader';
+
+export const CardTitle = forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(({
+	className,
+	...props
+}, ref) => (
+	<h3
+		ref={ref}
+		className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+		{...props}
+	/>
+));
+CardTitle.displayName = 'CardTitle';
+
+export const CardContent = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({
+	className,
+	...props
+}, ref) => (
+	<div
+		ref={ref}
+		className={cn("p-6 pt-0", className)}
+		{...props}
+	/>
+));
+CardContent.displayName = 'CardContent';
+
+// Label
+export interface LabelProps extends React.LabelHTMLAttributes<HTMLLabelElement> { }
+
+export const Label = forwardRef<HTMLLabelElement, LabelProps>(({
+	className,
+	...props
+}, ref) => (
+	<label
+		ref={ref}
+		className={cn(
+			"text-sm font-medium text-gray-700",
+			className
+		)}
+		{...props}
+	/>
+));
+Label.displayName = 'Label';
+
+// Input
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> { }
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(({
+	className,
+	type,
+	...props
+}, ref) => (
+	<input
+		type={type}
+		ref={ref}
+		className={cn(
+			"flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm",
+			"placeholder:text-gray-400",
+			"focus:outline-none focus:ring-2 focus:ring-purple-500",
+			"disabled:cursor-not-allowed disabled:opacity-50",
+			type === 'color' && "h-10 p-1",
+			className
+		)}
+		{...props}
+	/>
+));
+Input.displayName = 'Input';
+
 export { ArrowRight, Sparkles, X };

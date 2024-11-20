@@ -50,7 +50,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   payments      Payment[]
-  chartInstance ChartInstance?
+  flowcharts    Flowchart[]
 
   @@index([email])
   @@index([role])
@@ -70,22 +70,42 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model ChartInstance {
+
+model Flowchart {
   id          String    @id @default(cuid())
   content     String    @db.Text
-  name        String    @default("New Chart")
+  name        String    @default("New Flowchart")
   color       String    @default("#80B500")
   onePageMode Boolean   @default(false)
   isPublished Boolean   @default(false)
   version     Int       @default(1)
+  apiKey      String    @unique @default(cuid()) // Added for API access
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  userId      String    @unique
+  userId      String    
   user        User      @relation(fields: [userId], references: [id])
 
   @@index([isPublished])
+  @@index([userId])
 }
+
+// model ChartInstance {
+//   id          String    @id @default(cuid())
+//   content     String    @db.Text
+//   name        String    @default("New Chart")
+//   color       String    @default("#80B500")
+//   onePageMode Boolean   @default(false)
+//   isPublished Boolean   @default(false)
+//   version     Int       @default(1)
+//   createdAt   DateTime  @default(now())
+//   updatedAt   DateTime  @updatedAt
+  
+//   userId      String    @unique
+//   user        User      @relation(fields: [userId], references: [id])
+
+//   @@index([isPublished])
+// }
 
 
 model Payment {

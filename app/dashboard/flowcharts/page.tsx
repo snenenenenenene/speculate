@@ -1,8 +1,8 @@
 "use client";
 
-import { Modal } from '@/components/nodes/base/modal';
+import { Modal } from '@/components/nodes/base/Modal';
 import { Button, Card, CardContent, CardHeader, Input, Label, LoadingSpinner } from '@/components/ui/base';
-import { ExternalLink, Plus, Trash2, X } from 'lucide-react';
+import { ExternalLink, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -10,11 +10,10 @@ interface Flowchart {
 	id: string;
 	name: string;
 	color: string;
-	isPublished: boolean;
 	updatedAt: string;
 }
 
-export default function DashboardPage() {
+export default function FlowchartsPage() {
 	const [flowcharts, setFlowcharts] = useState<Flowchart[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -42,7 +41,6 @@ export default function DashboardPage() {
 		fetchFlowcharts();
 	}, []);
 
-	// Create new flowchart
 	const handleCreateFlowchart = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setIsCreating(true);
@@ -71,25 +69,6 @@ export default function DashboardPage() {
 		}
 	};
 
-	// Delete flowchart
-	const handleDeleteFlowchart = async (id: string) => {
-		if (!confirm('Are you sure you want to delete this flowchart?')) return;
-
-		try {
-			const response = await fetch(`/api/flowcharts/${id}`, {
-				method: 'DELETE',
-			});
-
-			if (!response.ok) throw new Error('Failed to delete flowchart');
-
-			// Remove from local state
-			setFlowcharts(flowcharts.filter(f => f.id !== id));
-		} catch (error) {
-			console.error('Error:', error);
-			setError('Failed to delete flowchart');
-		}
-	};
-
 	if (isLoading) {
 		return (
 			<div className="h-screen flex items-center justify-center">
@@ -99,7 +78,7 @@ export default function DashboardPage() {
 	}
 
 	return (
-		<div className="p-6 max-w-7xl mx-auto">
+		<div className="p-6">
 			<div className="flex justify-between items-center mb-6">
 				<h1 className="text-2xl font-bold">My Flowcharts</h1>
 				<Button onClick={() => setIsCreateModalOpen(true)}>
@@ -132,13 +111,6 @@ export default function DashboardPage() {
 											<ExternalLink className="h-4 w-4" />
 										</Button>
 									</Link>
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => handleDeleteFlowchart(flowchart.id)}
-									>
-										<Trash2 className="h-4 w-4 text-red-500" />
-									</Button>
 								</div>
 							</div>
 						</CardHeader>
@@ -146,13 +118,6 @@ export default function DashboardPage() {
 							<div className="text-sm text-gray-500">
 								Last edited {new Date(flowchart.updatedAt).toLocaleDateString()}
 							</div>
-							{flowchart.isPublished && (
-								<div className="mt-2">
-									<span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-										Published
-									</span>
-								</div>
-							)}
 						</CardContent>
 					</Card>
 				))}
