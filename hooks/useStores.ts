@@ -17,6 +17,7 @@ export const useStores = (): Stores => {
     variableStore: rootStore,
     modalStore: rootStore,
     utilityStore: rootStore,
+    flowchartStore: rootStore,
     rootStore,
   };
 };

@@ -1,37 +1,89 @@
+// app/dashboard/flowcharts/[flowchartId]/layout.tsx
 "use client";
 
 import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
 import { QuickActions } from "@/components/dashboard/QuickActions";
+import { LoadingSpinner } from "@/components/ui/base";
 import { useStores } from "@/hooks/useStores";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "reactflow";
 import "reactflow/dist/style.css";
 import SettingsModal from "./SettingsModal";
 
-export default function InstanceLayout({
+export default function FlowchartLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const params = useParams();
+  const router = useRouter();
   const pathname = usePathname();
+  const flowchartId = params.flowchartId as string;
   const { chartStore } = useStores() as any;
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Extract instanceId from pathname
+  // Extract chartId from pathname if it exists
   const pathParts = pathname.split('/');
-  const instanceId = pathParts[pathParts.length - 1];
-  const currentInstance = instanceId ? chartStore.getChartInstance(instanceId) : null;
+  const chartId = pathParts.includes('charts') ? pathParts[pathParts.length - 1] : null;
+  const currentChart = chartId ? chartStore.getChartInstance(chartId) : null;
 
   useEffect(() => {
-    if (instanceId) {
-      chartStore.setCurrentDashboardTab(instanceId);
+    console.log("skaldomp, ", flowchartId); // Debug log
+    console.log("paldom, ", chartId); // Debug log
+    const loadFlowchart = async () => {
+      if (!flowchartId || isRedirecting) return;
+
+      try {
+        setIsLoading(true);
+        const response = await fetch(`/api/flowcharts/${flowchartId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch flowchart');
+        }
+
+        // Only redirect if we're at the flowchart root
+        if (pathname === `/dashboard/flowcharts/${flowchartId}`) {
+          setIsRedirecting(true);
+          if (data.charts?.length > 0) {
+            await router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.charts[0].id}`);
+          } else {
+            await router.push(`/dashboard/flowcharts/${flowchartId}/charts`);
+          }
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        router.push('/dashboard/flowcharts');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFlowchart();
+  }, [flowchartId, router, pathname, isRedirecting]);
+
+  // Set current chart in store when chartId changes
+  useEffect(() => {
+    if (chartId) {
+      chartStore.setCurrentDashboardTab(chartId);
     }
-  }, [instanceId, chartStore]);
+  }, [chartId, chartStore]);
+
+  if (isLoading && pathname === `/dashboard/flowcharts/${flowchartId}`) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <LoadingSpinner className="h-6 w-6" />
+      </div>
+    );
+  }
 
   return (
     <ReactFlowProvider>
@@ -106,11 +158,11 @@ export default function InstanceLayout({
       </div>
 
       {/* Settings Modal */}
-      {currentInstance && (
+      {currentChart && (
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
-          currentInstance={currentInstance}
+          currentInstance={currentChart}
         />
       )}
 

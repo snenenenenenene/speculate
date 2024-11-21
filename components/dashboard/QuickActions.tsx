@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -16,7 +15,7 @@ import {
 	XCircle
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { FlowSelector } from "./FlowSelector";
@@ -28,6 +27,7 @@ interface QuickActionsProps {
 
 export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const router = useRouter();
+	const pathname = usePathname();
 	const { chartStore, commitStore, utilityStore } = useStores() as any;
 	const [isSaving, setIsSaving] = useState(false);
 	const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
@@ -35,7 +35,11 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const [commitMessage, setCommitMessage] = useState("");
 	const [commitType, setCommitType] = useState<"local" | "global">("local");
 
-	// New import-related state
+	// Get flowchartId from URL
+	const urlFlowchartId = pathname.split('/').find((part, index, arr) =>
+		arr[index - 1] === 'flowcharts' && part !== 'flowcharts'
+	);
+
 	const [importChoiceOpen, setImportChoiceOpen] = useState(false);
 	const [pendingImport, setPendingImport] = useState<{
 		file: File;
@@ -56,17 +60,53 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 		}
 	};
 
-	const handleFlowSelect = (id: string) => {
-		chartStore.setCurrentDashboardTab(id);
-		router.push(`/dashboard/${id}`);
+	const handleChartSelect = (flowchartId: string, chartId: string) => {
+		chartStore.setCurrentDashboardTab(chartId);
+		router.push(`/dashboard/flowcharts/${flowchartId}/charts/${chartId}`);
 	};
 
-	const handleNewFlow = async () => {
+	// In QuickActions.tsx
+	const handleNewChart = async (flowchartId: string) => {
+		if (!flowchartId) {
+			toast.error('No flowchart selected');
+			return;
+		}
+
+		console.log('Creating chart for flowchart:', flowchartId); // Debug log
+
 		try {
-			const newTabId = await chartStore.addNewTab(`New Flow ${chartStore.chartInstances.length + 1}`);
-			await router.push(`/dashboard/${newTabId}`);
-		} catch (error) {
-			toast.error('Failed to create new flow');
+			const response = await fetch(`/api/flowcharts/${flowchartId}/charts`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					name: `New Chart ${chartStore.chartInstances?.length ?? 0 + 1}`,
+				}),
+			});
+
+			console.log('Response status:', response.status); // Debug log
+
+			const data = await response.json();
+			console.log('Response data:', data); // Debug log
+
+			if (!response.ok) {
+				throw new Error(data.error || data.details || 'Failed to create chart');
+			}
+
+			if (!data.id) {
+				throw new Error('Created chart has no ID');
+			}
+
+			await router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.id}`);
+			toast.success('Chart created successfully');
+		} catch (error: any) {
+			console.error('Detailed error:', {
+				message: error.message,
+				error: error,
+				stack: error.stack
+			});
+			toast.error(error.message || 'Failed to create chart');
 		}
 	};
 
@@ -78,7 +118,6 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 				const text = await file.text();
 				const data = JSON.parse(text);
 
-				// Validate the import data
 				const validationResult = chartStore.validateImport(data);
 
 				if (!validationResult.isValid) {
@@ -92,7 +131,6 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 					});
 				}
 
-				// Store the pending import and open choice dialog
 				setPendingImport({
 					file,
 					data,
@@ -108,18 +146,16 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	};
 
 	const handleImportReplace = async () => {
-		if (!pendingImport) return;
+		if (!pendingImport || !urlFlowchartId) return;
 
 		try {
 			if (pendingImport.type === "single") {
-				// Replace current flow only
-				const currentInstance = chartStore.getCurrentChartInstance();
-				if (currentInstance) {
-					await chartStore.replaceFlow(currentInstance.id, pendingImport.data.flow);
-					toast.success("Flow replaced successfully");
+				const currentChart = chartStore.getCurrentChartInstance();
+				if (currentChart) {
+					await chartStore.replaceFlow(currentChart.id, pendingImport.data.flow);
+					toast.success("Chart replaced successfully");
 				}
 			} else {
-				// Replace all flows
 				await chartStore.replaceAllFlows(pendingImport.data.flows);
 				toast.success("All flows replaced successfully");
 			}
@@ -134,18 +170,16 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	};
 
 	const handleImportAppend = async () => {
-		if (!pendingImport) return;
+		if (!pendingImport || !urlFlowchartId) return;
 
 		try {
 			if (pendingImport.type === "single") {
-				// Add as new flow
 				const newFlowId = await chartStore.importFlow(pendingImport.file);
 				if (newFlowId) {
-					router.push(`/dashboard/${newFlowId}`);
+					router.push(`/dashboard/flowcharts/${urlFlowchartId}/charts/${newFlowId}`);
 				}
 				toast.success("Flow imported successfully");
 			} else {
-				// Append all flows
 				await chartStore.importMultipleFlows(pendingImport.data.flows);
 				toast.success("Flows imported successfully");
 			}
@@ -162,11 +196,11 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	return (
 		<div className="flex items-center gap-2">
 			<Link
-				href="/"
+				href="/dashboard/flowcharts"
 				className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors mr-2"
 			>
 				<ArrowLeft className="h-4 w-4" />
-				Back to Home
+				Back to Flowcharts
 			</Link>
 
 			<div className="h-6 w-px bg-gray-200" />
@@ -175,8 +209,9 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 				currentFlow={chartStore.getCurrentChartInstance()}
 				chartInstances={chartStore.chartInstances}
 				currentTab={chartStore.currentDashboardTab}
-				onFlowSelect={handleFlowSelect}
-				onNewFlow={handleNewFlow}
+				onFlowSelect={handleChartSelect}
+				onNewFlow={handleNewChart}
+				flowchartId={urlFlowchartId}
 			/>
 
 			<div className="h-6 w-px bg-gray-200" />

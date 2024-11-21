@@ -2,20 +2,43 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { Edge, Node } from "reactflow";
 
-export interface ChartInstance {
+export interface Chart {
   id: string;
   name: string;
-  nodes: Node[];
-  edges: Edge[];
+  content: string;
+  flowchartId: string;
+  createdAt: string;
+  updatedAt: string;
+  nodes: any[];
+  edges: any[];
   color: string;
   onePageMode: boolean;
-  publishedVersions: {
-    version: number;
-    date: string;
-    nodes: Node[];
-    edges: Edge[];
-  }[];
-  variables: Variable[];
+  publishedVersions: any[];
+  variables: any[];
+}
+
+export interface Flowchart {
+  id: string;
+  name: string;
+  color: string;
+  charts: Chart[];
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+}
+
+export interface UtilityState {
+  currentFlowchartId: string;
+  currentChartId: string;
+  setCurrentIds: (flowchartId: string, chartId?: string) => void;
+  saveFlowchart: (flowchart: Flowchart) => Promise<Flowchart>;
+  saveChart: (
+    flowchartId: string,
+    chartId: string,
+    content: any
+  ) => Promise<Chart>;
+  loadFlowcharts: () => Promise<Flowchart[]>;
+  loadChart: (flowchartId: string, chartId: string) => Promise<any>;
 }
 
 export interface ExportMetadata {
@@ -26,11 +49,11 @@ export interface ExportMetadata {
 }
 
 export interface FlowExport extends ExportMetadata {
-  flow: ChartInstance;
+  flow: Chart;
 }
 
 export interface CompleteExport extends ExportMetadata {
-  flows: ChartInstance[];
+  flows: Chart[];
   references: FlowReference[];
 }
 
@@ -46,8 +69,23 @@ export interface Variable {
   value: string;
 }
 
+export interface FlowchartState {
+  flowcharts: Chart[];
+  createFlowchart: (name: string, color?: string) => string;
+  getFlowchart: (id: string) => Chart | undefined;
+  updateFlowchart: (id: string, updates: Partial<Chart>) => void;
+  createChart: (flowchartId: string, name: string) => void;
+  getChart: (flowchartId: string, chartId: string) => Chart | undefined;
+  updateChart: (
+    flowchartId: string,
+    chartId: string,
+    updates: Partial<Chart>
+  ) => void;
+  deleteChart: (flowchartId: string, chartId: string) => void;
+}
+
 export interface ChartState {
-  chartInstances: ChartInstance[];
+  Charts: Chart[];
   currentDashboardTab: string;
   setCurrentDashboardTab: (tabId: string) => void;
   addNewTab: (newTabName: string) => string;
@@ -62,16 +100,16 @@ export interface ChartState {
   ) => void;
   removeNode: (instanceId: string, nodeId: string) => void;
   deleteTab: (tabId: string) => void;
-  updateChartInstance: (updatedInstance: ChartInstance) => void;
-  updateChartInstanceName: (tabId: string, newName: string) => void;
+  updateChart: (updatedInstance: Chart) => void;
+  updateChartName: (tabId: string, newName: string) => void;
   setCurrentTabColor: (tabId: string, color: string) => void;
   setOnePage: (tabId: string, value: boolean) => void;
   addPublishedVersion: (tabId: string, version: number, date: string) => void;
   revertToVersion: (tabId: string, version: number) => void;
   publishTab: (tabId: string) => void;
-  getChartInstance: (tabId: string) => ChartInstance | undefined;
-  getCurrentChartInstance: () => ChartInstance | undefined;
-  setChartInstances: (instances: ChartInstance[]) => void;
+  getChart: (tabId: string) => Chart | undefined;
+  getCurrentChart: () => Chart | undefined;
+  setCharts: (instances: Chart[]) => void;
 
   // New Import/Export methods
   exportFlow: (instanceId: string) => void;
@@ -119,8 +157,8 @@ export interface ModalState {
 export interface UtilityState {
   currentTab: string;
   setCurrentTab: (tabId: string) => void;
-  saveToDb: (chartInstances: ChartInstance[]) => Promise<void>;
-  loadSavedData: () => Promise<ChartInstance[] | null>;
+  saveToDb: (Charts: Chart[]) => Promise<void>;
+  loadSavedData: () => Promise<Chart[] | null>;
 }
 
 export interface RootState

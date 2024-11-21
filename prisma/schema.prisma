@@ -70,43 +70,39 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-
 model Flowchart {
   id          String    @id @default(cuid())
-  content     String    @db.Text
   name        String    @default("New Flowchart")
   color       String    @default("#80B500")
-  onePageMode Boolean   @default(false)
   isPublished Boolean   @default(false)
-  version     Int       @default(1)
-  apiKey      String    @unique @default(cuid()) // Added for API access
+  apiKey      String    @unique @default(cuid())
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
   userId      String    
   user        User      @relation(fields: [userId], references: [id])
+  charts      Chart[]   // Relation to charts
 
   @@index([isPublished])
   @@index([userId])
 }
 
-// model ChartInstance {
-//   id          String    @id @default(cuid())
-//   content     String    @db.Text
-//   name        String    @default("New Chart")
-//   color       String    @default("#80B500")
-//   onePageMode Boolean   @default(false)
-//   isPublished Boolean   @default(false)
-//   version     Int       @default(1)
-//   createdAt   DateTime  @default(now())
-//   updatedAt   DateTime  @updatedAt
+model Chart {
+  id          String    @id @default(cuid())
+  name        String    @default("New Chart")
+  content     String    @db.Text
+  color       String    @default("#80B500")
+  onePageMode Boolean   @default(false)
+  isPublished Boolean   @default(false)
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   
-//   userId      String    @unique
-//   user        User      @relation(fields: [userId], references: [id])
+  flowchartId String
+  flowchart   Flowchart @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
 
-//   @@index([isPublished])
-// }
-
+  @@index([flowchartId])
+}
 
 model Payment {
   id              String         @id @default(cuid())

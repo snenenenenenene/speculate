@@ -2,15 +2,24 @@
 
 import { Modal } from '@/components/nodes/base/Modal';
 import { Button, Card, CardContent, CardHeader, Input, Label, LoadingSpinner } from '@/components/ui/base';
-import { ExternalLink, Plus, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
+
+interface Chart {
+	id: string;
+	name: string;
+	updatedAt: string;
+	isPublished: boolean;
+}
 
 interface Flowchart {
 	id: string;
 	name: string;
 	color: string;
 	updatedAt: string;
+	charts: Chart[];
 }
 
 export default function FlowchartsPage() {
@@ -22,22 +31,42 @@ export default function FlowchartsPage() {
 	const [newFlowchartColor, setNewFlowchartColor] = useState('#80B500');
 	const [isCreating, setIsCreating] = useState(false);
 
-	const fetchFlowcharts = async () => {
-		try {
-			const response = await fetch('/api/flowcharts');
-			if (!response.ok) throw new Error('Failed to fetch flowcharts');
-			const data = await response.json();
-			setFlowcharts(data);
-		} catch (error) {
-			setError('Failed to load flowcharts');
-			console.error('Error:', error);
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
 	useEffect(() => {
-		fetchFlowcharts();
+		const loadFlowcharts = async () => {
+			try {
+				setIsLoading(true);
+				const response = await fetch('/api/flowcharts', {
+					headers: {
+						'Cache-Control': 'no-cache'
+					}
+				});
+
+				const data = await response.json();
+				console.log("Response data:", data); // Debug log
+
+				if (!response.ok) {
+					throw new Error(data.error || 'Failed to fetch flowcharts');
+				}
+
+				// Handle both array and error object responses
+				if (Array.isArray(data)) {
+					setFlowcharts(data);
+				} else if (data.error) {
+					throw new Error(data.error);
+				} else {
+					throw new Error('Invalid response format');
+				}
+
+			} catch (error: any) {
+				console.error('Error details:', error);
+				setError(error.message || 'Failed to load flowcharts');
+				setFlowcharts([]);
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		loadFlowcharts();
 	}, []);
 
 	const handleCreateFlowchart = async (e: React.FormEvent) => {
@@ -56,13 +85,16 @@ export default function FlowchartsPage() {
 				}),
 			});
 
-			if (!response.ok) throw new Error('Failed to create flowchart');
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.error || 'Failed to create flowchart');
+			}
 
-			const newFlowchart = await response.json();
-			window.location.href = `/dashboard/flowcharts/${newFlowchart.id}`;
-		} catch (error) {
+			const data = await response.json();
+			window.location.href = `/dashboard/flowcharts/${data.id}`;
+		} catch (error: any) {
 			console.error('Error:', error);
-			setError('Failed to create flowchart');
+			toast.error(error.message || 'Failed to create flowchart');
 		} finally {
 			setIsCreating(false);
 		}
@@ -77,9 +109,18 @@ export default function FlowchartsPage() {
 	}
 
 	return (
-		<div className="p-6">
+		<div className="p-6 max-w-7xl mx-auto">
 			<div className="flex justify-between items-center mb-6">
-				<h1 className="text-2xl font-bold">My Flowcharts</h1>
+				<div className="flex items-center gap-4">
+					<Link
+						href="/dashboard"
+						className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+					>
+						<ArrowLeft className="h-4 w-4" />
+						Back to Dashboard
+					</Link>
+					<h1 className="text-2xl font-bold">My Flowcharts</h1>
+				</div>
 				<Button onClick={() => setIsCreateModalOpen(true)}>
 					<Plus className="h-4 w-4 mr-2" />
 					New Flowchart
@@ -92,37 +133,47 @@ export default function FlowchartsPage() {
 				</div>
 			)}
 
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-				{flowcharts.map((flowchart) => (
-					<Card key={flowchart.id}>
-						<CardHeader className="pb-3">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<div
-										className="w-3 h-3 rounded-full"
-										style={{ backgroundColor: flowchart.color }}
-									/>
-									<h3 className="text-lg font-semibold">{flowchart.name}</h3>
-								</div>
-								<div className="flex gap-2">
+			{flowcharts.length === 0 && !error ? (
+				<div className="text-center py-12">
+					<p className="text-gray-500 mb-4">No flowcharts yet</p>
+					<Button onClick={() => setIsCreateModalOpen(true)}>
+						<Plus className="h-4 w-4 mr-2" />
+						Create your first flowchart
+					</Button>
+				</div>
+			) : (
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					{flowcharts.map((flowchart) => (
+						<Card key={flowchart.id}>
+							<CardHeader className="pb-3">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2">
+										<div
+											className="w-3 h-3 rounded-full"
+											style={{ backgroundColor: flowchart.color }}
+										/>
+										<h3 className="text-lg font-semibold">{flowchart.name}</h3>
+									</div>
 									<Link href={`/dashboard/flowcharts/${flowchart.id}`}>
 										<Button variant="ghost" size="sm">
-											<ExternalLink className="h-4 w-4" />
+											<ChevronRight className="h-4 w-4" />
 										</Button>
 									</Link>
 								</div>
-							</div>
-						</CardHeader>
-						<CardContent>
-							<div className="text-sm text-gray-500">
-								Last edited {new Date(flowchart.updatedAt).toLocaleDateString()}
-							</div>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+							</CardHeader>
+							<CardContent>
+								<div className="text-sm text-gray-500">
+									Last edited {new Date(flowchart.updatedAt).toLocaleDateString()}
+								</div>
+								<div className="mt-2 text-sm text-gray-500">
+									{flowchart.charts?.length ?? 0} chart{flowchart.charts?.length !== 1 ? 's' : ''}
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
 
-			{/* Create Flowchart Modal */}
 			<Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)}>
 				<div className="p-6">
 					<div className="flex items-center justify-between mb-6">

@@ -1,72 +1,101 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+// stores/utilitySlice.ts
 import { StateCreator } from "zustand";
-import { ChartInstance, UtilityState } from "./types";
+import { UtilityState } from "./types";
 
 const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
-  currentTab: "",
+  currentFlowchartId: "",
+  currentChartId: "",
 
-  setCurrentTab: (tabId: string) =>
-    set((state) => {
-      if (state.currentTab !== tabId) {
-        console.log(`Updating currentTab in utilitySlice to: ${tabId}`);
-        return { currentTab: tabId };
-      }
-      return state;
-    }),
+  setCurrentIds: (flowchartId: string, chartId?: string) =>
+    set({ currentFlowchartId: flowchartId, currentChartId: chartId || "" }),
 
-  saveToDb: async (chartInstances: ChartInstance[]) => {
+  // Load a specific chart
+  loadChart: async (flowchartId: string, chartId: string) => {
     try {
-      console.log("saveToDb called with:", chartInstances);
-
-      const response = await fetch("/api/save-chart", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content: chartInstances }),
-      });
-
-      console.log("Response status:", response.status);
+      const response = await fetch(
+        `/api/flowcharts/${flowchartId}/charts/${chartId}`
+      );
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error response:", errorData);
-        throw new Error(errorData.message || "Failed to save to database");
+        throw new Error(data.error || "Failed to load chart");
       }
 
-      const result = await response.json();
-      console.log("Save result:", result);
-
-      if (result.success) {
-        console.log("Chart saved successfully:", result.id);
-      } else {
-        throw new Error(
-          result.message || "Unknown error occurred while saving"
-        );
-      }
+      return data;
     } catch (error) {
-      console.error("Error saving to database:", error);
+      console.error("Error loading chart:", error);
       throw error;
     }
   },
 
-  loadSavedData: async () => {
+  // Load a flowchart and its charts
+  loadFlowchart: async (flowchartId: string) => {
+    console.log("MEOWW", flowchartId);
     try {
-      const response = await fetch("/api/load-chart");
-      if (!response.ok) {
-        throw new Error("Failed to load saved data");
-      }
+      const response = await fetch(`/api/flowcharts/${flowchartId}`);
+
+      console.log("response", response);
       const data = await response.json();
-      if (data.content) {
-        const parsedContent = JSON.parse(data.content);
-        console.log("Parsed content:", parsedContent);
-        return parsedContent;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load flowchart");
       }
-      return null;
+
+      return data;
+    } catch (error) {
+      console.error("Error loading flowchart:", error);
+      throw error;
+    }
+  },
+
+  // Save a specific chart
+  saveChart: async (flowchartId: string, chartId: string, content: any) => {
+    try {
+      const response = await fetch(
+        `/api/flowcharts/${flowchartId}/charts/${chartId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to save chart");
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Error saving chart:", error);
+      throw error;
+    }
+  },
+
+  // For backwards compatibility
+  loadSavedData: async (flowchartId: string) => {
+    try {
+      const flowchart = await get().loadFlowchart(flowchartId);
+      return {
+        ...flowchart,
+        charts: flowchart.charts || [],
+      };
     } catch (error) {
       console.error("Error loading saved data:", error);
       throw error;
     }
+  },
+
+  // Utility method to save to database
+  saveToDb: async (content: any) => {
+    const { currentFlowchartId, currentChartId } = get();
+    if (!currentFlowchartId || !currentChartId) {
+      throw new Error("No active chart selected");
+    }
+    return get().saveChart(currentFlowchartId, currentChartId, content);
   },
 });
 
