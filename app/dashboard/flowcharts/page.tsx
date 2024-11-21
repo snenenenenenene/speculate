@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal } from '@/components/nodes/base/Modal';
+import { Modal } from '@/components/nodes/base/modal';
 import { Button, Card, CardContent, CardHeader, Input, Label, LoadingSpinner } from '@/components/ui/base';
 import { ArrowLeft, ChevronRight, Plus, X } from 'lucide-react';
 import Link from 'next/link';

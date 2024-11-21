@@ -1,3 +1,4 @@
+// QuickActions.tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { FlowSelector } from "./FlowSelector";
 import { ImportChoiceDialog } from "./ImportChoiceDialog";
@@ -34,11 +35,33 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
 	const [commitMessage, setCommitMessage] = useState("");
 	const [commitType, setCommitType] = useState<"local" | "global">("local");
+	const [chartInstances, setChartInstances] = useState<any[]>([]);
 
-	// Get flowchartId from URL
-	const urlFlowchartId = pathname.split('/').find((part, index, arr) =>
-		arr[index - 1] === 'flowcharts' && part !== 'flowcharts'
-	);
+	const urlParts = pathname.split('/');
+	const flowchartIndex = urlParts.indexOf('flowcharts');
+	const urlFlowchartId = flowchartIndex !== -1 ? urlParts[flowchartIndex + 1] : undefined;
+
+	useEffect(() => {
+		const loadCharts = async () => {
+			if (urlFlowchartId) {
+				try {
+					const flowchart = await utilityStore.loadFlowchart(urlFlowchartId);
+					if (flowchart?.charts) {
+						const parsedCharts = flowchart.charts.map(chart => ({
+							...chart,
+							content: JSON.parse(chart.content || '[]')
+						}));
+						setChartInstances(parsedCharts);
+						chartStore.setChartInstances(parsedCharts);
+					}
+				} catch (error) {
+					console.error('Error loading charts:', error);
+				}
+			}
+		};
+
+		loadCharts();
+	}, [urlFlowchartId, utilityStore, chartStore]);
 
 	const [importChoiceOpen, setImportChoiceOpen] = useState(false);
 	const [pendingImport, setPendingImport] = useState<{
@@ -61,18 +84,14 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	};
 
 	const handleChartSelect = (flowchartId: string, chartId: string) => {
-		chartStore.setCurrentDashboardTab(chartId);
 		router.push(`/dashboard/flowcharts/${flowchartId}/charts/${chartId}`);
 	};
 
-	// In QuickActions.tsx
 	const handleNewChart = async (flowchartId: string) => {
 		if (!flowchartId) {
 			toast.error('No flowchart selected');
 			return;
 		}
-
-		console.log('Creating chart for flowchart:', flowchartId); // Debug log
 
 		try {
 			const response = await fetch(`/api/flowcharts/${flowchartId}/charts`, {
@@ -81,31 +100,30 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					name: `New Chart ${chartStore.chartInstances?.length ?? 0 + 1}`,
+					name: `New Chart ${chartInstances.length}`,
 				}),
 			});
 
-			console.log('Response status:', response.status); // Debug log
-
 			const data = await response.json();
-			console.log('Response data:', data); // Debug log
 
 			if (!response.ok) {
 				throw new Error(data.error || data.details || 'Failed to create chart');
 			}
 
-			if (!data.id) {
-				throw new Error('Created chart has no ID');
+			const updatedFlowchart = await utilityStore.loadFlowchart(flowchartId);
+			if (updatedFlowchart?.charts) {
+				const parsedCharts = updatedFlowchart.charts.map(chart => ({
+					...chart,
+					content: JSON.parse(chart.content || '[]')
+				}));
+				setChartInstances(parsedCharts);
+				chartStore.setChartInstances(parsedCharts);
 			}
 
-			await router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.id}`);
+			router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.id}`);
 			toast.success('Chart created successfully');
 		} catch (error: any) {
-			console.error('Detailed error:', {
-				message: error.message,
-				error: error,
-				stack: error.stack
-			});
+			console.error('Error creating chart:', error);
 			toast.error(error.message || 'Failed to create chart');
 		}
 	};
@@ -205,14 +223,16 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 
 			<div className="h-6 w-px bg-gray-200" />
 
-			<FlowSelector
-				currentFlow={chartStore.getCurrentChartInstance()}
-				chartInstances={chartStore.chartInstances}
-				currentTab={chartStore.currentDashboardTab}
-				onFlowSelect={handleChartSelect}
-				onNewFlow={handleNewChart}
-				flowchartId={urlFlowchartId}
-			/>
+			{urlFlowchartId && (
+				<FlowSelector
+					currentFlow={chartStore.getCurrentChartInstance()}
+					chartInstances={chartInstances}
+					currentTab={chartStore.currentDashboardTab}
+					onFlowSelect={handleChartSelect}
+					onNewFlow={handleNewChart}
+					flowchartId={urlFlowchartId}
+				/>
+			)}
 
 			<div className="h-6 w-px bg-gray-200" />
 
@@ -280,7 +300,6 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 						</div>
 
 						<div className="space-y-6 mt-4">
-							{/* Import Section */}
 							<div>
 								<h3 className="text-sm font-medium text-gray-900 mb-2">Import</h3>
 								<label className="block">
@@ -299,7 +318,6 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 								</label>
 							</div>
 
-							{/* Export Section */}
 							<div>
 								<h3 className="text-sm font-medium text-gray-900 mb-2">Export</h3>
 								<div className="space-y-2">
@@ -350,6 +368,91 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 					onAppend={handleImportAppend}
 				/>
 			)}
+
+			{/* Commit Modal */}
+			<Dialog
+				open={isCommitModalOpen}
+				onClose={() => setIsCommitModalOpen(false)}
+			>
+				<div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-auto">
+					<div className="p-6">
+						<div className="flex items-center justify-between border-b border-gray-200 pb-4">
+							<h3 className="text-lg font-bold text-gray-900">Commit Changes</h3>
+							<button
+								onClick={() => setIsCommitModalOpen(false)}
+								className="p-1 hover:bg-gray-100 rounded-md"
+							>
+								<XCircle className="h-5 w-5 text-gray-500" />
+							</button>
+						</div>
+
+						<div className="space-y-4 mt-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Commit Message
+								</label>
+								<textarea
+									value={commitMessage}
+									onChange={(e) => setCommitMessage(e.target.value)}
+									className="w-full px-3 py-2 border border-gray-300 rounded-md"
+									rows={3}
+									placeholder="Describe your changes..."
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									Commit Type
+								</label>
+								<div className="flex gap-4">
+									<label className="flex items-center">
+										<input
+											type="radio"
+											checked={commitType === "local"}
+											onChange={() => setCommitType("local")}
+											className="mr-2"
+										/>
+										<span className="text-sm text-gray-600">Local</span>
+									</label>
+									<label className="flex items-center">
+										<input
+											type="radio"
+											checked={commitType === "global"}
+											onChange={() => setCommitType("global")}
+											className="mr-2"
+										/>
+										<span className="text-sm text-gray-600">Global</span>
+									</label>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex justify-end gap-2">
+						<button
+							onClick={() => setIsCommitModalOpen(false)}
+							className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+						>
+							Cancel
+						</button>
+						<button
+							onClick={async () => {
+								try {
+									await commitStore.createCommit(commitMessage, commitType);
+									setIsCommitModalOpen(false);
+									setCommitMessage("");
+									toast.success("Changes committed successfully");
+								} catch (error) {
+									toast.error("Failed to commit changes");
+								}
+							}}
+							className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+						>
+							Commit
+						</button>
+					</div>
+				</div>
+			</Dialog>
 		</div>
 	);
 }

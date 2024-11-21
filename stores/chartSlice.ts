@@ -11,8 +11,7 @@ export interface ChartState {
   currentDashboardTab: string;
   tempGeneratedChart: any;
   chartInstances: any[];
-  setCurrentDashboardTab: (tabId: string) => void;
-  getChartInstances: (flowchartId: string) => any[];
+  setChartInstances: (instances: any[]) => void;
   getFlowchart: () => any;
   updateChart: (flowchartId: string, chartId: string, updates: any) => void;
   setCurrentIds: (flowchartId: string, chartId?: string) => void;
@@ -42,6 +41,7 @@ export interface ChartState {
   validateImport: (data: FlowExport | CompleteExport) => ValidationResult;
   exportChart: (flowchartId: string, chartId: string) => void;
   exportAllCharts: (flowchartId: string) => void;
+  setCurrentDashboardTab: (tabId: string) => void;
 }
 
 const APPLICATION_VERSION = "1.0.0";
@@ -53,13 +53,22 @@ const createChartSlice: StateCreator<ChartState> = (set, get) => ({
   tempGeneratedChart: null,
   chartInstances: [],
 
-  setCurrentDashboardTab: (tabId: string) =>
-    set({ currentDashboardTab: tabId }),
+  setChartInstances: (instances) => {
+    console.log("Setting chart instances:", instances);
+    set({ chartInstances: instances });
+  },
+
+  setCurrentDashboardTab: (tabId: string) => {
+    if (get().currentDashboardTab !== tabId) {
+      set({ currentDashboardTab: tabId });
+    }
+  },
 
   getChartInstances: (flowchartId: string) => {
-    const { getFlowchart } = get() as any;
-    const flowchart = getFlowchart(flowchartId);
-    return flowchart?.charts || [];
+    const { chartInstances } = get();
+    return chartInstances.filter(
+      (chart: any) => chart.flowchartId === flowchartId
+    );
   },
 
   setCurrentIds: (flowchartId: string, chartId?: string) =>

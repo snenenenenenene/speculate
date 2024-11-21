@@ -1,7 +1,7 @@
-"use client";
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Plus } from "lucide-react";
 
+// FlowSelector.tsx
 interface FlowSelectorProps {
 	currentFlow: any;
 	chartInstances: any[];
@@ -29,7 +29,7 @@ export function FlowSelector({
 				<option value="" disabled>
 					Select a chart
 				</option>
-				{(chartInstances || []).map((instance) => (
+				{chartInstances.map((instance) => (
 					<option key={instance.id} value={instance.id}>
 						{instance.name}
 					</option>
@@ -47,3 +47,4 @@ export function FlowSelector({
 		</div>
 	);
 }
+
