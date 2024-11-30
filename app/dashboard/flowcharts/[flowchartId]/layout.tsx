@@ -8,7 +8,7 @@ import { useStores } from "@/hooks/useStores";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ReactFlowProvider } from "reactflow";
 import "reactflow/dist/style.css";
 import SettingsModal from "./SettingsModal";
@@ -30,65 +30,62 @@ export default function FlowchartLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasInitialLoad, setHasInitialLoad] = useState(false);
 
   const pathParts = pathname.split('/');
   const chartId = pathParts.includes('charts') ? pathParts[pathParts.length - 1] : null;
   const currentChart = chartId ? chartStore.getChartInstance(chartId) : null;
-  // Changed to filter chart instances by flowchartId
+
   const chartInstances = chartStore.chartInstances.filter(
     (chart: any) => chart.flowchartId === flowchartId
   );
 
-  useEffect(() => {
-    const loadFlowchart = async () => {
-      if (!flowchartId || isRedirecting) {
-        return;
+  const loadFlowchart = useCallback(async () => {
+    if (!flowchartId || hasInitialLoad) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`/api/flowcharts/${flowchartId}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch flowchart');
       }
 
-      try {
-        setIsLoading(true);
-        setError(null);
+      const data = await response.json();
 
-        const response = await fetch(`/api/flowcharts/${flowchartId}`);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to fetch flowchart');
-        }
+      if (data.charts) {
+        chartStore.setChartInstances(data.charts);
+        setHasInitialLoad(true);
 
-        const data = await response.json();
-
-        // Transform each chart to ensure the content is parsed
-        if (data.charts) {
-          data.charts = data.charts.map((chart: any) => ({
-            ...chart,
-            content: chart.content ? JSON.parse(chart.content) : { nodes: [], edges: [] }
-          }));
-        }
-
-        // Update chart instances in the store
-        if (data.charts) {
-          chartStore.setChartInstances(data.charts);
-        }
-
-        if (pathname === `/dashboard/flowcharts/${flowchartId}`) {
+        if (pathname === `/dashboard/flowcharts/${flowchartId}` && data.charts.length > 0) {
           setIsRedirecting(true);
-          if (data.charts?.length > 0) {
-            router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.charts[0].id}`);
-          } else {
-            router.push(`/dashboard/flowcharts/${flowchartId}/charts`);
-          }
+          router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.charts[0].id}`);
         }
-      } catch (error: any) {
-        console.error('Layout - Error:', error);
-        setError(error.message || 'Failed to load flowchart');
-        router.push('/dashboard/flowcharts');
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error: any) {
+      console.error('Failed to load flowchart:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [flowchartId, pathname, router, chartStore, hasInitialLoad]);
+
+  useEffect(() => {
+    if (!flowchartId || isRedirecting) return;
 
     loadFlowchart();
-  }, [flowchartId, router, pathname, isRedirecting, chartStore]);
+
+    return () => {
+      setIsRedirecting(false);
+    };
+  }, [loadFlowchart, flowchartId, isRedirecting]);
 
   useEffect(() => {
     if (chartId) {
@@ -107,24 +104,22 @@ export default function FlowchartLayout({
         },
         body: JSON.stringify({
           name: 'New Chart',
-          content: JSON.stringify({ nodes: [], edges: [] })
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create new chart');
+        throw new Error('Failed to create new chart');
       }
 
       const newChart = await response.json();
       router.push(`/dashboard/flowcharts/${flowchartId}/charts/${newChart.id}`);
     } catch (error: any) {
       console.error('Error creating new chart:', error);
-      setError(error.message || 'Failed to create new chart');
+      setError(error.message);
     }
   };
 
-  if (isLoading && pathname === `/dashboard/flowcharts/${flowchartId}`) {
+  if (isLoading && !hasInitialLoad) {
     return (
       <div className="h-screen flex items-center justify-center">
         <LoadingSpinner className="h-6 w-6" />

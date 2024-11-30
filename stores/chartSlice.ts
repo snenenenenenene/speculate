@@ -1,12 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { toast } from "react-hot-toast";
-import { addEdge, applyEdgeChanges, applyNodeChanges, Edge } from "reactflow";
 import { v4 as uuidv4 } from "uuid";
 import { StateCreator } from "zustand";
 import {
   ChartInstance,
   CompleteExport,
-  EdgeChange,
   FlowExport,
   NodeChange,
   ValidationResult,
@@ -17,12 +14,24 @@ const APPLICATION_VERSION = "1.0.0";
 const createChartSlice: StateCreator<any> = (set, get) => ({
   chartInstances: [],
   currentDashboardTab: "",
-  tempGeneratedChart: null, // Temporary storage for AI-generated chart
+  tempGeneratedChart: null,
 
   setCurrentDashboardTab: (tabId: string) => {
     if (get().currentDashboardTab !== tabId) {
       set({ currentDashboardTab: tabId });
     }
+  },
+
+  setChartInstances: (instances: ChartInstance[]) => {
+    // Add check to prevent unnecessary updates
+    const currentInstances = get().chartInstances;
+    if (
+      currentInstances.length === instances.length &&
+      JSON.stringify(currentInstances) === JSON.stringify(instances)
+    ) {
+      return;
+    }
+    set({ chartInstances: instances });
   },
 
   updateNodes: (instanceId: string, changes: NodeChange[]) =>
@@ -31,52 +40,26 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
         instance.id === instanceId
           ? {
               ...instance,
-              nodes: applyNodeChanges(changes, instance.nodes || []),
+              nodes: changes,
             }
           : instance
       ),
     })),
 
-  updateEdges: (instanceId: string, changes: EdgeChange[]) =>
+  updateEdges: (instanceId: string, changes: any[]) =>
     set((state) => ({
       chartInstances: state.chartInstances.map((instance) =>
         instance.id === instanceId
           ? {
               ...instance,
-              edges: applyEdgeChanges(changes, instance.edges || []),
+              edges: changes,
             }
           : instance
       ),
     })),
 
-  addNewTab: async (newTabName: string) => {
-    const newTab: ChartInstance = {
-      id: uuidv4(),
-      name: newTabName,
-      nodes: [],
-      edges: [],
-      color: "#80B500",
-      onePageMode: false,
-      publishedVersions: [],
-      variables: [],
-    };
-
+  addNode: (instanceId: string, newNode: any) =>
     set((state) => ({
-      chartInstances: [...state.chartInstances, newTab],
-      currentDashboardTab: newTab.id,
-    }));
-
-    try {
-      await get().saveToDb([...get().chartInstances]);
-      return newTab.id;
-    } catch (error) {
-      console.error("Failed to save new tab:", error);
-      throw error;
-    }
-  },
-
-  addNode: (instanceId: string, newNode: Node) =>
-    set((state: any) => ({
       chartInstances: state.chartInstances.map((instance) =>
         instance.id === instanceId
           ? {
@@ -87,26 +70,26 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       ),
     })),
 
-  addEdge: (instanceId: string, newEdge: Edge) =>
+  addEdge: (instanceId: string, newEdge: any) =>
     set((state) => ({
       chartInstances: state.chartInstances.map((instance) =>
         instance.id === instanceId
           ? {
               ...instance,
-              edges: addEdge(newEdge, instance.edges || []),
+              edges: [...(instance.edges || []), newEdge],
             }
           : instance
       ),
     })),
 
-  updateNode: (instanceId: string, nodeId: string, newData: Partial<Node>) =>
-    set((state: any) => ({
+  updateNodeData: (instanceId: string, nodeId: string, newData: any) =>
+    set((state) => ({
       chartInstances: state.chartInstances.map((instance) =>
         instance.id === instanceId
           ? {
               ...instance,
               nodes: instance.nodes.map((node) =>
-                node.id === nodeId ? { ...node, ...newData } : node
+                node.id === nodeId ? { ...node, data: newData } : node
               ),
             }
           : instance
@@ -147,9 +130,6 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
         instance.id === chartId ? { ...instance, ...updatedChart } : instance
       ),
     })),
-
-  setChartInstances: (newInstances: ChartInstance[]) =>
-    set({ chartInstances: newInstances }),
 
   updateChartInstanceName: (tabId: string, newName: string) =>
     set((state) => ({
@@ -211,38 +191,8 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     }
   },
 
-  publishTab: (tabId: string) =>
-    set((state) => {
-      const instance = state.chartInstances.find(
-        (instance) => instance.id === tabId
-      );
-      if (instance) {
-        const newVersion = (instance.publishedVersions?.length || 0) + 1;
-        return {
-          chartInstances: state.chartInstances.map((instance) =>
-            instance.id === tabId
-              ? {
-                  ...instance,
-                  publishedVersions: [
-                    ...(instance.publishedVersions || []),
-                    {
-                      version: newVersion,
-                      date: new Date().toISOString(),
-                      nodes: instance.nodes,
-                      edges: instance.edges,
-                    },
-                  ],
-                }
-              : instance
-          ),
-        };
-      }
-      return state;
-    }),
-
-  getChartInstance: (tabId: string) => {
-    const { chartInstances } = get();
-    return chartInstances.find((instance) => instance.id === tabId);
+  getChartInstance: (chartId: string) => {
+    return get().chartInstances.find((instance) => instance.id === chartId);
   },
 
   getCurrentChartInstance: () => {
@@ -250,26 +200,6 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     return chartInstances.find(
       (instance) => instance.id === currentDashboardTab
     );
-  },
-
-  addAIChart: (chartData: any) => {
-    const newChart: ChartInstance = {
-      id: uuidv4(),
-      name: chartData.name || "New AI Flow",
-      nodes: chartData.nodes || [],
-      edges: chartData.edges || [],
-      color: "#80B500",
-      onePageMode: false,
-      publishedVersions: [],
-      variables: [],
-    };
-
-    set((state) => ({
-      chartInstances: [...state.chartInstances, newChart],
-      currentDashboardTab: newChart.id,
-    }));
-
-    return newChart.id;
   },
 
   validateImport: (data: FlowExport | CompleteExport): ValidationResult => {
@@ -389,6 +319,26 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     window.URL.revokeObjectURL(url);
 
     toast.success("All flows exported successfully");
+  },
+
+  addAIChart: (chartData: any) => {
+    const newChart: ChartInstance = {
+      id: uuidv4(),
+      name: chartData.name || "New AI Flow",
+      nodes: chartData.nodes || [],
+      edges: chartData.edges || [],
+      color: "#80B500",
+      onePageMode: false,
+      publishedVersions: [],
+      variables: [],
+    };
+
+    set((state) => ({
+      chartInstances: [...state.chartInstances, newChart],
+      currentDashboardTab: newChart.id,
+    }));
+
+    return newChart.id;
   },
 });
 
