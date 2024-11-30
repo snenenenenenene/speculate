@@ -2,7 +2,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-// app/api/flowcharts/[flowchartId]/charts/[chartId]/route.ts
+
 export async function GET(
   req: Request,
   { params }: { params: { flowchartId: string; chartId: string } }
@@ -52,6 +52,7 @@ export async function PATCH(
     }
 
     const { content } = await req.json();
+    console.log("Updating chart with content:", content);
 
     const chart = await prisma.chart.findUnique({
       where: {
@@ -71,12 +72,16 @@ export async function PATCH(
 
     const updatedChart = await prisma.chart.update({
       where: { id: params.chartId },
-      data: { content },
+      data: {
+        content: JSON.stringify(content),
+        updatedAt: new Date(),
+      },
     });
 
+    console.log("Chart updated successfully:", updatedChart.id);
     return NextResponse.json(updatedChart);
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error updating chart:", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

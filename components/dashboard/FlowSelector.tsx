@@ -1,14 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Plus } from "lucide-react";
+"use client";
 
-// FlowSelector.tsx
+import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown, LayoutGrid, Plus, Search } from "lucide-react";
+import { useState } from "react";
+
 interface FlowSelectorProps {
-	currentFlow: any;
+	currentFlow: any | undefined;
 	chartInstances: any[];
 	currentTab: string;
 	onFlowSelect: (flowchartId: string, chartId: string) => void;
 	onNewFlow: (flowchartId: string) => void;
-	flowchartId?: string;
+	flowchartId: string;
 }
 
 export function FlowSelector({
@@ -19,32 +23,96 @@ export function FlowSelector({
 	onNewFlow,
 	flowchartId
 }: FlowSelectorProps) {
-	return (
-		<div className="flex items-center gap-2">
-			<select
-				value={currentTab || ""}
-				onChange={(e) => onFlowSelect(flowchartId!, e.target.value)}
-				className="h-9 px-3 py-1 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-			>
-				<option value="" disabled>
-					Select a chart
-				</option>
-				{chartInstances.map((instance) => (
-					<option key={instance.id} value={instance.id}>
-						{instance.name}
-					</option>
-				))}
-			</select>
+	const [isOpen, setIsOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
 
+	const filteredInstances = chartInstances.filter(instance =>
+		instance.name.toLowerCase().includes(searchQuery.toLowerCase())
+	);
+
+	return (
+		<div className="relative">
 			<button
-				onClick={() => flowchartId && onNewFlow(flowchartId)}
-				disabled={!flowchartId}
-				className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+				onClick={() => setIsOpen(!isOpen)}
+				className={cn(
+					"flex items-center gap-2 px-4 py-1.5 rounded-lg",
+					"hover:bg-gray-50 transition-colors duration-200",
+					"border border-gray-200"
+				)}
 			>
-				<Plus className="h-4 w-4" />
-				New Chart
+				<LayoutGrid className="h-4 w-4 text-gray-500" />
+				<span className="text-sm font-medium text-gray-700">
+					{currentFlow?.name || "Select Chart"}
+				</span>
+				<ChevronDown className="h-4 w-4 text-gray-500" />
 			</button>
+
+			<AnimatePresence>
+				{isOpen && (
+					<motion.div
+						initial={{ opacity: 0, y: -10 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -10 }}
+						className="absolute top-full left-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden z-50"
+					>
+						<div className="p-2">
+							<div className="relative mb-2">
+								<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+								<input
+									type="text"
+									placeholder="Search charts..."
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+								/>
+							</div>
+
+							<div className="max-h-64 overflow-y-auto">
+								{filteredInstances.map((instance) => (
+									<button
+										key={instance.id}
+										onClick={() => {
+											onFlowSelect(flowchartId, instance.id);
+											setIsOpen(false);
+										}}
+										className={cn(
+											"w-full flex items-center gap-3 px-3 py-2 rounded-lg",
+											"hover:bg-gray-50 transition-colors duration-200",
+											currentTab === instance.id && "bg-blue-50 text-blue-600"
+										)}
+									>
+										<div
+											className="w-2 h-2 rounded-full"
+											style={{ backgroundColor: instance.color }}
+										/>
+										<span className="text-sm font-medium">{instance.name}</span>
+										{instance.content && (
+											<div className="ml-auto text-xs text-gray-400">
+												{typeof instance.content === 'string'
+													? JSON.parse(instance.content).nodes?.length || 0
+													: instance.content.nodes?.length || 0} nodes
+											</div>
+										)}
+									</button>
+								))}
+							</div>
+
+							<div className="border-t border-gray-200 mt-2 pt-2">
+								<button
+									onClick={() => {
+										onNewFlow(flowchartId);
+										setIsOpen(false);
+									}}
+									className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+								>
+									<Plus className="h-4 w-4" />
+									Create New Chart
+								</button>
+							</div>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }
-

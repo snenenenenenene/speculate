@@ -9,11 +9,11 @@ export async function POST(
   { params }: { params: { flowchartId: string } }
 ) {
   const flowchartId = await params.flowchartId;
-  console.log("Creating chart for flowchart:", flowchartId); // Debug log
+  console.log("Creating chart for flowchart:", flowchartId);
 
   try {
     const session = await getServerSession(authOptions);
-    console.log("Session:", session); // Debug log
+    console.log("Session:", session);
 
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    console.log("Request body:", body); // Debug log
+    console.log("Request body:", body);
 
     // First verify flowchart ownership
     const flowchart = await prisma.flowchart.findUnique({
@@ -33,7 +33,7 @@ export async function POST(
       },
     });
 
-    console.log("Found flowchart:", flowchart); // Debug log
+    console.log("Found flowchart:", flowchart);
 
     if (!flowchart) {
       return NextResponse.json(
@@ -42,11 +42,46 @@ export async function POST(
       );
     }
 
+    // Create default content if none provided
+    const defaultContent = JSON.stringify({
+      nodes: [
+        {
+          id: "start-node",
+          type: "startNode",
+          position: { x: 250, y: 50 },
+          data: {
+            label: "Start",
+            instanceId: flowchartId,
+            options: [{ label: "DEFAULT", nextNodeId: "end-node" }],
+          },
+        },
+        {
+          id: "end-node",
+          type: "endNode",
+          position: { x: 250, y: 200 },
+          data: {
+            label: "End",
+            instanceId: flowchartId,
+            endType: "end",
+            redirectTab: "",
+          },
+        },
+      ],
+      edges: [
+        {
+          id: "edge-1",
+          source: "start-node",
+          target: "end-node",
+          type: "smoothstep",
+        },
+      ],
+    });
+
     // Create the chart
     const chart = await prisma.chart.create({
       data: {
         name: body.name || "New Chart",
-        content: "[]",
+        content: body.content || defaultContent,
         color: flowchart.color,
         flowchartId: flowchartId,
         isPublished: false,
@@ -55,8 +90,7 @@ export async function POST(
       },
     });
 
-    console.log("Created chart:", chart); // Debug log
-
+    console.log("Created chart:", chart);
     return NextResponse.json(chart);
   } catch (error: any) {
     console.error("Detailed error in chart creation:", {

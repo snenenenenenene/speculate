@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const flowchartId = context.params?.flowchartId;
+    const { params } = context;
+    const flowchartId = params?.flowchartId;
     console.log("API Route - Fetching flowchart:", flowchartId);
 
     const flowchart = await prisma.flowchart.findUnique({
@@ -22,7 +23,15 @@ export async function GET(
         userId: session.user.id,
       },
       include: {
-        charts: true,
+        charts: {
+          select: {
+            id: true,
+            name: true,
+            content: true,
+            updatedAt: true,
+            isPublished: true,
+          },
+        },
       },
     });
 
@@ -33,7 +42,18 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(flowchart);
+    // Parse the content of each chart
+    const parsedFlowchart = {
+      ...flowchart,
+      charts: flowchart.charts.map((chart) => ({
+        ...chart,
+        content: chart.content
+          ? JSON.parse(chart.content)
+          : { nodes: [], edges: [] },
+      })),
+    };
+
+    return NextResponse.json(parsedFlowchart);
   } catch (error) {
     console.error("API Route - Error:", error);
     return NextResponse.json(

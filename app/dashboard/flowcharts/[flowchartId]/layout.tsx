@@ -25,6 +25,7 @@ export default function FlowchartLayout({
   const { chartStore } = useStores() as any;
 
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
@@ -33,7 +34,10 @@ export default function FlowchartLayout({
   const pathParts = pathname.split('/');
   const chartId = pathParts.includes('charts') ? pathParts[pathParts.length - 1] : null;
   const currentChart = chartId ? chartStore.getChartInstance(chartId) : null;
-  const chartInstances = flowchartId ? chartStore.getChartInstances(flowchartId) : [];
+  // Changed to filter chart instances by flowchartId
+  const chartInstances = chartStore.chartInstances.filter(
+    (chart: any) => chart.flowchartId === flowchartId
+  );
 
   useEffect(() => {
     const loadFlowchart = async () => {
@@ -43,27 +47,40 @@ export default function FlowchartLayout({
 
       try {
         setIsLoading(true);
+        setError(null);
+
         const response = await fetch(`/api/flowcharts/${flowchartId}`);
-        console.log('Layout - Response status:', response.status);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch flowchart');
+        }
 
         const data = await response.json();
-        console.log('Layout - Response data:', data);
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch flowchart');
+        // Transform each chart to ensure the content is parsed
+        if (data.charts) {
+          data.charts = data.charts.map((chart: any) => ({
+            ...chart,
+            content: chart.content ? JSON.parse(chart.content) : { nodes: [], edges: [] }
+          }));
+        }
+
+        // Update chart instances in the store
+        if (data.charts) {
+          chartStore.setChartInstances(data.charts);
         }
 
         if (pathname === `/dashboard/flowcharts/${flowchartId}`) {
           setIsRedirecting(true);
           if (data.charts?.length > 0) {
-            console.log('Layout - Redirecting to first chart:', data.charts[0].id);
             router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.charts[0].id}`);
           } else {
             router.push(`/dashboard/flowcharts/${flowchartId}/charts`);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Layout - Error:', error);
+        setError(error.message || 'Failed to load flowchart');
         router.push('/dashboard/flowcharts');
       } finally {
         setIsLoading(false);
@@ -71,16 +88,17 @@ export default function FlowchartLayout({
     };
 
     loadFlowchart();
-  }, [flowchartId, router, pathname, isRedirecting]);
+  }, [flowchartId, router, pathname, isRedirecting, chartStore]);
 
   useEffect(() => {
     if (chartId) {
-      console.log('Layout - Setting current dashboard tab:', chartId);
       chartStore.setCurrentDashboardTab(chartId);
     }
   }, [chartId, chartStore]);
 
-  const handleNewFlow = async (flowchartId: string) => {
+  const handleNewFlow = async () => {
+    if (!flowchartId) return;
+
     try {
       const response = await fetch(`/api/flowcharts/${flowchartId}/charts`, {
         method: 'POST',
@@ -89,17 +107,20 @@ export default function FlowchartLayout({
         },
         body: JSON.stringify({
           name: 'New Chart',
+          content: JSON.stringify({ nodes: [], edges: [] })
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create new chart');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create new chart');
       }
 
       const newChart = await response.json();
       router.push(`/dashboard/flowcharts/${flowchartId}/charts/${newChart.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating new chart:', error);
+      setError(error.message || 'Failed to create new chart');
     }
   };
 
@@ -156,57 +177,30 @@ export default function FlowchartLayout({
                 width={sidebarWidth}
                 onWidthChange={setSidebarWidth}
               />
-
-              <div className="border-t border-gray-200 p-3 bg-gray-50">
-                <div className="text-xs text-gray-500 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-600">
-                      Drag
-                    </kbd>
-                    <span>to add nodes</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-600">
-                      ⌘ S
-                    </kbd>
-                    <span>to save</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-600">
-                      Delete
-                    </kbd>
-                    <span>to remove node</span>
-                  </div>
-                </div>
-              </div>
             </motion.aside>
           )}
         </AnimatePresence>
 
         <div className="flex-1 relative flex flex-col overflow-hidden mt-16">
-          <main className="flex-1 relative bg-gray-50 pb-16">
-            {children}
+          <main className="flex-1 relative bg-gray-50">
+            {error ? (
+              <div className="p-4 text-red-600 bg-red-50 rounded-lg m-4">
+                {error}
+              </div>
+            ) : (
+              children
+            )}
           </main>
         </div>
+
+        {currentChart && (
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            currentInstance={currentChart}
+          />
+        )}
       </div>
-
-      {currentChart && (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          currentInstance={currentChart}
-        />
-      )}
-
-      <style jsx global>{`
-        .hide-scrollbar {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </ReactFlowProvider>
   );
 }

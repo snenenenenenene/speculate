@@ -1,4 +1,3 @@
-// stores/utilitySlice.ts
 import { StateCreator } from "zustand";
 import { UtilityState } from "./types";
 
@@ -24,7 +23,13 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
         throw new Error(data.error || "Failed to load chart");
       }
 
-      return await response.json();
+      const data = await response.json();
+      return {
+        ...data,
+        content: data.content
+          ? JSON.parse(data.content)
+          : { nodes: [], edges: [] },
+      };
     } catch (error) {
       console.error("Error loading chart:", error);
       throw error;
@@ -53,14 +58,24 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
   },
 
   loadSavedData: async () => {
-    // For initial load, get all flowcharts instead of a specific one
     try {
       const response = await fetch("/api/flowcharts");
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "Failed to load flowcharts");
       }
-      return await response.json();
+      const data = await response.json();
+
+      // Transform the data to include parsed content for each chart
+      return data.map((flowchart) => ({
+        ...flowchart,
+        charts: flowchart.charts.map((chart) => ({
+          ...chart,
+          content: chart.content
+            ? JSON.parse(chart.content)
+            : { nodes: [], edges: [] },
+        })),
+      }));
     } catch (error) {
       console.error("Error loading saved data:", error);
       throw error;
@@ -72,7 +87,33 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
     if (!currentFlowchartId || !currentChartId) {
       throw new Error("No active chart selected");
     }
-    return get().saveChart(currentFlowchartId, currentChartId, content);
+
+    try {
+      const response = await fetch(
+        `/api/flowcharts/${currentFlowchartId}/charts/${currentChartId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: {
+              nodes: content.nodes || [],
+              edges: content.edges || [],
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to save chart");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error saving to database:", error);
+      throw error;
+    }
   },
 });
 

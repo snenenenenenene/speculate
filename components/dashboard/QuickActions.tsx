@@ -1,5 +1,4 @@
-// QuickActions.tsx
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// components/dashboard/QuickActions.tsx
 "use client";
 
 import { Dialog } from "@/components/ui/Dialog";
@@ -17,9 +16,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "react-hot-toast";
-import { FlowSelector } from "./FlowSelector";
 import { ImportChoiceDialog } from "./ImportChoiceDialog";
 
 interface QuickActionsProps {
@@ -29,39 +27,18 @@ interface QuickActionsProps {
 export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const router = useRouter();
 	const pathname = usePathname();
-	const { chartStore, commitStore, utilityStore } = useStores() as any;
+	const { chartStore, utilityStore } = useStores() as any;
 	const [isSaving, setIsSaving] = useState(false);
 	const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
 	const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
 	const [commitMessage, setCommitMessage] = useState("");
 	const [commitType, setCommitType] = useState<"local" | "global">("local");
-	const [chartInstances, setChartInstances] = useState<any[]>([]);
 
-	const urlParts = pathname.split('/');
-	const flowchartIndex = urlParts.indexOf('flowcharts');
-	const urlFlowchartId = flowchartIndex !== -1 ? urlParts[flowchartIndex + 1] : undefined;
-
-	useEffect(() => {
-		const loadCharts = async () => {
-			if (urlFlowchartId) {
-				try {
-					const flowchart = await utilityStore.loadFlowchart(urlFlowchartId);
-					if (flowchart?.charts) {
-						const parsedCharts = flowchart.charts.map(chart => ({
-							...chart,
-							content: JSON.parse(chart.content || '[]')
-						}));
-						setChartInstances(parsedCharts);
-						chartStore.setChartInstances(parsedCharts);
-					}
-				} catch (error) {
-					console.error('Error loading charts:', error);
-				}
-			}
-		};
-
-		loadCharts();
-	}, [urlFlowchartId, utilityStore, chartStore]);
+	// Get flowchartId and chartId from pathname
+	const pathParts = pathname.split('/');
+	const flowchartIndex = pathParts.indexOf('flowcharts');
+	const urlFlowchartId = flowchartIndex !== -1 ? pathParts[flowchartIndex + 1] : undefined;
+	const chartId = pathParts[pathParts.length - 1];
 
 	const [importChoiceOpen, setImportChoiceOpen] = useState(false);
 	const [pendingImport, setPendingImport] = useState<{
@@ -71,60 +48,44 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	} | null>(null);
 
 	const handleQuickSave = async () => {
-		setIsSaving(true);
-		try {
-			await utilityStore.saveToDb(chartStore.chartInstances);
-			toast.success("Changes saved successfully");
-		} catch (error) {
-			toast.error("Failed to save changes");
-			console.error("Save error:", error);
-		} finally {
-			setIsSaving(false);
-		}
-	};
-
-	const handleChartSelect = (flowchartId: string, chartId: string) => {
-		router.push(`/dashboard/flowcharts/${flowchartId}/charts/${chartId}`);
-	};
-
-	const handleNewChart = async (flowchartId: string) => {
-		if (!flowchartId) {
-			toast.error('No flowchart selected');
+		if (!urlFlowchartId || !chartId) {
+			toast.error("No active chart selected");
 			return;
 		}
 
+		setIsSaving(true);
 		try {
-			const response = await fetch(`/api/flowcharts/${flowchartId}/charts`, {
-				method: 'POST',
+			// Get the current chart instance
+			const currentChart = chartStore.getChartInstance(chartId);
+			if (!currentChart) {
+				throw new Error("Chart not found");
+			}
+
+			// Prepare the content to save
+			const content = JSON.stringify({
+				nodes: currentChart.nodes,
+				edges: currentChart.edges
+			});
+
+			// Save the chart
+			const response = await fetch(`/api/flowcharts/${urlFlowchartId}/charts/${chartId}`, {
+				method: 'PATCH',
 				headers: {
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify({
-					name: `New Chart ${chartInstances.length}`,
-				}),
+				body: JSON.stringify({ content }),
 			});
 
-			const data = await response.json();
-
 			if (!response.ok) {
-				throw new Error(data.error || data.details || 'Failed to create chart');
+				throw new Error("Failed to save chart");
 			}
 
-			const updatedFlowchart = await utilityStore.loadFlowchart(flowchartId);
-			if (updatedFlowchart?.charts) {
-				const parsedCharts = updatedFlowchart.charts.map(chart => ({
-					...chart,
-					content: JSON.parse(chart.content || '[]')
-				}));
-				setChartInstances(parsedCharts);
-				chartStore.setChartInstances(parsedCharts);
-			}
-
-			router.push(`/dashboard/flowcharts/${flowchartId}/charts/${data.id}`);
-			toast.success('Chart created successfully');
-		} catch (error: any) {
-			console.error('Error creating chart:', error);
-			toast.error(error.message || 'Failed to create chart');
+			toast.success("Changes saved successfully");
+		} catch (error) {
+			console.error("Save error:", error);
+			toast.error("Failed to save changes");
+		} finally {
+			setIsSaving(false);
 		}
 	};
 
@@ -164,22 +125,34 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	};
 
 	const handleImportReplace = async () => {
-		if (!pendingImport || !urlFlowchartId) return;
+		if (!pendingImport || !urlFlowchartId || !chartId) return;
 
 		try {
-			if (pendingImport.type === "single") {
-				const currentChart = chartStore.getCurrentChartInstance();
-				if (currentChart) {
-					await chartStore.replaceFlow(currentChart.id, pendingImport.data.flow);
-					toast.success("Chart replaced successfully");
-				}
-			} else {
-				await chartStore.replaceAllFlows(pendingImport.data.flows);
-				toast.success("All flows replaced successfully");
+			const content = JSON.stringify(pendingImport.data.flow);
+
+			const response = await fetch(`/api/flowcharts/${urlFlowchartId}/charts/${chartId}`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ content }),
+			});
+
+			if (!response.ok) {
+				throw new Error("Failed to update chart");
 			}
+
+			// Update local state
+			const currentChart = await response.json();
+			chartStore.updateChart(urlFlowchartId, chartId, {
+				...currentChart,
+				content: JSON.parse(currentChart.content)
+			});
+
+			toast.success("Chart replaced successfully");
 		} catch (error) {
 			console.error("Import error:", error);
-			toast.error("Failed to import flows");
+			toast.error("Failed to import flow");
 		} finally {
 			setImportChoiceOpen(false);
 			setIsImportExportModalOpen(false);
@@ -191,19 +164,30 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 		if (!pendingImport || !urlFlowchartId) return;
 
 		try {
-			if (pendingImport.type === "single") {
-				const newFlowId = await chartStore.importFlow(pendingImport.file);
-				if (newFlowId) {
-					router.push(`/dashboard/flowcharts/${urlFlowchartId}/charts/${newFlowId}`);
-				}
-				toast.success("Flow imported successfully");
-			} else {
-				await chartStore.importMultipleFlows(pendingImport.data.flows);
-				toast.success("Flows imported successfully");
+			// Create a new chart with the imported content
+			const response = await fetch(`/api/flowcharts/${urlFlowchartId}/charts`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					name: 'Imported Chart',
+					content: JSON.stringify(pendingImport.data.flow)
+				}),
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to create chart');
 			}
+
+			const newChart = await response.json();
+
+			// Redirect to the new chart
+			router.push(`/dashboard/flowcharts/${urlFlowchartId}/charts/${newChart.id}`);
+			toast.success("Flow imported successfully");
 		} catch (error) {
 			console.error("Import error:", error);
-			toast.error("Failed to import flows");
+			toast.error("Failed to import flow");
 		} finally {
 			setImportChoiceOpen(false);
 			setIsImportExportModalOpen(false);
@@ -223,19 +207,6 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 
 			<div className="h-6 w-px bg-gray-200" />
 
-			{urlFlowchartId && (
-				<FlowSelector
-					currentFlow={chartStore.getCurrentChartInstance()}
-					chartInstances={chartInstances}
-					currentTab={chartStore.currentDashboardTab}
-					onFlowSelect={handleChartSelect}
-					onNewFlow={handleNewChart}
-					flowchartId={urlFlowchartId}
-				/>
-			)}
-
-			<div className="h-6 w-px bg-gray-200" />
-
 			<button
 				onClick={handleQuickSave}
 				disabled={isSaving}
@@ -247,11 +218,16 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 				)}
 			>
 				{isSaving ? (
-					<LoadingSpinner className="h-4 w-4" />
+					<>
+						<LoadingSpinner className="h-4 w-4" />
+						Saving...
+					</>
 				) : (
-					<Save className="h-4 w-4" />
+					<>
+						<Save className="h-4 w-4" />
+						Save
+					</>
 				)}
-				Save
 			</button>
 
 			<button
@@ -290,7 +266,7 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 				<div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-auto">
 					<div className="p-6">
 						<div className="flex items-center justify-between border-b border-gray-200 pb-4">
-							<h3 className="text-lg font-bold text-gray-900">Import/Export Flows</h3>
+							<h3 className="text-lg font-bold text-gray-900">Import/Export Charts</h3>
 							<button
 								onClick={() => setIsImportExportModalOpen(false)}
 								className="p-1 hover:bg-gray-100 rounded-md"
@@ -322,23 +298,18 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 								<h3 className="text-sm font-medium text-gray-900 mb-2">Export</h3>
 								<div className="space-y-2">
 									<button
-										onClick={() => {
-											const currentFlow = chartStore.getCurrentChartInstance();
-											if (currentFlow) {
-												chartStore.exportFlow(currentFlow.id);
-											}
-										}}
+										onClick={() => chartStore.exportChart(urlFlowchartId, chartId)}
 										className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
 									>
 										<Download className="h-4 w-4" />
-										Export Current Flow
+										Export Current Chart
 									</button>
 									<button
-										onClick={() => chartStore.exportAllFlows()}
+										onClick={() => chartStore.exportAllCharts(urlFlowchartId)}
 										className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
 									>
 										<Download className="h-4 w-4" />
-										Export All Flows
+										Export All Charts
 									</button>
 								</div>
 							</div>
@@ -438,7 +409,12 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 						<button
 							onClick={async () => {
 								try {
-									await commitStore.createCommit(commitMessage, commitType);
+									// Add the commit based on type
+									if (commitType === "local") {
+										await chartStore.addLocalCommit(commitMessage);
+									} else {
+										await chartStore.addGlobalCommit(commitMessage);
+									}
 									setIsCommitModalOpen(false);
 									setCommitMessage("");
 									toast.success("Changes committed successfully");
