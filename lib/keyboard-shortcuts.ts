@@ -170,8 +170,13 @@ export function useKeyboardShortcuts(
 
         // Flow Management
         case SHORTCUTS.SAVE_FLOW:
+          const projectId = chartStore.currentProject?.id;
+          if (!projectId) {
+            toast.error("No project selected");
+            break;
+          }
           utilityStore
-            .saveToDb(chartStore.chartInstances)
+            .saveToDb(chartStore.chartInstances, projectId)
             .then(() => {
               toast.success("Flow saved successfully");
             })

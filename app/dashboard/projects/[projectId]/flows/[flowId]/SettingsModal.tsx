@@ -23,7 +23,7 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentInstance }) => {
 	const router = useRouter();
-	const { chartStore, utilityStore, variableStore } = useStores() as any;
+	const { chartStore, utilityStore, variableStore, projectStore } = useStores() as any;
 	const [activeTab, setActiveTab] = useState("general");
 	const [newColor, setNewColor] = useState(currentInstance?.color || "#721d62");
 	const [onePageMode, setOnePageMode] = useState(currentInstance?.onePageMode || false);
@@ -45,6 +45,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentI
 
 		setIsSaving(true);
 		try {
+			const projectId = projectStore.currentProject?.id;
+			if (!projectId) {
+				throw new Error("No project selected");
+			}
+
 			chartStore.setCurrentTabColor(currentInstance.id, newColor);
 			chartStore.setOnePage(currentInstance.id, onePageMode);
 			chartStore.updateChartInstanceName(currentInstance.id, newTabName);
@@ -59,7 +64,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentI
 
 			chartStore.updateChartInstance(updatedInstance);
 			variableStore.setVariables({ ...variableStore.variables, global: globalVariables });
-			await utilityStore.saveToDb(chartStore.chartInstances);
+			await utilityStore.saveToDb(chartStore.chartInstances, projectId);
 
 			onClose();
 			toast.success('Settings saved successfully');
@@ -75,15 +80,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentI
 		setIsDeleting(true);
 
 		try {
+			const projectId = projectStore.currentProject?.id;
+			if (!projectId) {
+				throw new Error("No project selected");
+			}
+
 			chartStore.deleteTab(currentInstance.id);
-			await utilityStore.saveToDb(chartStore.chartInstances);
+			await utilityStore.saveToDb(chartStore.chartInstances, projectId);
 			onClose();
 
 			const remainingFlows = chartStore.chartInstances;
 			if (remainingFlows.length > 0) {
-				await router.push(`/dashboard/${remainingFlows[0].id}`);
+				await router.push(`/dashboard/projects/${projectId}/flows/${remainingFlows[0].id}`);
 			} else {
-				await router.push('/dashboard');
+				await router.push(`/dashboard/projects/${projectId}`);
 			}
 
 			toast.success('Flow deleted successfully');

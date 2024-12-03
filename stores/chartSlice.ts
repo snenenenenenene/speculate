@@ -240,6 +240,7 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
 
   getChartInstance: (tabId: string) => {
     const { chartInstances } = get();
+    console.log(tabId)
     return chartInstances.find((instance) => instance.id === tabId);
   },
 

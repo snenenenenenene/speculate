@@ -442,7 +442,7 @@ const DashboardInstancePage = ({ params }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const resolvedParams = React.use(params);
-  const instanceId = decodeURIComponent((resolvedParams as any).instanceId);
+  const flowId = decodeURIComponent((resolvedParams as any).flowId);
 
   useEffect(() => {
     const loadData = async () => {
@@ -463,29 +463,29 @@ const DashboardInstancePage = ({ params }) => {
 
   const onNodesChange = useCallback(
     (changes) => {
-      if (chartStore.getChartInstance(instanceId)) {
-        chartStore.updateNodes(instanceId, changes);
+      if (chartStore.getChartInstance(flowId)) {
+        chartStore.updateNodes(flowId, changes);
       }
     },
-    [chartStore, instanceId]
+    [chartStore, flowId]
   );
 
   const onEdgesChange = useCallback(
     (changes) => {
-      if (chartStore.getChartInstance(instanceId)) {
-        chartStore.updateEdges(instanceId, changes);
+      if (chartStore.getChartInstance(flowId)) {
+        chartStore.updateEdges(flowId, changes);
       }
     },
-    [chartStore, instanceId]
+    [chartStore, flowId]
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (chartStore.getChartInstance(instanceId)) {
-        chartStore.addEdge(instanceId, { ...connection, type: "editableEdge" });
+      if (chartStore.getChartInstance(flowId)) {
+        chartStore.addEdge(flowId, { ...connection, type: "editableEdge" });
       }
     },
-    [chartStore, instanceId]
+    [chartStore, flowId]
   );
 
   const handleGenerateAI = async (description: string) => {
@@ -506,12 +506,12 @@ const DashboardInstancePage = ({ params }) => {
       event.preventDefault();
       const type = event.dataTransfer.getData("application/reactflow");
       const position = project({ x: event.clientX, y: event.clientY });
-      const newNode = createNewNode(type, position, instanceId);
+      const newNode = createNewNode(type, position, flowId);
       if (newNode) {
-        chartStore.addNode(instanceId, newNode);
+        chartStore.addNode(flowId, newNode);
       }
     },
-    [project, chartStore, instanceId]
+    [project, chartStore, flowId]
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -519,7 +519,7 @@ const DashboardInstancePage = ({ params }) => {
     event.dataTransfer.dropEffect = "move";
   }, []);
 
-  const currentInstance = chartStore.getChartInstance(instanceId);
+  const currentInstance = chartStore.getChartInstance(flowId);
 
   // if (isLoading) {
   //   return (
@@ -528,6 +528,7 @@ const DashboardInstancePage = ({ params }) => {
   //     </div>
   //   );
   // }
+  console.log(currentInstance)
 
   if (!currentInstance) {
     return (

@@ -28,7 +28,7 @@ interface QuickActionsProps {
 
 export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const router = useRouter();
-	const { chartStore, commitStore, utilityStore } = useStores() as any;
+	const { chartStore, commitStore, utilityStore, projectStore } = useStores() as any;
 	const [isSaving, setIsSaving] = useState(false);
 	const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
 	const [isImportExportModalOpen, setIsImportExportModalOpen] = useState(false);
@@ -46,7 +46,11 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 	const handleQuickSave = async () => {
 		setIsSaving(true);
 		try {
-			await utilityStore.saveToDb(chartStore.chartInstances);
+			const projectId = projectStore.currentProject?.id;
+			if (!projectId) {
+				throw new Error("No project selected");
+			}
+			await utilityStore.saveToDb(chartStore.chartInstances, projectId);
 			toast.success("Changes saved successfully");
 		} catch (error) {
 			toast.error("Failed to save changes");
@@ -58,13 +62,15 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 
 	const handleFlowSelect = (id: string) => {
 		chartStore.setCurrentDashboardTab(id);
-		router.push(`/dashboard/${id}`);
+		const projectId = projectStore.currentProject?.id;
+		router.push(`/dashboard/projects/${projectId}/flows/${id}`);
 	};
 
 	const handleNewFlow = async () => {
 		try {
 			const newTabId = await chartStore.addNewTab(`New Flow ${chartStore.chartInstances.length + 1}`);
-			await router.push(`/dashboard/${newTabId}`);
+			const projectId = projectStore.currentProject?.id;
+			await router.push(`/dashboard/projects/${projectId}/flows/${newTabId}`);
 		} catch (error) {
 			toast.error('Failed to create new flow');
 		}

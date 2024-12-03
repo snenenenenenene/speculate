@@ -6,6 +6,7 @@ import { create } from "zustand";
 import createChartSlice from "./chartSlice";
 import createCommitSlice from "./commitSlice";
 import createModalSlice from "./modalSlice";
+import createProjectSlice from "./projectSlice";
 import createUtilitySlice from "./utilitySlice";
 import createVariableSlice from "./variableSlice";
 
@@ -20,6 +21,8 @@ const useRootStore = create<any>((set, get) => ({
   ...createModalSlice(set, get),
   // @ts-ignore
   ...createUtilitySlice(set, get),
+  // @ts-ignore
+  ...createProjectSlice(set, get),
 }));
 
 export default useRootStore;

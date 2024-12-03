@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "reactflow";
 import "reactflow/dist/style.css";
-import SettingsModal from "./[instanceId]/SettingsModal";
+import SettingsModal from "./SettingsModal";
 
 export default function DashboardLayout({
   children,

@@ -23,36 +23,84 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log("Received request body:", body);
 
-    if (!body.content) {
-      console.log("Missing chart content in request");
+    if (!body.content || !body.projectId) {
+      console.log("Missing required content in request");
       return NextResponse.json(
-        { statusCode: 400, message: "Missing chart content" },
+        { statusCode: 400, message: "Missing required content" },
         { status: 400 }
       );
     }
 
     console.log("Chart content:", body.content);
 
-    // Update or create the chart instance
-    const savedChart = await prisma.chartInstance.upsert({
+    // First, get existing flows for this project
+    const existingFlows = await prisma.flow.findMany({
       where: {
-        userId: (session.user as any).id,
-      },
-      update: {
-        content: JSON.stringify(body.content),
-      },
-      create: {
-        userId: (session.user as any).id,
-        content: JSON.stringify(body.content),
-      },
+        projectId: body.projectId
+      }
     });
 
-    console.log("Saved chart:", savedChart);
+    // Create a map of existing flows by ID
+    const existingFlowMap = new Map(existingFlows.map(flow => [flow.id, flow]));
+
+    // Process each flow in the content array
+    const results = await Promise.all(body.content.map(async (flow: any) => {
+      const flowExists = existingFlowMap.has(flow.id);
+
+      if (flowExists) {
+        // Update existing flow
+        return await prisma.flow.update({
+          where: {
+            id: flow.id
+          },
+          data: {
+            name: flow.name,
+            content: JSON.stringify({
+              nodes: flow.nodes,
+              edges: flow.edges,
+            }),
+            onePageMode: flow.onePageMode,
+            color: flow.color,
+          }
+        });
+      } else {
+        // Create new flow
+        return await prisma.flow.create({
+          data: {
+            id: flow.id,
+            name: flow.name,
+            content: JSON.stringify({
+              nodes: flow.nodes,
+              edges: flow.edges,
+            }),
+            onePageMode: flow.onePageMode,
+            color: flow.color,
+            projectId: body.projectId
+          }
+        });
+      }
+    }));
+
+    // Delete flows that no longer exist in the content
+    const currentFlowIds = new Set(body.content.map((f: any) => f.id));
+    const flowsToDelete = existingFlows.filter(flow => !currentFlowIds.has(flow.id));
+
+    if (flowsToDelete.length > 0) {
+      await prisma.flow.deleteMany({
+        where: {
+          id: {
+            in: flowsToDelete.map(f => f.id)
+          }
+        }
+      });
+    }
+
+    console.log("Saved flows:", results);
 
     return NextResponse.json({
       success: true,
-      message: "Chart saved successfully",
-      id: savedChart.id,
+      message: "Flows saved successfully",
+      flows: results,
     });
   } catch (err: any) {
     console.error("Error in POST route:", err);

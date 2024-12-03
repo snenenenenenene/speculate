@@ -14,7 +14,7 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
       return state;
     }),
 
-  saveToDb: async (chartInstances: ChartInstance[]) => {
+  saveToDb: async (chartInstances: ChartInstance[], projectId: string) => {
     try {
       console.log("saveToDb called with:", chartInstances);
 
@@ -23,7 +23,7 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: chartInstances }),
+        body: JSON.stringify({ content: chartInstances, projectId }),
       });
 
       console.log("Response status:", response.status);
@@ -38,7 +38,7 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
       console.log("Save result:", result);
 
       if (result.success) {
-        console.log("Chart saved successfully:", result.id);
+        console.log("Flows saved successfully:", result.flows);
       } else {
         throw new Error(
           result.message || "Unknown error occurred while saving"
