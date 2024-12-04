@@ -1,9 +1,21 @@
 import { StateCreator } from "zustand";
 import { ChartInstance, UtilityState } from "./types";
 
-const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
+const createUtilitySlice = ((set, get) => ({
   currentTab: "",
   projectId: null,
+  isLoading: false,
+
+  initializeStore: () => {
+    try {
+      const savedProjectId = localStorage.getItem('currentProjectId');
+      if (savedProjectId) {
+        set({ projectId: savedProjectId });
+      }
+    } catch (e) {
+      console.warn('Failed to load projectId from localStorage:', e);
+    }
+  },
 
   setCurrentTab: (tabId: string) =>
     set((state) => {
@@ -31,17 +43,6 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
     }
   },
 
-  initializeStore: () => {
-    try {
-      const savedProjectId = localStorage.getItem('currentProjectId');
-      if (savedProjectId) {
-        set({ projectId: savedProjectId });
-      }
-    } catch (e) {
-      console.warn('Failed to load projectId from localStorage:', e);
-    }
-  },
-
   saveToDb: async (chartInstances: ChartInstance[]) => {
     try {
       const { projectId } = get();
@@ -50,42 +51,40 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
         throw new Error("No project selected");
       }
 
-      console.log("Saving with projectId:", projectId);
+      const payload = {
+        content: chartInstances.map(instance => ({
+          ...instance,
+          content: JSON.stringify({
+            nodes: instance.nodes || [],
+            edges: instance.edges || [],
+            color: instance.color || "#80B500",
+            onePageMode: instance.onePageMode || false,
+            publishedVersions: instance.publishedVersions || [],
+            variables: instance.variables || []
+          })
+        })),
+        projectId
+      };
 
       const response = await fetch("/api/save-chart", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          content: chartInstances,
-          projectId 
-        }),
+        body: JSON.stringify(payload),
       });
 
-      let responseText;
-      try {
-        responseText = await response.text();
-        console.log("Raw response:", responseText);
-        
-        const data = JSON.parse(responseText);
-        
-        if (!response.ok) {
-          throw new Error(data.message || `Server error: ${response.status}`);
-        }
-
-        if (!data.success) {
-          throw new Error(data.message || "Operation was not successful");
-        }
-
-        console.log("Save successful:", data);
-        return data.flows;
-      } catch (parseError) {
-        console.error("Response parsing error:", parseError);
-        console.error("Raw response text:", responseText);
-        throw new Error("Failed to parse server response");
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || `Server error: ${response.status}`);
       }
 
+      if (!data.success) {
+        throw new Error(data.message || "Operation was not successful");
+      }
+
+      return data.flows;
     } catch (error) {
       console.error("Error saving to database:", error);
       throw error instanceof Error ? error : new Error("Unknown error occurred");
@@ -93,55 +92,42 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
   },
 
   loadSavedData: async () => {
+    const state = get();
+    
+    if (state.isLoading || !state.projectId) {
+      return null;
+    }
+
+    set({ isLoading: true });
+    
     try {
-      const { projectId } = get();
+      const response = await fetch(`/api/load-chart?projectId=${state.projectId}`);
+      const data = await response.json();
       
-      if (!projectId) {
-        console.warn("No project ID available for loading data");
-        return null;
+      if (!response.ok) {
+        throw new Error(data.message || `Server error: ${response.status}`);
       }
 
-      console.log("Loading data for project:", projectId);
-
-      const response = await fetch(`/api/load-chart?projectId=${projectId}`);
-      
-      let responseText;
-      try {
-        responseText = await response.text();
-        console.log("Raw load response:", responseText);
-        
-        const data = JSON.parse(responseText);
-        
-        if (!response.ok) {
-          throw new Error(data.message || `Server error: ${response.status}`);
-        }
-
-        if (!data.success) {
-          throw new Error(data.message || "Failed to load data");
-        }
-
-        // Parse the content if it's stored as a string
-        if (Array.isArray(data.content)) {
-          const parsedContent = data.content.map(flow => ({
-            ...flow,
-            content: typeof flow.content === 'string' ? JSON.parse(flow.content) : flow.content
-          }));
-          console.log("Loaded and parsed data:", parsedContent);
-          return parsedContent;
-        }
-
-        return data.content;
-      } catch (parseError) {
-        console.error("Response parsing error:", parseError);
-        console.error("Raw response text:", responseText);
-        throw new Error("Failed to parse loaded data");
+      if (!data.success) {
+        throw new Error(data.message || "Failed to load data");
       }
 
+      if (Array.isArray(data.content)) {
+        const parsedContent = data.content.map(flow => ({
+          ...flow,
+          content: typeof flow.content === 'string' ? JSON.parse(flow.content) : flow.content
+        }));
+        return parsedContent;
+      }
+
+      return data.content;
     } catch (error) {
       console.error("Error loading saved data:", error);
-      throw error instanceof Error ? error : new Error("Failed to load data");
+      throw error;
+    } finally {
+      set({ isLoading: false });
     }
   },
-});
+})) as StateCreator<UtilityState>;
 
 export default createUtilitySlice;

@@ -9,17 +9,16 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
     if (!projectId) {
-      return NextResponse.json({ error: "Project ID is required" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Project ID is required" }, { status: 400 });
     }
 
-    // Find all flows for this project
     const flows = await prisma.flow.findMany({
       where: {
         projectId: projectId,
@@ -29,40 +28,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    if (!flows || flows.length === 0) {
-      return NextResponse.json({
-        success: true,
-        content: [],
-      });
-    }
-
-    // Transform the flows to the expected format
-    const transformedFlows = flows.map(flow => {
-      // If content is stored as a string, parse it, otherwise use as is
-      const flowContent = typeof flow.content === 'string' 
-        ? JSON.parse(flow.content)
-        : flow.content;
-
-      return {
-        id: flow.id,
-        name: flowContent.name || flow.name,
-        nodes: flowContent.nodes || [],
-        edges: flowContent.edges || [],
-        color: flowContent.color || flow.color,
-        onePageMode: flowContent.onePageMode || flow.onePageMode,
-        publishedVersions: flowContent.publishedVersions || [],
-        variables: flowContent.variables || [],
-      };
-    });
-
     return NextResponse.json({
       success: true,
-      content: transformedFlows,
+      content: flows.length > 0 ? flows : [],
     });
   } catch (error) {
     console.error("Error loading chart:", error);
     return NextResponse.json(
-      { error: "Failed to load chart" },
+      { success: false, error: "Failed to load chart" },
       { status: 500 }
     );
   }

@@ -199,7 +199,7 @@ function ProjectFilters({ onFilterChange, onReset }: ProjectFiltersComponentProp
 export default function DashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { projectStore } = useStores() as any;
+  const { projectStore, utilityStore } = useStores() as any;
   const { projects, filters, loading, error } = projectStore;
 
   useEffect(() => {
@@ -214,6 +214,11 @@ export default function DashboardPage() {
         name: "New Project",
         userId: session.user.id,
       });
+
+      // Set the current project before navigating
+      projectStore.setCurrentProject(newProject);
+      utilityStore.setProjectId(newProject.id);
+
       toast.success("Project created successfully");
       router.push(`/dashboard/projects/${newProject.id}`);
     } catch (error) {

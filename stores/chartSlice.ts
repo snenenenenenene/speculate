@@ -1,24 +1,19 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { toast } from "react-hot-toast";
-import { addEdge, applyEdgeChanges, applyNodeChanges, Edge } from "reactflow";
-import { v4 as uuidv4 } from "uuid";
 import { StateCreator } from "zustand";
-import {
-  ChartInstance,
-  CompleteExport,
-  EdgeChange,
-  FlowExport,
-  NodeChange,
-  ValidationResult,
-} from "./types";
+import { addEdge, applyEdgeChanges, applyNodeChanges } from "reactflow";
+import { v4 as uuidv4 } from "uuid";
+import { toast } from "react-hot-toast";
+import { ChartInstance, ChartState, CompleteExport, FlowExport, ValidationResult } from "./types";
 
 const APPLICATION_VERSION = "1.0.0";
 
 const createChartSlice: StateCreator<any> = (set, get) => ({
   chartInstances: [],
   currentDashboardTab: "",
-  tempGeneratedChart: null, // Temporary storage for AI-generated chart
+  isLoading: false,
+  error: null,
+  tempGeneratedChart: null,
 
+  // Core state management
   setCurrentDashboardTab: (tabId: string) =>
     set((state) => {
       if (state.currentDashboardTab !== tabId) {
@@ -27,31 +22,28 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       return state;
     }),
 
-  updateNodes: (instanceId: string, changes: NodeChange[]) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
-          ? {
-              ...instance,
-              nodes: applyNodeChanges(changes as any, instance.nodes),
-            }
-          : instance
-      ),
-    })),
+  setChartInstances: (newInstances: ChartInstance[]) =>
+    set({ 
+      chartInstances: newInstances,
+      isLoading: false 
+    }),
 
-  updateEdges: (instanceId: string, changes: EdgeChange[]) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
-          ? {
-              ...instance,
-              edges: applyEdgeChanges(changes as any, instance.edges),
-            }
-          : instance
-      ),
-    })),
+  // Instance management
+  getChartInstance: (tabId: string) => {
+    if (!tabId) return null;
+    const { chartInstances } = get();
+    return chartInstances.find(instance => instance.id === tabId) || null;
+  },
 
+  getCurrentChartInstance: () => {
+    const { chartInstances, currentDashboardTab } = get();
+    return chartInstances.find(instance => instance.id === currentDashboardTab) || null;
+  },
+
+  // Tab management
   addNewTab: async (newTabName: string) => {
+    const { utilityStore } = get();
+    
     const newTab: ChartInstance = {
       id: uuidv4(),
       name: newTabName,
@@ -63,194 +55,124 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       variables: [],
     };
 
-    set((state) => ({
-      chartInstances: [...state.chartInstances, newTab],
-      currentDashboardTab: newTab.id,
-    }));
-
     try {
-      await get().saveToDb([...get().chartInstances]); // Save all instances
+      set(state => ({
+        chartInstances: [...state.chartInstances, newTab],
+        currentDashboardTab: newTab.id,
+        error: null
+      }));
+
+      // Only save to database after local state is updated
+      await utilityStore.saveToDb(get().chartInstances);
+      
       return newTab.id;
     } catch (error) {
-      console.error("Failed to save new tab:", error);
+      // Revert on error
+      set(state => ({
+        chartInstances: state.chartInstances.filter(instance => instance.id !== newTab.id),
+        error: error.message
+      }));
       throw error;
     }
   },
 
-  addNode: (instanceId: string, newNode: Node) =>
-    set((state: any) => ({
-      chartInstances: state.chartInstances.map((instance) =>
+  deleteTab: (tabId: string) => {
+    if (!tabId) return;
+    set(state => {
+      const updatedInstances = state.chartInstances.filter(instance => instance.id !== tabId);
+      return {
+        chartInstances: updatedInstances,
+        currentDashboardTab: updatedInstances[0]?.id || "",
+        error: null
+      };
+    });
+  },
+
+  // Node and edge management
+  updateNodes: (instanceId: string, changes) => {
+    if (!instanceId) return;
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
+        instance.id === instanceId
+          ? { ...instance, nodes: applyNodeChanges(changes, instance.nodes) }
+          : instance
+      )
+    }));
+  },
+
+  updateEdges: (instanceId: string, changes) => {
+    if (!instanceId) return;
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
+        instance.id === instanceId
+          ? { ...instance, edges: applyEdgeChanges(changes, instance.edges) }
+          : instance
+      )
+    }));
+  },
+
+  addNode: (instanceId: string, newNode) => {
+    if (!instanceId || !newNode) return;
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
         instance.id === instanceId
           ? { ...instance, nodes: [...instance.nodes, newNode] }
           : instance
-      ),
-    })),
+      )
+    }));
+  },
 
-  addEdge: (instanceId: string, newEdge: Edge) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
+  addEdge: (instanceId: string, newEdge) => {
+    if (!instanceId || !newEdge) return;
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
         instance.id === instanceId
           ? { ...instance, edges: addEdge(newEdge, instance.edges) }
           : instance
-      ),
-    })),
+      )
+    }));
+  },
 
-  updateNode: (instanceId: string, nodeId: string, newData: Partial<Node>) =>
-    set((state: any) => ({
-      chartInstances: state.chartInstances.map((instance) =>
+  removeNode: (instanceId: string, nodeId: string) => {
+    if (!instanceId || !nodeId) return;
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
         instance.id === instanceId
           ? {
               ...instance,
-              nodes: instance.nodes.map((node) =>
-                node.id === nodeId ? { ...node, ...newData } : node
-              ),
+              nodes: instance.nodes.filter(node => node.id !== nodeId),
+              edges: instance.edges.filter(edge => 
+                edge.source !== nodeId && edge.target !== nodeId
+              )
             }
           : instance
-      ),
-    })),
+      )
+    }));
+  },
 
-  removeNode: (instanceId: string, nodeId: string) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
-          ? {
-              ...instance,
-              nodes: instance.nodes.filter((node) => node.id !== nodeId),
-              edges: instance.edges.filter(
-                (edge) => edge.source !== nodeId && edge.target !== nodeId
-              ),
-            }
-          : instance
-      ),
-    })),
-
-  deleteTab: (tabId: string) =>
-    set((state) => {
-      const updatedInstances = state.chartInstances.filter(
-        (instance) => instance.id !== tabId
-      );
-      const newCurrentTab =
-        updatedInstances.length > 0 ? updatedInstances[0].id : "";
-      return {
-        chartInstances: updatedInstances,
-        currentDashboardTab: newCurrentTab,
-      };
-    }),
-
-  updateChartInstance: (updatedInstance: ChartInstance) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === updatedInstance.id ? updatedInstance : instance
-      ),
-    })),
-
-  setChartInstances: (newInstances: ChartInstance[]) =>
-    set({ chartInstances: newInstances }),
-
+  // Instance properties management
   updateChartInstanceName: (tabId: string, newName: string) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
         instance.id === tabId ? { ...instance, name: newName } : instance
-      ),
+      )
     })),
 
   setCurrentTabColor: (tabId: string, color: string) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
         instance.id === tabId ? { ...instance, color } : instance
-      ),
+      )
     })),
 
   setOnePage: (tabId: string, value: boolean) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
         instance.id === tabId ? { ...instance, onePageMode: value } : instance
-      ),
+      )
     })),
 
-  addPublishedVersion: (tabId: string, version: number, date: string) =>
-    set((state: any) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === tabId
-          ? {
-              ...instance,
-              publishedVersions: [
-                ...(instance.publishedVersions || []),
-                { version, date },
-              ],
-            }
-          : instance
-      ),
-    })),
-
-  revertToVersion: (tabId: string, version: number) =>
-    set((state) => {
-      const instance = state.chartInstances.find(
-        (instance) => instance.id === tabId
-      );
-      if (instance && instance.publishedVersions) {
-        const versionData = instance.publishedVersions.find(
-          (v) => v.version === version
-        );
-        if (versionData) {
-          return {
-            chartInstances: state.chartInstances.map((instance) =>
-              instance.id === tabId
-                ? {
-                    ...instance,
-                    nodes: versionData.nodes,
-                    edges: versionData.edges,
-                  }
-                : instance
-            ),
-          };
-        }
-      }
-      return state;
-    }),
-
-  publishTab: (tabId: string) =>
-    set((state) => {
-      const instance = state.chartInstances.find(
-        (instance) => instance.id === tabId
-      );
-      if (instance) {
-        const newVersion = (instance.publishedVersions?.length || 0) + 1;
-        return {
-          chartInstances: state.chartInstances.map((instance) =>
-            instance.id === tabId
-              ? {
-                  ...instance,
-                  publishedVersions: [
-                    ...(instance.publishedVersions || []),
-                    {
-                      version: newVersion,
-                      date: new Date().toISOString(),
-                      nodes: instance.nodes,
-                      edges: instance.edges,
-                    },
-                  ],
-                }
-              : instance
-          ),
-        };
-      }
-      return state;
-    }),
-
-  getChartInstance: (tabId: string) => {
-    const { chartInstances } = get();
-    console.log(tabId)
-    return chartInstances.find((instance) => instance.id === tabId);
-  },
-
-  getCurrentChartInstance: () => {
-    const { chartInstances, currentDashboardTab } = get();
-    console.log(chartInstances);
-    return Array.isArray(chartInstances)
-      ? chartInstances.find((instance) => instance.id === currentDashboardTab)
-      : null;
-  },
+  // AI chart management
   addAIChart: (chartData: any) => {
     const newChart: ChartInstance = {
       id: uuidv4(),
@@ -263,29 +185,50 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       variables: [],
     };
 
-    set((state) => ({
+    set(state => ({
       chartInstances: [...state.chartInstances, newChart],
       currentDashboardTab: newChart.id,
+      error: null
     }));
 
     return newChart.id;
   },
-  applyAIChart: () =>
-    set((state) => {
-      if (state.tempGeneratedChart) {
-        return {
-          chartInstances: [...state.chartInstances, state.tempGeneratedChart],
-          tempGeneratedChart: null,
-        };
+
+  // Version control
+  addPublishedVersion: (tabId: string, version: number, date: string) =>
+    set(state => ({
+      chartInstances: state.chartInstances.map(instance =>
+        instance.id === tabId
+          ? {
+              ...instance,
+              publishedVersions: [
+                ...(instance.publishedVersions || []),
+                { version, date }
+              ]
+            }
+          : instance
+      )
+    })),
+
+  revertToVersion: (tabId: string, version: number) =>
+    set(state => {
+      const instance = state.chartInstances.find(instance => instance.id === tabId);
+      if (instance?.publishedVersions) {
+        const versionData = instance.publishedVersions.find(v => v.version === version);
+        if (versionData) {
+          return {
+            chartInstances: state.chartInstances.map(instance =>
+              instance.id === tabId
+                ? { ...instance, nodes: versionData.nodes, edges: versionData.edges }
+                : instance
+            )
+          };
+        }
       }
       return state;
     }),
 
-  discardAIChart: () =>
-    set(() => ({
-      tempGeneratedChart: null,
-    })),
-
+  // Import/Export functionality
   validateImport: (data: FlowExport | CompleteExport): ValidationResult => {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -306,28 +249,27 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
         return;
       }
 
-      flow.edges.forEach((edge) => {
-        const sourceExists = flow.nodes.some((node) => node.id === edge.source);
-        const targetExists = flow.nodes.some((node) => node.id === edge.target);
+      // Validate edges
+      flow.edges.forEach(edge => {
+        const sourceExists = flow.nodes.some(node => node.id === edge.source);
+        const targetExists = flow.nodes.some(node => node.id === edge.target);
 
         if (!sourceExists || !targetExists) {
           errors.push(`Invalid edge reference in flow: ${flow.name}`);
         }
       });
 
-      flow.nodes.forEach((node) => {
-        if (
-          !node.type ||
-          ![
-            "yesNo",
-            "singleChoice",
-            "multipleChoice",
-            "endNode",
-            "startNode",
-            "weightNode",
-            "functionNode",
-          ].includes(node.type)
-        ) {
+      // Validate nodes
+      flow.nodes.forEach(node => {
+        if (!node.type || ![
+          "yesNo",
+          "singleChoice",
+          "multipleChoice",
+          "endNode",
+          "startNode",
+          "weightNode",
+          "functionNode"
+        ].includes(node.type)) {
           errors.push(`Invalid node type in flow: ${flow.name}`);
         }
       });
@@ -342,7 +284,7 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   },
 
@@ -358,18 +300,16 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       exportDate: new Date().toISOString(),
       type: "single",
       applicationVersion: APPLICATION_VERSION,
-      flow: instance,
+      flow: instance
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
+      type: "application/json"
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${instance.name
-      .toLowerCase()
-      .replace(/\s+/g, "-")}-flow.json`;
+    link.download = `${instance.name.toLowerCase().replace(/\s+/g, "-")}-flow.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -387,11 +327,11 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       type: "complete",
       applicationVersion: APPLICATION_VERSION,
       flows: chartInstances,
-      references: [],
+      references: []
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
+      type: "application/json"
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -403,7 +343,7 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     window.URL.revokeObjectURL(url);
 
     toast.success("All flows exported successfully");
-  },
+  }
 });
 
 export default createChartSlice;
