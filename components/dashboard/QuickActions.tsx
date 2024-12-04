@@ -43,22 +43,28 @@ export function QuickActions({ onOpenSettings }: QuickActionsProps) {
 		type: "single" | "complete";
 	} | null>(null);
 
-	const handleQuickSave = async () => {
-		setIsSaving(true);
-		try {
-			const projectId = projectStore.currentProject?.id;
-			if (!projectId) {
-				throw new Error("No project selected");
-			}
-			await utilityStore.saveToDb(chartStore.chartInstances, projectId);
-			toast.success("Changes saved successfully");
-		} catch (error) {
-			toast.error("Failed to save changes");
-			console.error("Save error:", error);
-		} finally {
-			setIsSaving(false);
-		}
-	};
+const handleQuickSave = async () => {
+	setIsSaving(true);
+	try {
+	  const projectId = projectStore.currentProject?.id;
+	  if (!projectId) {
+		toast.error("No project selected");
+		return;
+	  }
+  
+	  // Set the project ID in utility store
+	  utilityStore.setProjectId(projectId);
+  
+	  // Save all instances
+	  await utilityStore.saveToDb(chartStore.chartInstances);
+	  toast.success("Changes saved successfully");
+	} catch (error) {
+	  console.error("Save error:", error);
+	  toast.error(error instanceof Error ? error.message : "Failed to save changes");
+	} finally {
+	  setIsSaving(false);
+	}
+  };
 
 	const handleFlowSelect = (id: string) => {
 		chartStore.setCurrentDashboardTab(id);
