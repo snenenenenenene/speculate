@@ -1,13 +1,6 @@
-/* eslint-disable react-hooks/rules-of-hooks */
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import {
-  EndNode, FunctionNode, MultipleChoiceNode, SingleChoiceNode,
-  StartNode, WeightNode, YesNoNode
-} from "@/components/nodes/index";
+import { nodeTypes } from "@/components/nodes/index";
 import { LoadingSpinner } from "@/components/ui/base";
 import { useStores } from "@/hooks/useStores";
 import { generateChart } from "@/lib/ai-service";
@@ -15,16 +8,30 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Command, Lightbulb, SaveAll, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import ReactFlow, {
-  Background, BackgroundVariant,
+  Background,
+  BackgroundVariant,
   BaseEdge,
-  Connection, ConnectionLineType,
-  EdgeLabelRenderer, EdgeProps,
+  Connection,
+  ConnectionLineType,
+  EdgeLabelRenderer,
+  EdgeProps,
   getSmoothStepPath,
-  useReactFlow
+  useReactFlow,
+  ReactFlowProvider
 } from "reactflow";
+
+const {
+  EndNode,
+  FunctionNode,
+  MultipleChoiceNode,
+  SingleChoiceNode,
+  StartNode,
+  WeightNode,
+  YesNoNode
+} = nodeTypes;
 
 function createNewNode(type: string, position: { x: number; y: number }, instanceId: string) {
   const newNodeId = `${type}-${Math.random().toString(36).substr(2, 9)}`;
@@ -51,88 +58,50 @@ function createNewNode(type: string, position: { x: number; y: number }, instanc
         ...baseNode,
         data: {
           ...baseNode.data,
-          question: "Yes/No Question",
-          options: [
-            { label: "yes", nextNodeId: null },
-            { label: "no", nextNodeId: null },
-          ],
+          options: ["Yes", "No"],
+          selected: null,
         },
       };
-
     case "singleChoice":
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          options: ["Option 1", "Option 2", "Option 3"],
+          selected: null,
+        },
+      };
     case "multipleChoice":
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          question: `${type === 'singleChoice' ? 'Single' : 'Multiple'} Choice Question`,
-          options: [
-            { id: crypto.randomUUID(), label: "Option 1", nextNodeId: null },
-            { id: crypto.randomUUID(), label: "Option 2", nextNodeId: null },
-          ],
+          options: ["Option 1", "Option 2", "Option 3"],
+          selected: [],
         },
       };
-
     case "weightNode":
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
           weight: 1,
-          nextNodeId: null,
-          previousQuestionIds: [],
-          options: [{ label: "DEFAULT", nextNodeId: null }],
         },
       };
-
     case "functionNode":
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          variableScope: "local",
-          selectedVariable: "",
-          sequences: [],
-          handles: ["default"],
+          function: "",
+          inputs: [],
+          outputs: [],
         },
       };
-
-    case "startNode":
-      return {
-        ...baseNode,
-        data: {
-          ...baseNode.data,
-          label: "Start",
-          options: [{ label: "DEFAULT", nextNodeId: null }],
-        },
-        style: {
-          ...baseNode.style,
-          background: '#ecfdf5',
-          borderColor: '#6ee7b7',
-        },
-      };
-
-    case "endNode":
-      return {
-        ...baseNode,
-        data: {
-          ...baseNode.data,
-          label: "End",
-          endType: "end",
-          redirectTab: "",
-        },
-        style: {
-          ...baseNode.style,
-          background: '#fef2f2',
-          borderColor: '#fca5a5',
-        },
-      };
-
     default:
       return baseNode;
   }
 }
-
 
 function EditableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }: EdgeProps) {
   const { setEdges } = useReactFlow();
@@ -166,16 +135,6 @@ function EditableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, 
     </>
   );
 }
-
-const nodeTypes = {
-  yesNo: YesNoNode,
-  singleChoice: SingleChoiceNode,
-  multipleChoice: MultipleChoiceNode,
-  endNode: EndNode,
-  startNode: StartNode,
-  weightNode: WeightNode,
-  functionNode: FunctionNode,
-};
 
 const edgeTypes = {
   editableEdge: EditableEdge,
@@ -432,5 +391,92 @@ function AIFlowGenerator({ onGenerate, loading }: AIFlowGeneratorProps) {
         )}
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+export default function FlowPage({ params }: { params: { projectId: string; flowId: string } }) {
+  const router = useRouter();
+  const { flowStore } = useStores();
+  const [loading, setLoading] = useState(true);
+  const resolvedParams = React.use(params);
+  const projectId = resolvedParams.projectId;
+  const flowId = resolvedParams.flowId;
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+
+  const onNodesChange = useCallback((changes) => setNodes((nds) => nds.map((node) => (changes.find((c) => c.id === node.id) || node))), []);
+  const onEdgesChange = useCallback((changes) => setEdges((eds) => eds.map((edge) => (changes.find((c) => c.id === edge.id) || edge))), []);
+  const onConnect = useCallback((connection: Connection) => setEdges((eds) => eds.concat(connection)), []);
+
+  useEffect(() => {
+    const fetchOrCreateFlow = async () => {
+      try {
+        let flow = await flowStore.getFlow(flowId);
+        
+        if (!flow) {
+          // If flow doesn't exist, create it through the save-chart endpoint
+          const response = await fetch('/api/save-chart', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              projectId,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create flow');
+          }
+
+          const result = await response.json();
+          if (result.error) {
+            throw new Error(result.error);
+          }
+
+          flow = result.flow;
+        }
+
+        if (flow) {
+          setNodes(flow.nodes || []);
+          setEdges(flow.edges || []);
+        } else {
+          throw new Error('Failed to load or create flow');
+        }
+      } catch (error) {
+        console.error('Error fetching/creating flow:', error);
+        toast.error('Failed to load flow');
+        router.push(`/dashboard/projects/${projectId}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrCreateFlow();
+  }, [flowId, projectId, flowStore, router]);
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="h-screen w-full">
+      <ReactFlowProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          className="bg-base-100"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+          {/* Rest of your component */}
+        </ReactFlow>
+      </ReactFlowProvider>
+    </div>
   );
 }

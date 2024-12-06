@@ -4,20 +4,14 @@
 import { RootState } from "@/stores/types";
 import useRootStore from "../stores/rootStore";
 
-type Stores = {
-  [K in keyof RootState]: RootState;
-} & { rootStore: RootState };
-
-export const useStores = (): Stores => {
+export const useStores = () => {
   const rootStore = useRootStore();
   return {
-    // @ts-ignore
-    chartStore: rootStore,
-    commitStore: rootStore,
-    variableStore: rootStore,
-    modalStore: rootStore,
-    utilityStore: rootStore,
-    projectStore: rootStore,
-    rootStore,
+    chartStore: rootStore.chartStore,
+    commitStore: rootStore.commitStore,
+    variableStore: rootStore.variableStore,
+    modalStore: rootStore.modalStore,
+    utilityStore: rootStore.utilityStore,
+    projectStore: rootStore.projectStore,
   };
 };

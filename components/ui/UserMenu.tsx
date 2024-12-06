@@ -7,16 +7,21 @@ import {
 	Settings,
 	User
 } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
-export function UserMenu() {
-	const { data: session } = useSession();
-	const [isOpen, setIsOpen] = useState(false);
+interface UserMenuProps {
+  user: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+}
 
-	if (!session?.user) return null;
+export function UserMenu({ user }: UserMenuProps) {
+	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<div className="relative">
@@ -24,10 +29,10 @@ export function UserMenu() {
 				onClick={() => setIsOpen(!isOpen)}
 				className="flex items-center gap-2 p-1 rounded-full hover:bg-gray-100 transition-colors"
 			>
-				{session.user.image ? (
+				{user.image ? (
 					<Image
-						src={session.user.image}
-						alt={session.user.name || "User"}
+						src={user.image}
+						alt={user.name || "User"}
 						width={32}
 						height={32}
 						className="rounded-full"
@@ -47,8 +52,8 @@ export function UserMenu() {
 					/>
 					<div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
 						<div className="px-4 py-2 border-b border-gray-200">
-							<p className="text-sm font-medium text-gray-900">{session.user.name}</p>
-							<p className="text-xs text-gray-500">{session.user.email}</p>
+							<p className="text-sm font-medium text-gray-900">{user.name}</p>
+							<p className="text-xs text-gray-500">{user.email}</p>
 						</div>
 
 						<div className="py-1">

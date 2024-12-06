@@ -1087,15 +1087,15 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
 });
 FunctionNode.displayName = 'FunctionNode';
 
-// Export the collection of node types
-export const NODE_TYPES = {
+// Export the nodeTypes mapping
+export const nodeTypes = {
   startNode: StartNode,
   endNode: EndNode,
   singleChoice: SingleChoiceNode,
   multipleChoice: MultipleChoiceNode,
   yesNo: YesNoNode,
-  weight: WeightNode,
-  function: FunctionNode,
+  weightNode: WeightNode,
+  functionNode: FunctionNode,
 };
 
 // Node registration information for the sidebar

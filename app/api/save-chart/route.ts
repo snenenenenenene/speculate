@@ -6,71 +6,96 @@ import { authOptions } from "../auth/[...nextauth]/options";
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const body = await request.json();
     
-    if (!body?.content || !body?.projectId) {
+    if (!body?.projectId) {
       return NextResponse.json({ 
-        success: false, 
-        message: "Missing required content or projectId" 
+        error: "Missing required projectId" 
       }, { status: 400 });
     }
 
-    const flowsToSave = Array.isArray(body.content) ? body.content : [body.content];
-    const results = [];
-
-    for (const flow of flowsToSave) {
-      try {
-        const flowData = {
-          name: flow.name || "New Flow",
-          content: flow.content, // Already stringified from the client
-          onePageMode: flow.onePageMode || false,
-          isPublished: false,
-          version: 1,
-          color: flow.color || "#80B500",
-          projectId: body.projectId
-        };
-
-        let result;
-        const existingFlow = await prisma.flow.findUnique({
-          where: { id: flow.id }
-        });
-
-        if (existingFlow) {
-          result = await prisma.flow.update({
-            where: { id: flow.id },
-            data: flowData
-          });
-        } else {
-          result = await prisma.flow.create({
-            data: {
-              id: flow.id,
-              ...flowData
-            }
-          });
-        }
-
-        results.push(result);
-      } catch (error) {
-        console.error(`Error processing flow ${flow.id}:`, error);
-        throw error;
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Flows saved successfully",
-      flows: results
+    // Verify project exists and belongs to user
+    const project = await prisma.project.findFirst({
+      where: {
+        id: body.projectId,
+        userId: user.id,
+      },
     });
 
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // Create flow with default chart instance if it doesn't exist
+    let flow = await prisma.flow.findFirst({
+      where: {
+        projectId: body.projectId,
+        userId: user.id,
+      },
+      include: {
+        chartInstances: true
+      }
+    });
+
+    if (!flow) {
+      flow = await prisma.flow.create({
+        data: {
+          name: "Main Flow",
+          description: "Initial flow",
+          project: {
+            connect: {
+              id: body.projectId
+            }
+          },
+          user: {
+            connect: {
+              id: user.id
+            }
+          },
+          chartInstances: {
+            create: {
+              id: "default",
+              name: "Default Instance",
+              nodes: "[]",
+              edges: "[]",
+              color: "#3B82F6",
+              onePageMode: false,
+              publishedVersions: "[]",
+              variables: "[]"
+            }
+          }
+        },
+        include: {
+          chartInstances: true
+        }
+      });
+
+      // Update project with the new flow
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { flowId: flow.id }
+      });
+    }
+
+    return NextResponse.json({ success: true, flow });
   } catch (error) {
-    console.error("Save-chart error:", error);
+    console.error("Error saving to database:", error);
     return NextResponse.json({ 
       success: false, 
-      message: error instanceof Error ? error.message : "Unknown error occurred"
+      error: error instanceof Error ? error.message : "Unknown error occurred"
     }, { status: 500 });
   }
 }
