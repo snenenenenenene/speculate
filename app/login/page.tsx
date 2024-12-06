@@ -70,7 +70,7 @@ export default function LoginPage() {
 								disabled={signInClicked}
 								onClick={() => {
 									setSignInClicked(true);
-									signIn("google", { callbackUrl: '/dashboard' });
+									signIn("google", { callbackUrl: '/projects' });
 								}}
 								className={cn(
 									"flex items-center justify-center gap-2 px-4 py-3 rounded-xl",

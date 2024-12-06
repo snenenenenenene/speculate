@@ -40,17 +40,18 @@ model Session {
 }
 
 model User {
-  id            String         @id @default(cuid())
+  id            String          @id @default(cuid())
   name          String?
-  role          UserRole       @default(USER)
-  credits       Int            @default(0)
-  email         String?        @unique
+  role          UserRole        @default(USER)
+  credits       Int             @default(0)
+  email         String?         @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   payments      Payment[]
-  chartInstance ChartInstance?
+  projects      Project[]        // Added projects relation
+  charts        ChartInstance[]  // Modified to allow multiple charts
 
   @@index([email])
   @@index([role])
@@ -70,6 +71,22 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// New Project model
+model Project {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  apiKey      String?         @unique
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  charts      ChartInstance[]
+
+  @@index([userId])
+}
+
 model ChartInstance {
   id          String    @id @default(cuid())
   content     String    @db.Text
@@ -81,12 +98,16 @@ model ChartInstance {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  userId      String    @unique
+  userId      String
   user        User      @relation(fields: [userId], references: [id])
+  
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([projectId])
   @@index([isPublished])
 }
-
 
 model Payment {
   id              String         @id @default(cuid())

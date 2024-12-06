@@ -1,25 +1,23 @@
-import Navbar from "@/components/Navbar";
+// app/layout.tsx
+import { NavWrapper } from "@/components/NavWrapper";
 import { Providers } from "@/components/Providers";
-import type { Metadata } from "next";
 import "./globals.css";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Speculate",
   description: "Questionnaire creation made easy",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <body
-        className={`antialiased font-satoshi bg-base-50 min-h-screen`}
-      >
+      <body className="antialiased font-satoshi bg-base-50 min-h-screen">
         <Providers>
-          <Navbar />
+          <NavWrapper />
           {children}
         </Providers>
       </body>

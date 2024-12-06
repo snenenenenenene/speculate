@@ -33,7 +33,7 @@ export default function AuthPage() {
 
 	useEffect(() => {
 		if (status !== "loading" && session) {
-			router.push("/dashboard");
+			router.push("/projects");
 		}
 	}, [session, status, router]);
 
@@ -139,7 +139,7 @@ export default function AuthPage() {
 									disabled={signInClicked}
 									onClick={() => {
 										setSignInClicked(true);
-										signIn("google", { callbackUrl: '/dashboard' });
+										signIn("google", { callbackUrl: '/projects' });
 									}}
 									className={cn(
 										"flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
