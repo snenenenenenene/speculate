@@ -1,4 +1,3 @@
-// app/projects/[projectId]/layout.tsx
 "use client";
 
 import { LoadingSpinner } from "@/components/ui/base";
@@ -42,6 +41,9 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
   const params = useParams();
   const projectId = params.projectId as string;
 
+  // Add check for flow page
+  const isFlowPage = pathname.includes(`/projects/${projectId}/flows/`);
+
   // Function to check if a tab is active
   const isTabActive = (tabHref: string) => {
     if (tabHref === "") {
@@ -56,6 +58,11 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
         <LoadingSpinner className="h-6 w-6 text-primary-600" />
       </div>
     );
+  }
+
+  // If it's a flow page, just render the children without the project layout
+  if (isFlowPage) {
+    return children;
   }
 
   return (

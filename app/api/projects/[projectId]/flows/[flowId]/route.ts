@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "../../../../auth/[...nextauth]/options";
 
-// GET /api/projects/[projectId]/flows/[flowId]
 export async function GET(
   req: Request,
   { params }: { params: { projectId: string; flowId: string } }
@@ -42,7 +41,6 @@ export async function GET(
   }
 }
 
-
 export async function PATCH(
   req: Request,
   { params }: { params: { projectId: string; flowId: string } }
@@ -55,6 +53,13 @@ export async function PATCH(
     }
 
     const { content, name } = await req.json();
+
+    if (!content) {
+      return NextResponse.json(
+        { error: "No content provided" },
+        { status: 400 }
+      );
+    }
 
     // Update the flow
     const flow = await prisma.chartInstance.update({
