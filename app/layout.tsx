@@ -1,7 +1,10 @@
 // app/layout.tsx
-import { NavWrapper } from "@/components/NavWrapper";
 import { Providers } from "@/components/Providers";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: "Speculate",
@@ -15,10 +18,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased font-satoshi bg-base-50 min-h-screen">
+      <body className={`${inter.className} antialiased font-satoshi min-h-screen bg-background`}>
         <Providers>
-          <NavWrapper />
           {children}
+          <Toaster />
         </Providers>
       </body>
     </html>

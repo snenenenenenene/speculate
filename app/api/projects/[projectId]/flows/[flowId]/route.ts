@@ -41,6 +41,44 @@ export async function GET(
   }
 }
 
+export async function PUT(
+  req: Request,
+  { params }: { params: { projectId: string; flowId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { nodes, edges } = await req.json();
+
+    // Update the flow
+    const flow = await prisma.chartInstance.update({
+      where: {
+        id: params.flowId,
+        projectId: params.projectId,
+        user: {
+          email: session.user.email
+        }
+      },
+      data: {
+        content: JSON.stringify({ nodes, edges }),
+        updatedAt: new Date()
+      }
+    });
+
+    return NextResponse.json({ flow });
+  } catch (error) {
+    console.error("Error saving flow:", error);
+    return NextResponse.json(
+      { error: "Failed to save flow" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: { projectId: string; flowId: string } }

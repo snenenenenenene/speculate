@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import React, { useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 interface ImportExportModalProps {
 	isOpen: boolean;
@@ -78,37 +80,19 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 		}
 	};
 
-	if (!isOpen) return null;
-
 	return (
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-			onClick={(e) => e.target === e.currentTarget && onClose()}
-		>
-			<motion.div
-				initial={{ opacity: 0, scale: 0.95 }}
-				animate={{ opacity: 1, scale: 1 }}
-				exit={{ opacity: 0, scale: 0.95 }}
-				className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
-			>
-				{/* Header */}
-				<div className="flex items-center justify-between p-4 border-b border-gray-200">
-					<h2 className="text-lg font-semibold text-gray-900">Import/Export Flows</h2>
-					<button
-						onClick={onClose}
-						className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-						aria-label="Close dialog"
-					>
-						<X className="h-5 w-5 text-gray-500" />
-					</button>
-				</div>
+		<Dialog open={isOpen} onOpenChange={onClose}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Import/Export Flows</DialogTitle>
+				</DialogHeader>
 
-				<div className="p-4 space-y-6">
+				<div className="space-y-6">
 					{/* Import Section */}
 					<div className="space-y-4">
 						<div className="flex items-center gap-2">
 							<Upload className="h-5 w-5 text-blue-500" />
-							<h3 className="text-sm font-medium text-gray-900">Import Flow</h3>
+							<h3 className="text-sm font-medium">Import Flow</h3>
 						</div>
 
 						<div
@@ -132,12 +116,13 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 							/>
 							<FileJson className="h-10 w-10 text-gray-400 mx-auto mb-4" />
 							<div className="text-sm text-gray-600">
-								<button
+								<Button
+									variant="link"
 									onClick={() => fileInputRef.current?.click()}
-									className="text-blue-500 hover:text-blue-600 font-medium"
+									className="text-blue-500 hover:text-blue-600 font-medium p-0 h-auto"
 								>
 									Click to upload
-								</button>
+								</Button>
 								{" or drag and drop"}
 							</div>
 							<p className="text-xs text-gray-500 mt-2">
@@ -150,39 +135,41 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 					<div className="space-y-4">
 						<div className="flex items-center gap-2">
 							<Download className="h-5 w-5 text-green-500" />
-							<h3 className="text-sm font-medium text-gray-900">Export Flow</h3>
+							<h3 className="text-sm font-medium">Export Flow</h3>
 						</div>
 
 						<div className="space-y-3">
 							{currentInstance && (
-								<button
+								<Button
+									variant="outline"
 									onClick={() => chartStore.exportFlow(currentInstance.id)}
-									className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+									className="w-full justify-between h-auto py-3"
 								>
 									<div className="flex items-center gap-3">
-										<FileJson className="h-5 w-5 text-gray-400 group-hover:text-gray-500" />
+										<FileJson className="h-5 w-5 text-gray-400" />
 										<div className="text-left">
-											<div className="text-sm font-medium text-gray-900">Current Flow</div>
-											<div className="text-xs text-gray-500">{currentInstance.name}</div>
+											<div className="text-sm font-medium">{currentInstance.name}</div>
+											<div className="text-xs text-gray-500">Current Flow</div>
 										</div>
 									</div>
-									<Download className="h-4 w-4 text-gray-400 group-hover:text-gray-500" />
-								</button>
+									<Download className="h-4 w-4 text-gray-400" />
+								</Button>
 							)}
 
-							<button
+							<Button
+								variant="outline"
 								onClick={() => chartStore.exportAllFlows()}
-								className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+								className="w-full justify-between h-auto py-3"
 							>
 								<div className="flex items-center gap-3">
-									<FileJson className="h-5 w-5 text-gray-400 group-hover:text-gray-500" />
+									<FileJson className="h-5 w-5 text-gray-400" />
 									<div className="text-left">
-										<div className="text-sm font-medium text-gray-900">All Flows</div>
+										<div className="text-sm font-medium">All Flows</div>
 										<div className="text-xs text-gray-500">Export complete system</div>
 									</div>
 								</div>
-								<Download className="h-4 w-4 text-gray-400 group-hover:text-gray-500" />
-							</button>
+								<Download className="h-4 w-4 text-gray-400" />
+							</Button>
 						</div>
 					</div>
 
@@ -198,8 +185,8 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 						</div>
 					</div>
 				</div>
-			</motion.div>
-		</div>
+			</DialogContent>
+		</Dialog>
 	);
 };
 

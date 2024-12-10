@@ -1,65 +1,88 @@
-// app/projects/[projectId]/page.tsx
 "use client";
 
-import { LoadingSpinner } from "@/components/ui/base";
-import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { ArrowRight, Boxes, FileText, Key, Plus, Settings } from "lucide-react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { toast } from "react-hot-toast";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-interface ProjectData {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  apiKey: string | null;
-  _count: {
-    charts: number;
-  }
-}
-
-export default function ProjectPage() {
-  const params = useParams();
+export default function FlowsPage() {
   const router = useRouter();
-  const projectId = params.projectId as string;
-  const [project, setProject] = useState<ProjectData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const params = useParams();
+  const { projectId } = params;
+  const [showForm, setShowForm] = useState(false);
+  const [flowName, setFlowName] = useState("");
 
   useEffect(() => {
-    const fetchProject = async () => {
+    const fetchAndRedirect = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}`);
+        const response = await fetch(`/api/projects/${projectId}/flows`);
         const data = await response.json();
         
-        if (response.ok) {
-          setProject(data.project);
-          
-          // If project has charts, redirect to editor with first chart
-          // Otherwise, go to editor to create new flow
-          router.push(`/projects/${projectId}/flows/new`);
+        if (response.ok && data.flows && data.flows.length > 0) {
+          router.push(`/projects/${projectId}/flows/${data.flows[0].id}`);
+        } else {
+          setShowForm(true);
         }
       } catch (error) {
-        console.error("Error fetching project:", error);
-        toast.error("Failed to load project");
-      } finally {
-        setIsLoading(false);
+        console.error("Error fetching flows:", error);
       }
     };
 
-    fetchProject();
+    fetchAndRedirect();
   }, [projectId, router]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner className="h-6 w-6 text-primary-600" />
-      </div>
-    );
+  const handleCreateFlow = async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/flows`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: flowName }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/projects/${projectId}/flows/${data.flow.id}`);
+      }
+    } catch (error) {
+      console.error("Error creating flow:", error);
+    }
+  };
+
+  if (!showForm) {
+    return null;
   }
 
-  // You could return null here since we'll redirect anyway
-  return null;
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background p-4">
+      <div className="w-full px-4">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-bold tracking-tight">Create Your First Flow</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            No flows found in this project. Create your first flow to get started.
+          </p>
+        </div>
+        <div className="mt-8 space-y-6">
+          <div>
+            <Input
+              value={flowName}
+              onChange={(e) => setFlowName(e.target.value)}
+              placeholder="Enter flow name"
+              className="block w-full"
+            />
+          </div>
+          <div>
+            <Button 
+              onClick={handleCreateFlow} 
+              disabled={!flowName.trim()}
+              className="w-full"
+            >
+              Create Flow
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

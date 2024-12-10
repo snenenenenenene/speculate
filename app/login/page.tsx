@@ -1,6 +1,6 @@
 "use client";
 
-import { LoadingSpinner } from "@/components/ui/base";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { ArrowLeft, ChevronRight } from "lucide-react";
@@ -82,7 +82,7 @@ export default function LoginPage() {
 								)}
 							>
 								{signInClicked ? (
-									<LoadingSpinner />
+									<Loader2 />
 								) : (
 									<>
 										<Image

@@ -1,113 +1,181 @@
 "use client";
 
-import { LoadingSpinner } from "@/components/ui/base";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { Activity, Key, LayoutPanelTop, ListTodo, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, GitCommit, Loader2, Save, Settings, Upload } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { FlowSelector } from "@/components/dashboard/FlowSelector";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Suspense } from "react";
+import React from "react";
 
-const tabs = [
-  {
-    name: "Overview",
-    href: "",
-    icon: LayoutPanelTop
-  },
-  {
-    name: "Flows",
-    href: "flows",
-    icon: ListTodo
-  },
-  {
-    name: "API",
-    href: "api",
-    icon: Key
-  },
-  {
-    name: "Analytics",
-    href: "analytics",
-    icon: Activity
-  },
-  {
-    name: "Settings",
-    href: "settings",
-    icon: Settings
-  }
-];
-
-export default function ProjectLayout({ children }: { children: ReactNode }) {
+export default function ProjectLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: { projectId: string; flowId?: string };
+}) {
+  const unwrappedParams = React.use(params);
+  const projectId = unwrappedParams.projectId;
   const pathname = usePathname();
-  const params = useParams();
-  const projectId = params.projectId as string;
+  const router = useRouter();
+  const isFlowPage = pathname.includes('/flows/');
+  
+  // Extract flowId from pathname if it's a flow page
+  const flowId = isFlowPage ? pathname.split('/flows/')[1] : undefined;
 
-  // Add check for flow page
-  const isFlowPage = pathname.includes(`/projects/${projectId}/flows/`);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Function to check if a tab is active
-  const isTabActive = (tabHref: string) => {
-    if (tabHref === "") {
-      return pathname === `/projects/${projectId}`;
-    }
-    return pathname.includes(`/projects/${projectId}/${tabHref}`);
+  const saveFlowRef = React.useRef<() => Promise<void>>();
+
+  const setSaveFunction = (fn: () => Promise<void>) => {
+    saveFlowRef.current = fn;
   };
 
-  if (!projectId) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <LoadingSpinner className="h-6 w-6 text-primary-600" />
-      </div>
-    );
-  }
+  const handleSave = async () => {
+    if (saveFlowRef.current) {
+      setIsSaving(true);
+      await saveFlowRef.current();
+      setIsSaving(false);
+    }
+  };
 
-  // If it's a flow page, just render the children without the project layout
-  if (isFlowPage) {
-    return children;
-  }
+  const handleImportExport = () => {
+    setIsImportModalOpen(true);
+    toast.promise(
+      new Promise((resolve) => {
+        setTimeout(resolve, 500);
+      }),
+      {
+        loading: 'Opening import/export dialog...',
+        success: 'Ready to import/export',
+        error: 'Failed to open dialog',
+      }
+    );
+  };
+
+  const handleCommit = () => {
+    toast.promise(
+      new Promise((resolve, reject) => {
+        // Simulate random success/failure
+        setTimeout(() => {
+          Math.random() > 0.3 ? resolve(true) : reject(new Error("Failed to commit"));
+        }, 2000);
+      }),
+      {
+        loading: 'Committing changes...',
+        success: 'Changes committed successfully',
+        error: 'Failed to commit changes',
+      }
+    );
+  };
+
+  const handleSettings = () => {
+    toast.promise(
+      new Promise((resolve) => {
+        setTimeout(resolve, 500);
+      }),
+      {
+        loading: 'Loading settings...',
+        success: 'Settings loaded',
+        error: 'Failed to load settings',
+      }
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-base-50">
-      {/* Project Header */}
-      <header className="bg-white border-b border-base-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-4">
-            <nav className="flex space-x-8">
-              {tabs.map((tab) => {
-                const isActive = isTabActive(tab.href);
-                const href = tab.href === "" ? `/projects/${projectId}` : `/projects/${projectId}/${tab.href}`;
-                
-                return (
-                  <Link
-                    key={tab.name}
-                    href={href}
-                    className={cn(
-                      "inline-flex items-center gap-2 px-1 py-2 text-sm font-medium border-b-2 -mb-[1px]",
-                      "transition-colors duration-200",
-                      isActive
-                        ? "border-primary-600 text-primary-600"
-                        : "border-transparent text-base-600 hover:text-base-900 hover:border-base-300"
-                    )}
-                  >
-                    <tab.icon className="h-4 w-4" />
-                    {tab.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-      </header>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <div className="h-16 border-b bg-background flex-shrink-0">
+        <div className="flex h-full items-center justify-between px-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="gap-2"
+            >
+              <Link href={isFlowPage ? `/projects/${projectId}` : '/projects'}>
+                <ArrowLeft className="h-4 w-4" />
+                {isFlowPage ? 'Back to Project' : 'Back to Projects'}
+              </Link>
+            </Button>
 
-      {/* Main Content */}
-      <main className="">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {children}
-        </motion.div>
-      </main>
+            {isFlowPage && (
+              <>
+                <Separator orientation="vertical" className="h-6" />
+                <FlowSelector
+                  currentFlow={flowId}
+                  projectId={projectId}
+                  onFlowSelect={(id) => router.push(`/projects/${projectId}/flows/${id}`)}
+                />
+              </>
+            )}
+          </div>
+
+          {isFlowPage && (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
+                size="sm"
+                className="gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Save
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleImportExport}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Import/Export
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCommit}
+                className="gap-2"
+              >
+                <GitCommit className="h-4 w-4" />
+                Commit
+              </Button>
+
+              <Separator orientation="vertical" className="h-6" />
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSettings}
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 min-h-0">
+        {children}
+      </div>
     </div>
   );
 }

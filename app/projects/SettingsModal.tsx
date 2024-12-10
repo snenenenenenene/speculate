@@ -2,7 +2,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { LoadingSpinner } from "@/components/ui/base";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 import { useStores } from "@/hooks/useStores";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
@@ -303,7 +305,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentI
 													disabled={isDeleting}
 													className="flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50"
 												>
-													{isDeleting ? <LoadingSpinner className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+													{isDeleting ? <Loader2 className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
 													{isDeleting ? "Deleting..." : "Yes, delete"}
 												</button>
 												<button
@@ -335,7 +337,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentI
 					>
 						{isSaving ? (
 							<>
-								<LoadingSpinner className="h-4 w-4" />
+								<Loader2 className="h-4 w-4" />
 								Saving...
 							</>
 						) : (

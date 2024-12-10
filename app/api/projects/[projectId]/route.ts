@@ -6,37 +6,26 @@ import { authOptions } from "../../auth/[...nextauth]/options";
 
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const project = await prisma.project.findFirst({
-      where: {
-        id: params.projectId,
-        user: {
-          email: session.user.email
-        }
-      },
-      include: {
-        charts: true,
-        _count: {
-          select: {
-            charts: true
-          }
-        }
+    // Simulated database response
+    const project = {
+      id: params.projectId,
+      name: "Example Project",
+      description: "This is an example project description.",
+      _count: {
+        charts: 15
       }
+    };
+
+    // Simulated flows data
+    const flows = [
+      { id: `${params.projectId}_flow1` },
+      { id: `${params.projectId}_flow2` }
+    ];
+
+    return NextResponse.json({ 
+      project,
+      flows
     });
-
-    if (!project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ project });
   } catch (error) {
     console.error("Error fetching project:", error);
     return NextResponse.json(

@@ -1,55 +1,62 @@
 "use client";
 
-import { Dialog } from "@/components/ui/Dialog";
-import { LoadingSpinner } from "@/components/ui/base";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { ArrowRight, Boxes, FolderPlus, Key, Plus, Settings } from "lucide-react";
+import { ArrowRight, Boxes, Plus, Search, Loader2, BarChart2, Clock, FileText, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
+import { fetchProjects } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 
 interface Project {
   id: string;
   name: string;
   description: string;
-  createdAt: string;
-  apiKey: string | null;
-  _count?: {
+  _count: {
     charts: number;
-  }
+    collaborators?: number;
+  };
+  updatedAt: string;
+  status?: "active" | "archived";
+  lastActivity?: string;
+  version?: string;
 }
 
 export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
-    fetchProjects();
+    fetchProjects()
+      .then(({ data }) => {
+        setProjects(data.projects);
+      })
+      .catch((error) => {
+        toast.error("Failed to load projects");
+        console.error("Error loading projects:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const fetchProjects = async () => {
-    try {
-      const response = await fetch("/api/projects");
-      const data = await response.json();
-      if (response.ok) {
-        setProjects(data.projects);
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      toast.error("Failed to load projects");
-      console.error("Error loading projects:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const filteredProjects = projects.filter(project =>
+    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    project.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) {
@@ -76,7 +83,9 @@ export default function ProjectsPage() {
         setIsCreateModalOpen(false);
         setNewProjectName("");
         setNewProjectDescription("");
-        await fetchProjects();
+        await fetchProjects().then((data) => {
+          setProjects(data.projects);
+        });
         router.push(`/projects/${data.project.id}`);
       } else {
         throw new Error(data.error);
@@ -89,180 +98,193 @@ export default function ProjectsPage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner className="h-8 w-8 text-primary-600" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-base-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+    <div className="container mx-auto py-8 md:py-10">
+      <div className="w-full">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-base-900">Projects</h1>
-            <p className="mt-1 text-base-600">
-              Manage your projects and their associated flows
+            <h2 className="text-3xl font-bold tracking-tight">Projects</h2>
+            <p className="text-muted-foreground">
+              Create and manage your projects
             </p>
           </div>
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className={cn(
-              "inline-flex items-center gap-2 px-4 py-2 rounded-lg",
-              "bg-primary-600 text-white",
-              "hover:bg-primary-700 transition-colors",
-              "font-medium text-sm"
-            )}
-          >
-            <Plus className="h-4 w-4" />
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
             New Project
-          </button>
+          </Button>
         </div>
 
-        {/* Projects Grid */}
-        {projects.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-base-200">
-            <Boxes className="mx-auto h-12 w-12 text-base-400" />
-            <h3 className="mt-4 text-lg font-medium text-base-900">No projects yet</h3>
-            <p className="mt-1 text-base-600">Get started by creating your first project</p>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors text-sm font-medium"
-            >
-              <FolderPlus className="h-4 w-4" />
-              Create Project
-            </button>
+        <div className="mt-8">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <motion.div
-                key={project.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cn(
-                  "bg-white rounded-xl border border-base-200",
-                  "hover:border-primary-200 transition-all",
-                  "group"
-                )}
-              >
-                <div className="p-6">
-                  <h3 className="font-semibold text-base-900 group-hover:text-primary-600 transition-colors">
-                    {project.name}
-                  </h3>
-                  {project.description && (
-                    <p className="mt-1 text-sm text-base-600">{project.description}</p>
-                  )}
-                  <div className="mt-4 flex items-center gap-4 text-sm text-base-500">
-                    <div className="flex items-center gap-1.5">
-                      <Key className="h-4 w-4" />
-                      <span>{project.apiKey ? "API Enabled" : "No API Key"}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Settings className="h-4 w-4" />
-                      <span>{project._count?.charts || 0} Flows</span>
-                    </div>
-                  </div>
-                  <div className="mt-6 flex items-center justify-between">
-                    <span className="text-xs text-base-500">
-                      Created {new Date(project.createdAt).toLocaleDateString()}
-                    </span>
-                    <Link
-                      href={`/projects/${project.id}`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
-                    >
-                      Open Project
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
+        </div>
 
-        {/* Create Project Modal */}
-        <Dialog open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-base-900 mb-4">Create New Project</h2>
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-base-700 mb-1">
-                    Project Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="My Project"
-                    className={cn(
-                      "w-full px-3 py-2 text-base-900 rounded-lg",
-                      "border border-base-300",
-                      "focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500",
-                      "placeholder:text-base-400"
-                    )}
-                  />
+        <ScrollArea className="mt-8">
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="p-4 border rounded-lg">
+                  <div className="space-y-3">
+                    <Skeleton className="h-5 w-1/4" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <div className="flex gap-4">
+                      <Skeleton className="h-4 w-[100px]" />
+                      <Skeleton className="h-4 w-[100px]" />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-base-700 mb-1">
-                    Description (Optional)
-                  </label>
-                  <textarea
-                    id="description"
-                    value={newProjectDescription}
-                    onChange={(e) => setNewProjectDescription(e.target.value)}
-                    placeholder="Project description..."
-                    rows={3}
-                    className={cn(
-                      "w-full px-3 py-2 text-base-900 rounded-lg",
-                      "border border-base-300",
-                      "focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500",
-                      "placeholder:text-base-400",
-                      "resize-none"
-                    )}
-                  />
-                </div>
-              </div>
+              ))}
             </div>
-            <div className="border-t border-base-200 px-6 py-4 bg-base-50 rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-base-700 hover:text-base-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateProject}
-                disabled={isCreating || !newProjectName.trim()}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-sm font-medium",
-                  "bg-primary-600 text-white",
-                  "hover:bg-primary-700 transition-colors",
-                  "disabled:opacity-50 disabled:cursor-not-allowed",
-                  "flex items-center gap-2"
-                )}
-              >
-                {isCreating ? (
-                  <>
-                    <LoadingSpinner className="h-4 w-4" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4" />
-                    Create Project
-                  </>
-                )}
-              </button>
+          ) : filteredProjects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
+              <Boxes className="h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-medium">No projects found</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {searchQuery
+                  ? "Try adjusting your search query"
+                  : "Get started by creating your first project"}
+              </p>
+              {!searchQuery && (
+                <Button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  variant="outline"
+                  className="mt-6"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Project
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredProjects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/projects/${project.id}`}
+                  className={cn(
+                    "block p-4 rounded-lg border",
+                    "hover:bg-muted/50 transition-colors",
+                    "group"
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg group-hover:text-primary">
+                          {project.name}
+                        </h3>
+                        {project.status && (
+                          <Badge variant={project.status === "active" ? "default" : "secondary"}>
+                            {project.status}
+                          </Badge>
+                        )}
+                        {project.version && (
+                          <Badge variant="outline" className="text-xs">
+                            v{project.version}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-1">
+                        {project.description}
+                      </p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                  
+                  <div className="mt-4 flex items-center gap-6 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span>{project._count.charts} {project._count.charts === 1 ? 'flow' : 'flows'}</span>
+                    </div>
+                    {project._count.collaborators !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <Users2 className="h-4 w-4" />
+                        <span>{project._count.collaborators} {project._count.collaborators === 1 ? 'collaborator' : 'collaborators'}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    {project.lastActivity && (
+                      <div className="flex items-center gap-2">
+                        <BarChart2 className="h-4 w-4" />
+                        <span>Last activity {new Date(project.lastActivity).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </div>
+
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Project</DialogTitle>
+            <DialogDescription>
+              Add a new project to your workspace
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label htmlFor="name" className="text-sm font-medium leading-none">
+                Name
+              </label>
+              <Input
+                id="name"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="My Project"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="description" className="text-sm font-medium leading-none">
+                Description
+              </label>
+              <Input
+                id="description"
+                value={newProjectDescription}
+                onChange={(e) => setNewProjectDescription(e.target.value)}
+                placeholder="Project description..."
+              />
             </div>
           </div>
-        </Dialog>
-      </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateProject}
+              disabled={isCreating || !newProjectName.trim()}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Project
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

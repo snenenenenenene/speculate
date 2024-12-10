@@ -7,7 +7,7 @@ export default function FlowsLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-base-50">
+    <div className="h-screen bg-base-50 flex">
       {children}
     </div>
   );
