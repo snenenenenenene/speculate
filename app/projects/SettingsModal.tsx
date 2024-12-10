@@ -1,356 +1,347 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
-import { useStores } from "@/hooks/useStores";
-import { cn } from "@/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
 import {
-	AlertTriangle,
-	Hash,
-	Layout, Plus, Save, Trash2, X
-} from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { AlertCircle, Hash, LayoutDashboard, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useState } from 'react';
-import { toast } from "react-hot-toast";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
-interface SettingsModalProps {
-	isOpen: boolean;
-	onClose: () => void;
-	currentInstance: any;
+interface Variable {
+  name: string;
+  value: string;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentInstance }) => {
-	const router = useRouter();
-	const { chartStore, utilityStore, variableStore } = useStores() as any;
-	const [activeTab, setActiveTab] = useState("general");
-	const [newColor, setNewColor] = useState(currentInstance?.color || "#721d62");
-	const [onePageMode, setOnePageMode] = useState(currentInstance?.onePageMode || false);
-	const [newTabName, setNewTabName] = useState(currentInstance?.name || "");
-	const [localVariables, setLocalVariables] = useState(currentInstance?.variables || []);
-	const [globalVariables, setGlobalVariables] = useState(variableStore.variables?.global || []);
-	const [newVariableName, setNewVariableName] = useState("");
-	const [newVariableValue, setNewVariableValue] = useState("");
-	const [newVariableScope, setNewVariableScope] = useState<"local" | "global">("local");
-	const [isSaving, setIsSaving] = useState(false);
-	const [isDeleting, setIsDeleting] = useState(false);
-	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  flowId: string;
+  initialData?: {
+    name: string;
+    color: string;
+    onePageMode: boolean;
+    variables: Variable[];
+  };
+  name?: string;
+  color?: string;
+  onePageMode?: boolean;
+  variables?: Variable[];
+}
 
-	const handleSaveSettings = async () => {
-		if (!currentInstance || !newTabName.trim()) {
-			toast.error('Flow name cannot be empty');
-			return;
-		}
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  flowId,
+  initialData,
+  name: propName,
+  color: propColor,
+  onePageMode: propOnePageMode,
+  variables: propVariables,
+}: SettingsModalProps) {
+  const router = useRouter();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-		setIsSaving(true);
-		try {
-			chartStore.setCurrentTabColor(currentInstance.id, newColor);
-			chartStore.setOnePage(currentInstance.id, onePageMode);
-			chartStore.updateChartInstanceName(currentInstance.id, newTabName);
+  // Form state
+  const [name, setName] = useState(propName || initialData?.name || "");
+  const [color, setColor] = useState(propColor || initialData?.color || "#6366f1");
+  const [onePageMode, setOnePageMode] = useState(propOnePageMode ?? initialData?.onePageMode ?? false);
+  const [variables, setVariables] = useState<Variable[]>(propVariables || initialData?.variables || []);
+  const [newVariable, setNewVariable] = useState({ name: "", value: "" });
+  const [variableScope, setVariableScope] = useState<"local" | "global">("local");
 
-			const updatedInstance = {
-				...currentInstance,
-				color: newColor,
-				onePageMode,
-				name: newTabName,
-				variables: localVariables,
-			};
+  const handleSave = async () => {
+    if (!initialData && !name.trim()) {
+      toast.error("Flow name cannot be empty");
+      return;
+    }
 
-			chartStore.updateChartInstance(updatedInstance);
-			variableStore.setVariables({ ...variableStore.variables, global: globalVariables });
-			await utilityStore.saveToDb(chartStore.chartInstances);
+    setIsSaving(true);
+    try {
+      const projectId = flowId.split('/')[0]; // Get project ID from flow ID
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          color,
+          onePageMode,
+          variables: variables.filter(v => v.name && v.value),
+        }),
+      });
 
-			onClose();
-			toast.success('Settings saved successfully');
-		} catch (error) {
-			toast.error('Failed to save settings');
-		} finally {
-			setIsSaving(false);
-		}
-	};
+      if (!response.ok) throw new Error("Failed to save settings");
 
-	const handleDeleteFlow = async () => {
-		if (!currentInstance) return;
-		setIsDeleting(true);
+      toast.success("Settings saved successfully");
+      onClose();
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast.error("Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-		try {
-			chartStore.deleteTab(currentInstance.id);
-			await utilityStore.saveToDb(chartStore.chartInstances);
-			onClose();
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/projects/flows/${flowId}`, {
+        method: "DELETE",
+      });
 
-			const remainingFlows = chartStore.chartInstances;
-			if (remainingFlows.length > 0) {
-				await router.push(`/dashboard/${remainingFlows[0].id}`);
-			} else {
-				await router.push('/dashboard');
-			}
+      if (!response.ok) throw new Error("Failed to delete flow");
 
-			toast.success('Flow deleted successfully');
-		} catch (error) {
-			console.error('Error deleting flow:', error);
-			toast.error('Failed to delete flow');
-		} finally {
-			setIsDeleting(false);
-		}
-	};
+      toast.success("Flow deleted successfully");
+      router.push("/projects");
+      onClose();
+    } catch (error) {
+      console.error("Error deleting flow:", error);
+      toast.error("Failed to delete flow");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
-	const handleAddVariable = () => {
-		if (!newVariableName.trim() || !newVariableValue.trim()) {
-			toast.error('Both variable name and value are required');
-			return;
-		}
+  const addVariable = useCallback(() => {
+    if (!newVariable.name.trim() || !newVariable.value.trim()) {
+      toast.error("Both name and value are required");
+      return;
+    }
 
-		const variables = newVariableScope === "local" ? localVariables : globalVariables;
-		const setVariables = newVariableScope === "local" ? setLocalVariables : setGlobalVariables;
+    if (variables.some(v => v.name === newVariable.name)) {
+      toast.error("A variable with this name already exists");
+      return;
+    }
 
-		if (variables.some(v => v.name === newVariableName)) {
-			toast.error(`A ${newVariableScope} variable with this name already exists`);
-			return;
-		}
+    setVariables(prev => [...prev, newVariable]);
+    setNewVariable({ name: "", value: "" });
+    toast.success("Variable added successfully");
+  }, [newVariable, variables]);
 
-		setVariables(prev => [...prev, { name: newVariableName, value: newVariableValue }]);
-		setNewVariableName("");
-		setNewVariableValue("");
-		toast.success(`${newVariableScope} variable added`);
-	};
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Flow Settings</DialogTitle>
+          <DialogDescription>
+            Configure your flow settings and variables
+          </DialogDescription>
+        </DialogHeader>
 
-	if (!isOpen) return null;
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              General
+            </TabsTrigger>
+            <TabsTrigger value="variables" className="flex items-center gap-2">
+              <Hash className="h-4 w-4" />
+              Variables
+            </TabsTrigger>
+            <TabsTrigger value="danger" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Danger Zone
+            </TabsTrigger>
+          </TabsList>
 
-	return (
-		<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-			<motion.div
-				initial={{ opacity: 0, scale: 0.95 }}
-				animate={{ opacity: 1, scale: 1 }}
-				exit={{ opacity: 0, scale: 0.95 }}
-				className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden"
-			>
-				<div className="flex items-center justify-between p-4 border-b">
-					<h2 className="text-lg font-medium">Settings</h2>
-					<button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-						<X className="h-5 w-5" />
-					</button>
-				</div>
+          <TabsContent value="general" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Flow Name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter flow name"
+                />
+              </div>
 
-				<div className="flex border-b">
-					{[
-						{ id: "general", icon: Layout, label: "General" },
-						{ id: "variables", icon: Hash, label: "Variables" },
-						{ id: "danger", icon: AlertTriangle, label: "Danger" }
-					].map((tab) => (
-						<button
-							key={tab.id}
-							onClick={() => setActiveTab(tab.id)}
-							className={cn(
-								"flex items-center gap-2 px-4 py-2 text-sm transition-colors",
-								activeTab === tab.id
-									? "border-b-2 border-purple-500 text-purple-600"
-									: "text-gray-500 hover:text-gray-700"
-							)}
-						>
-							<tab.icon className="h-4 w-4" />
-							{tab.label}
-						</button>
-					))}
-				</div>
+              <div className="space-y-2">
+                <Label htmlFor="color">Theme Color</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="color"
+                    id="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-16 p-1"
+                  />
+                  <Input
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    placeholder="#000000"
+                  />
+                </div>
+              </div>
 
-				<div className="p-4 max-h-[60vh] overflow-y-auto">
-					<AnimatePresence mode="wait">
-						{activeTab === "general" && (
-							<motion.div
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								className="space-y-4"
-							>
-								<div>
-									<label className="text-sm font-medium text-gray-700">Flow Name</label>
-									<input
-										type="text"
-										value={newTabName}
-										onChange={(e) => setNewTabName(e.target.value)}
-										className="mt-1 w-full px-3 py-2 border rounded-md"
-									/>
-								</div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="onePageMode">One Page Mode</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Display all nodes on a single page
+                  </p>
+                </div>
+                <Switch
+                  id="onePageMode"
+                  checked={onePageMode}
+                  onCheckedChange={setOnePageMode}
+                />
+              </div>
+            </div>
+          </TabsContent>
 
-								<div>
-									<label className="text-sm font-medium text-gray-700">Theme Color</label>
-									<div className="flex gap-2 mt-1">
-										<input
-											type="color"
-											value={newColor}
-											onChange={(e) => setNewColor(e.target.value)}
-											className="h-9 w-16"
-										/>
-										<input
-											type="text"
-											value={newColor}
-											onChange={(e) => setNewColor(e.target.value)}
-											className="px-3 py-2 border rounded-md"
-										/>
-									</div>
-								</div>
+          <TabsContent value="variables" className="space-y-4 mt-4">
+            <div className="flex gap-2 mb-4">
+              <Button
+                variant={variableScope === "local" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVariableScope("local")}
+              >
+                Local
+              </Button>
+              <Button
+                variant={variableScope === "global" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVariableScope("global")}
+              >
+                Global
+              </Button>
+            </div>
 
-								<label className="flex items-center gap-2">
-									<input
-										type="checkbox"
-										checked={onePageMode}
-										onChange={(e) => setOnePageMode(e.target.checked)}
-										className="rounded text-purple-500"
-									/>
-									<span className="text-sm text-gray-700">One Page Mode</span>
-								</label>
-							</motion.div>
-						)}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Variable name"
+                value={newVariable.name}
+                onChange={(e) =>
+                  setNewVariable((prev) => ({ ...prev, name: e.target.value }))
+                }
+              />
+              <Input
+                placeholder="Variable value"
+                value={newVariable.value}
+                onChange={(e) =>
+                  setNewVariable((prev) => ({ ...prev, value: e.target.value }))
+                }
+              />
+              <Button size="icon" onClick={addVariable}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
 
-						{activeTab === "variables" && (
-							<motion.div
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								className="space-y-4"
-							>
-								<div className="flex gap-2">
-									{["local", "global"].map((scope) => (
-										<button
-											key={scope}
-											onClick={() => setNewVariableScope(scope as "local" | "global")}
-											className={cn(
-												"px-3 py-1.5 rounded text-sm",
-												newVariableScope === scope
-													? "bg-purple-100 text-purple-700"
-													: "bg-gray-100 text-gray-600"
-											)}
-										>
-											{scope.charAt(0).toUpperCase() + scope.slice(1)}
-										</button>
-									))}
-								</div>
+            <div className="space-y-2">
+              {variables.map((variable, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 rounded-md border"
+                >
+                  <div>
+                    <span className="font-medium">{variable.name}</span>
+                    <span className="text-muted-foreground ml-2">
+                      {variable.value}
+                    </span>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() =>
+                      setVariables((prev) =>
+                        prev.filter((_, i) => i !== index)
+                      )
+                    }
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
 
-								<div className="flex gap-2">
-									<input
-										placeholder="Name"
-										value={newVariableName}
-										onChange={(e) => setNewVariableName(e.target.value)}
-										className="flex-1 px-3 py-2 border rounded-md"
-									/>
-									<input
-										placeholder="Value"
-										value={newVariableValue}
-										onChange={(e) => setNewVariableValue(e.target.value)}
-										className="flex-1 px-3 py-2 border rounded-md"
-									/>
-									<button
-										onClick={handleAddVariable}
-										className="p-2 bg-purple-500 text-white rounded-md hover:bg-purple-600"
-									>
-										<Plus className="h-5 w-5" />
-									</button>
-								</div>
+          <TabsContent value="danger" className="space-y-4 mt-4">
+            <div className="rounded-md border border-destructive/50 p-4">
+              <h3 className="text-lg font-semibold text-destructive mb-2">
+                Delete Flow
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                This action cannot be undone. This will permanently delete your
+                flow and remove all associated data.
+              </p>
+              {!showDeleteConfirm ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Flow
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-destructive">
+                    Are you sure? This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Yes, delete flow"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowDeleteConfirm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
 
-								<div className="space-y-2">
-									{(newVariableScope === "local" ? localVariables : globalVariables).map(
-										(variable, index) => (
-											<div
-												key={index}
-												className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
-											>
-												<div>
-													<span className="font-medium">{variable.name}</span>
-													<span className="text-gray-500 ml-2">{variable.value}</span>
-												</div>
-												<button
-													onClick={() => {
-														const setVariables = newVariableScope === "local"
-															? setLocalVariables
-															: setGlobalVariables;
-														setVariables(prev => prev.filter((_, i) => i !== index));
-													}}
-													className="p-1 text-gray-400 hover:text-red-500"
-												>
-													<X className="h-4 w-4" />
-												</button>
-											</div>
-										)
-									)}
-								</div>
-							</motion.div>
-						)}
-
-						{activeTab === "danger" && (
-							<motion.div
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								className="space-y-4"
-							>
-								<div className="bg-red-50 border border-red-100 rounded-lg p-4">
-									<h3 className="text-red-800 font-medium mb-2">Delete Flow</h3>
-									{!showDeleteConfirm ? (
-										<button
-											onClick={() => setShowDeleteConfirm(true)}
-											className="flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
-										>
-											<Trash2 className="h-4 w-4" />
-											Delete Flow
-										</button>
-									) : (
-										<div className="space-y-2">
-											<p className="text-red-600">Are you sure? This cannot be undone.</p>
-											<div className="flex gap-2">
-												<button
-													onClick={handleDeleteFlow}
-													disabled={isDeleting}
-													className="flex items-center gap-2 px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50"
-												>
-													{isDeleting ? <Loader2 className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
-													{isDeleting ? "Deleting..." : "Yes, delete"}
-												</button>
-												<button
-													onClick={() => setShowDeleteConfirm(false)}
-													className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-												>
-													Cancel
-												</button>
-											</div>
-										</div>
-									)}
-								</div>
-							</motion.div>
-						)}
-					</AnimatePresence>
-				</div>
-
-				<div className="flex justify-end gap-2 p-4 border-t">
-					<button
-						onClick={onClose}
-						className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
-					>
-						Cancel
-					</button>
-					<button
-						onClick={handleSaveSettings}
-						disabled={isSaving}
-						className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
-					>
-						{isSaving ? (
-							<>
-								<Loader2 className="h-4 w-4" />
-								Saving...
-							</>
-						) : (
-							<>
-								<Save className="h-4 w-4" />
-								Save
-							</>
-						)}
-					</button>
-				</div>
-			</motion.div>
-		</div>
-	);
-};
-
-export default SettingsModal;
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              "Save changes"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

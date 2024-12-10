@@ -1,8 +1,20 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
+import { Handle, Position, NodeProps } from 'reactflow';
+import { memo, useCallback, useEffect, useState, useMemo } from 'react';
+import { nanoid } from 'nanoid';
+import isEqual from 'lodash/isEqual';
 import { useStores } from '@/hooks/useStores';
-import { cn } from '@/lib/utils';
+import { NodeWrapper } from './base/NodeWrapper';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calculator, GitBranch, Plus, Variable, X } from 'lucide-react';
 import { FunctionNodeData, MultipleChoiceNodeData, SingleChoiceNodeData, WeightNodeData, YesNoNodeData } from '@/types/nodes';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -14,17 +26,17 @@ import {
   Flag,
   FunctionSquare,
   List,
-  Plus,
   Scale,
   Settings,
   Square,
   Trash2,
   XCircle
 } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Handle, NodeProps, Position } from 'reactflow';
-import { NodeWrapper } from './base/NodeWrapper';
-import { Modal } from './base/modal';
+import { cn } from '@/lib/utils';
+import { Operation } from '@prisma/client/runtime/library';
+import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+
+type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
 
 export const StartNode = memo(({ id, data, selected }: NodeProps) => {
   const { chartStore } = useStores() as any;
@@ -368,7 +380,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
       ...data,
       options: data.options.filter(opt => opt.id !== optionId),
     });
-  }, [chartStore, data.instanceId, id]);
+  }, [chartStore, data, id]);
 
   const handleSelectionLimitChange = useCallback((type: 'min' | 'max', value: string) => {
     const numValue = parseInt(value) || undefined;
@@ -622,243 +634,109 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
 WeightNode.displayName = 'WeightNode';
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
-  const { chartStore, variableStore, utilityStore } = useStores() as any;
-  const [nodeData, setNodeData] = useState({
+  const { chartStore, variableStore } = useStores() as any;
+  const [nodeData, setNodeData] = useState<FunctionNodeData>({
+    instanceId: id,
     label: data?.label || "Function Node",
-    variableScope: data?.variableScope || "local",
-    selectedVariable: data?.selectedVariable || "",
-    sequences: data?.sequences || [],
+    steps: data?.steps || [],
     handles: data?.handles || ["default"]
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentOperation, setCurrentOperation] = useState("");
-  const [currentValue, setCurrentValue] = useState<number | string>("");
-  const [currentCondition, setCurrentCondition] = useState("");
-  const [currentConditionValue, setCurrentConditionValue] = useState<number | string>("");
+  const [currentStep, setCurrentStep] = useState<{
+    type: 'operation' | 'condition';
+    operation?: {
+      type: 'addition' | 'subtraction' | 'multiplication' | 'division';
+      targetVariable: string;
+      value: number;
+    };
+    condition?: {
+      variable: string;
+      operator: '>' | '<' | '>=' | '<=' | '==' | '!=';
+      value: number;
+      trueHandle: string;
+      falseHandle: string;
+    };
+  }>({ type: 'operation' });
 
-  const currentTab = utilityStore.currentTab;
-  const currentInstance = chartStore.getChartInstance(currentTab);
+  // Get available variables from the current instance
+  const variables = useMemo(() => {
+    const instance = chartStore.getCurrentChartInstance();
+    return instance?.variables || [];
+  }, [chartStore]);
 
   useEffect(() => {
     Object.assign(data, nodeData);
   }, [data, nodeData]);
 
-  const filteredVariables = useMemo(() => {
-    if (nodeData.variableScope === "global") {
-      return variableStore.variables.global || [];
-    } else {
-      return currentInstance?.variables || [];
+  const addStep = useCallback(() => {
+    if (currentStep.type === 'operation' && currentStep.operation) {
+      setNodeData(prev => ({
+        ...prev,
+        steps: [...prev.steps, { id: nanoid(), ...currentStep }]
+      }));
+    } else if (currentStep.type === 'condition' && currentStep.condition) {
+      setNodeData(prev => ({
+        ...prev,
+        steps: [...prev.steps, { id: nanoid(), ...currentStep }],
+        handles: [...new Set([...prev.handles, currentStep.condition!.trueHandle, currentStep.condition!.falseHandle])]
+      }));
     }
-  }, [variableStore.variables, currentInstance, nodeData.variableScope]);
+    setCurrentStep({ type: 'operation' });
+  }, [currentStep]);
 
-  const updateNodeData = useCallback((updater: (prev: typeof nodeData) => typeof nodeData) => {
-    setNodeData((prevData) => {
-      const newData = updater(prevData);
-      return newData;
-    });
+  const removeStep = useCallback((stepId: string) => {
+    setNodeData(prev => ({
+      ...prev,
+      steps: prev.steps.filter(step => step.id !== stepId)
+    }));
   }, []);
 
-  const handleSelectVariable = (variableName: string) => {
-    updateNodeData((prev) => ({ ...prev, selectedVariable: variableName }));
-  };
-
-  const addOperation = (parentIndex: number | null = null) => {
-    if (currentOperation && currentValue !== "" && nodeData.selectedVariable) {
-      const newOperation = {
-        type: currentOperation,
-        value: Number(currentValue),
-        variable: nodeData.selectedVariable
-      };
-
-      updateNodeData((prev) => {
-        const newSequences = [...prev.sequences];
-        if (parentIndex !== null) {
-          if (!newSequences[parentIndex].children) {
-            newSequences[parentIndex].children = [];
-          }
-          newSequences[parentIndex].children.push(newOperation);
-        } else {
-          newSequences.push(newOperation);
-        }
-        return { ...prev, sequences: newSequences };
-      });
-
-      setCurrentOperation("");
-      setCurrentValue("");
-    }
-  };
-
-  const addRule = () => {
-    if (currentCondition && currentConditionValue !== "" && nodeData.selectedVariable) {
-      const newRule = {
-        type: "if",
-        condition: currentCondition,
-        value: Number(currentConditionValue),
-        variable: nodeData.selectedVariable,
-        handleId: "default",
-        children: []
-      };
-
-      updateNodeData((prev) => ({
-        ...prev,
-        sequences: [...prev.sequences, newRule],
-      }));
-
-      setCurrentCondition("");
-      setCurrentConditionValue("");
-    }
-  };
-
-  const addElse = (ifIndex: number) => {
-    updateNodeData((prev) => {
-      const newSequences = [...prev.sequences];
-      const ifBlock = newSequences[ifIndex];
-
-      if (ifBlock.children && !ifBlock.children.find((child) => child.type === "else")) {
-        ifBlock.children.push({
-          type: "else",
-          variable: nodeData.selectedVariable,
-          handleId: "default",
-          children: []
-        });
-      }
-
-      return { ...prev, sequences: newSequences };
-    });
-  };
-
-  const updateHandleForBlock = (parentIndex: number, handleId: string, blockType = "if") => {
-    updateNodeData((prev) => {
-      const newSequences = [...prev.sequences];
-      const block = newSequences[parentIndex].children?.find(
-        (child) => child.type === blockType
-      );
-
-      if (block) {
-        block.handleId = handleId;
-      } else {
-        newSequences[parentIndex].handleId = handleId;
-      }
-
-      return { ...prev, sequences: newSequences };
-    });
-  };
-
-  const addHandleToNode = () => {
-    const newHandleId = `handle-${nodeData.handles.length}`;
-    updateNodeData((prev) => ({
-      ...prev,
-      handles: [...prev.handles, newHandleId],
-    }));
-  };
-
-  const removeHandle = (handleId: string) => {
-    updateNodeData((prev) => ({
-      ...prev,
-      handles: prev.handles.filter((id) => id !== handleId),
-      sequences: prev.sequences.filter((seq) => seq.handleId !== handleId),
-    }));
-  };
-
-  const removeSequence = (index: number, parentIndex: number | null = null) => {
-    updateNodeData((prev) => {
-      const newSequences = [...prev.sequences];
-      if (parentIndex !== null) {
-        if (newSequences[parentIndex].children) {
-          newSequences[parentIndex].children = newSequences[parentIndex].children.filter(
-            (_, i) => i !== index
-          );
-        }
-      } else {
-        newSequences.splice(index, 1);
-      }
-      return { ...prev, sequences: newSequences };
-    });
-  };
-
-  const renderIndentedSequences = (sequences: any[], level = 0, parentIndex: number | null = null) => {
-    return sequences.map((seq, index) => {
-      const isIndented = seq.type !== "else" && level > 0;
-      const indentClass = isIndented ? "ml-8" : "";
-
-      return (
-        <motion.div
-          key={index}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className={`flex flex-col ${indentClass}`}
-        >
-          <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-            <span className="text-sm font-medium">
-              {seq.type === "if"
-                ? `If ${seq.variable} is ${seq.condition} ${seq.value}`
-                : seq.type === "else"
-                  ? `Else`
-                  : `${seq.type.charAt(0).toUpperCase() + seq.type.slice(1)} ${seq.value} to ${seq.variable}`}
-            </span>
-            <button
-              className="p-1 hover:bg-gray-200 rounded-md text-gray-500 hover:text-red-500 transition-colors"
-              onClick={() => removeSequence(index, parentIndex)}
-            >
-              <Trash2 size={16} />
-            </button>
+  const renderStep = useCallback((step: typeof nodeData.steps[0], index: number) => {
+    return (
+      <motion.div
+        key={step.id}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col space-y-2 p-3 bg-gray-50 rounded-lg"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Step {index + 1}:</span>
+            {step.type === 'operation' && step.operation && (
+              <span className="text-sm">
+                {step.operation.type} {step.operation.value} to {step.operation.targetVariable}
+              </span>
+            )}
+            {step.type === 'condition' && step.condition && (
+              <span className="text-sm">
+                if {step.condition.variable} {step.condition.operator} {step.condition.value}
+              </span>
+            )}
           </div>
-
-          {(seq.type === "if" || seq.type === "else") && (
-            <div className="mt-2 space-y-2 pl-4">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-gray-600">Output Handle:</label>
-                <select
-                  className="flex-1 px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={seq.handleId}
-                  onChange={(e) => updateHandleForBlock(
-                    parentIndex !== null ? parentIndex : index,
-                    e.target.value,
-                    seq.type
-                  )}
-                >
-                  {nodeData.handles.map((handleId) => (
-                    <option key={handleId} value={handleId}>{handleId}</option>
-                  ))}
-                </select>
-              </div>
-
-              {(seq.type === "if" || seq.type === "else") && (
-                <>
-                  {renderIndentedSequences(
-                    seq.children,
-                    level + 1,
-                    parentIndex !== null ? parentIndex : index
-                  )}
-                  {seq.type === "if" && !seq.children.find(child => child.type === "else") && (
-                    <button
-                      className="mt-2 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
-                      onClick={() => addElse(parentIndex !== null ? parentIndex : index)}
-                    >
-                      + Add Else Condition
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </motion.div>
-      );
-    });
-  };
-
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => removeStep(step.id)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+        {step.type === 'condition' && step.condition && (
+          <div className="pl-4 space-y-1 text-sm text-gray-500">
+            <div>→ True: use {step.condition.trueHandle}</div>
+            <div>→ False: use {step.condition.falseHandle}</div>
+          </div>
+        )}
+      </motion.div>
+    );
+  }, [removeStep]);
 
   return (
     <NodeWrapper
       title="Function"
       selected={selected}
-      onDelete={handleDelete}
+      onDelete={() => chartStore.removeNode(data.instanceId, id)}
       headerClassName="bg-violet-50/50"
     >
       <div className="p-4 space-y-4">
@@ -871,7 +749,7 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
         <input
           type="text"
           value={nodeData.label}
-          onChange={(e) => updateNodeData(prev => ({ ...prev, label: e.target.value }))}
+          onChange={(e) => setNodeData(prev => ({ ...prev, label: e.target.value }))}
           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
           placeholder="Function Name"
         />
@@ -881,14 +759,14 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg transition-colors"
         >
           <Settings className="h-4 w-4" />
-          Configure Function
+          Configure Steps
         </button>
 
         <div className="space-y-2">
           {nodeData.handles.map((handleId) => (
             <div
               key={handleId}
-              className="relative flex items-center justify-between bg-gray-50 p-2 rounded-lg group"
+              className="relative flex items-center justify-between bg-gray-50 p-2 rounded-lg"
             >
               <div className="flex items-center gap-2">
                 <Handle
@@ -899,192 +777,213 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
                 />
                 <span className="text-sm text-gray-600">{handleId}</span>
               </div>
-
-              <div className="flex items-center gap-2">
-                {handleId !== 'default' && (
-                  <button
-                    onClick={() => removeHandle(handleId)}
-                    className="p-1 hover:bg-gray-200 rounded-md text-gray-500 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Function Configuration Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <div className="p-6 space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-            <h3 className="text-lg font-bold text-gray-900">Configure Function</h3>
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded-md"
-            >
-              <XCircle className="h-5 w-5 text-gray-500" />
-            </button>
-          </div>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Configure Function Steps</DialogTitle>
+            <DialogDescription>
+              Add operations and conditions that will execute in sequence
+            </DialogDescription>
+          </DialogHeader>
 
-          {/* Scope Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Variable Scope</label>
-            <div className="flex gap-2">
-              <button
-                className={cn(
-                  "flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-                  nodeData.variableScope === "local"
-                    ? "bg-blue-50 text-blue-700 border-2 border-blue-200"
-                    : "bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100"
-                )}
-                onClick={() => updateNodeData(prev => ({ ...prev, variableScope: "local" }))}
-              >
-                Local
-              </button>
-              <button
-                className={cn(
-                  "flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-                  nodeData.variableScope === "global"
-                    ? "bg-purple-50 text-purple-700 border-2 border-purple-200"
-                    : "bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100"
-                )}
-                onClick={() => updateNodeData(prev => ({ ...prev, variableScope: "global" }))}
-              >
-                Global
-              </button>
-            </div>
-          </div>
-
-          {/* Variable Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Select {nodeData.variableScope.charAt(0).toUpperCase() + nodeData.variableScope.slice(1)} Variable
-            </label>
-            <select
-              value={nodeData.selectedVariable}
-              onChange={(e) => handleSelectVariable(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a variable</option>
-              {filteredVariables.map((variable: any, index: number) => (
-                <option key={index} value={variable.name}>
-                  {variable.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Operations Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-700">Operations</h4>
-              <div className="flex items-center gap-2">
-                <select
-                  value={currentOperation}
-                  onChange={(e) => setCurrentOperation(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <div className="space-y-6">
+            {/* Add Step Section */}
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant={currentStep.type === 'operation' ? 'default' : 'outline'}
+                  onClick={() => setCurrentStep({ type: 'operation' })}
                 >
-                  <option value="">Select Operation</option>
-                  <option value="addition">Add</option>
-                  <option value="subtraction">Subtract</option>
-                  <option value="multiplication">Multiply</option>
-                  <option value="division">Divide</option>
-                </select>
-                <input
-                  type="number"
-                  value={currentValue}
-                  onChange={(e) => setCurrentValue(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Value"
-                />
-                <button
-                  onClick={() => addOperation()}
-                  className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                  Operation
+                </Button>
+                <Button
+                  variant={currentStep.type === 'condition' ? 'default' : 'outline'}
+                  onClick={() => setCurrentStep({ type: 'condition' })}
                 >
-                  Add
-                </button>
+                  Condition
+                </Button>
               </div>
-            </div>
 
-            {/* Conditional Rules */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-700">Conditional Rules</h4>
-              <div className="flex items-center gap-2">
-                <select
-                  value={currentCondition}
-                  onChange={(e) => setCurrentCondition(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Condition</option>
-                  <option value=">">Greater than</option>
-                  <option value="<">Less than</option>
-                  <option value="==">Equal to</option>
-                </select>
-                <input
-                  type="number"
-                  value={currentConditionValue}
-                  onChange={(e) => setCurrentConditionValue(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Value"
-                />
-                <button
-                  onClick={addRule}
-                  className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                >
-                  Add Rule
-                </button>
-              </div>
-            </div>
+              {currentStep.type === 'operation' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Operation Type</Label>
+                    <Select
+                      value={currentStep.operation?.type}
+                      onValueChange={(value: any) => setCurrentStep(prev => ({
+                        ...prev,
+                        operation: { ...prev.operation, type: value } as any
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select operation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="addition">Add</SelectItem>
+                        <SelectItem value="subtraction">Subtract</SelectItem>
+                        <SelectItem value="multiplication">Multiply</SelectItem>
+                        <SelectItem value="division">Divide</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {/* Handles Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-700">Handles</h4>
-                <button
-                  onClick={addHandleToNode}
-                  className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                >
-                  Add Handle
-                </button>
-              </div>
-              <div className="space-y-2">
-                {nodeData.handles.map((handleId) => (
-                  <div key={handleId} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg group">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full border-2 border-white bg-violet-500" />
-                      <span className="text-sm text-gray-600">{handleId}</span>
+                  <div className="space-y-2">
+                    <Label>Target Variable</Label>
+                    <Select
+                      value={currentStep.operation?.targetVariable}
+                      onValueChange={(value) => setCurrentStep(prev => ({
+                        ...prev,
+                        operation: { ...prev.operation, targetVariable: value } as any
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select variable" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {variables.map((variable: any) => (
+                          <SelectItem key={variable.name} value={variable.name}>
+                            {variable.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Value</Label>
+                    <Input
+                      type="number"
+                      value={currentStep.operation?.value || ''}
+                      onChange={(e) => setCurrentStep(prev => ({
+                        ...prev,
+                        operation: { ...prev.operation, value: parseFloat(e.target.value) } as any
+                      }))}
+                      placeholder="Enter value"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {currentStep.type === 'condition' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Variable</Label>
+                    <Select
+                      value={currentStep.condition?.variable}
+                      onValueChange={(value) => setCurrentStep(prev => ({
+                        ...prev,
+                        condition: { ...prev.condition, variable: value } as any
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select variable" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {variables.map((variable: any) => (
+                          <SelectItem key={variable.name} value={variable.name}>
+                            {variable.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Operator</Label>
+                    <Select
+                      value={currentStep.condition?.operator}
+                      onValueChange={(value: any) => setCurrentStep(prev => ({
+                        ...prev,
+                        condition: { ...prev.condition, operator: value } as any
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select operator" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value=">">Greater than</SelectItem>
+                        <SelectItem value="<">Less than</SelectItem>
+                        <SelectItem value=">=">Greater than or equal</SelectItem>
+                        <SelectItem value="<=">Less than or equal</SelectItem>
+                        <SelectItem value="==">Equal to</SelectItem>
+                        <SelectItem value="!=">Not equal to</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Value</Label>
+                    <Input
+                      type="number"
+                      value={currentStep.condition?.value || ''}
+                      onChange={(e) => setCurrentStep(prev => ({
+                        ...prev,
+                        condition: { ...prev.condition, value: parseFloat(e.target.value) } as any
+                      }))}
+                      placeholder="Enter value"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>True Handle</Label>
+                      <Input
+                        value={currentStep.condition?.trueHandle || ''}
+                        onChange={(e) => setCurrentStep(prev => ({
+                          ...prev,
+                          condition: { ...prev.condition, trueHandle: e.target.value } as any
+                        }))}
+                        placeholder="e.g., handle1"
+                      />
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      {handleId !== 'default' && (
-                        <button
-                          onClick={() => removeHandle(handleId)}
-                          className="p-1 hover:bg-gray-200 rounded-md text-gray-500 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+                    <div className="space-y-2">
+                      <Label>False Handle</Label>
+                      <Input
+                        value={currentStep.condition?.falseHandle || ''}
+                        onChange={(e) => setCurrentStep(prev => ({
+                          ...prev,
+                          condition: { ...prev.condition, falseHandle: e.target.value } as any
+                        }))}
+                        placeholder="e.g., handle2"
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                onClick={addStep}
+                disabled={
+                  (currentStep.type === 'operation' && (!currentStep.operation?.type || !currentStep.operation?.targetVariable)) ||
+                  (currentStep.type === 'condition' && (!currentStep.condition?.variable || !currentStep.condition?.operator))
+                }
+              >
+                Add Step
+              </Button>
             </div>
 
-            {/* Sequences */}
+            <Separator />
+
+            {/* Steps List */}
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-700">Sequences</h4>
-              <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
-                {renderIndentedSequences(nodeData.sequences)}
+              <Label>Steps (executes in order)</Label>
+              <div className="space-y-2">
+                {nodeData.steps.map((step, index) => renderStep(step, index))}
               </div>
             </div>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
     </NodeWrapper>
   );
 });
+
 FunctionNode.displayName = 'FunctionNode';
 
 // Export the collection of node types

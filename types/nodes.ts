@@ -31,9 +31,22 @@ export interface WeightNodeData extends BaseNodeData {
 }
 
 export interface FunctionNodeData extends BaseNodeData {
-  variableScope: 'local' | 'global';
-  selectedVariable: string;
-  sequences: FunctionNodeSequence[];
+  steps: Array<{
+    id: string;
+    type: 'operation' | 'condition';
+    operation?: {
+      type: 'addition' | 'subtraction' | 'multiplication' | 'division';
+      targetVariable: string;
+      value: number;
+    };
+    condition?: {
+      variable: string;
+      operator: '>' | '<' | '>=' | '<=' | '==' | '!=';
+      value: number;
+      trueHandle: string;
+      falseHandle: string;
+    };
+  }>;
   handles: string[];
 }
 

@@ -1,69 +1,76 @@
 // components/dashboard/NodeSidebar.tsx
 import { cn } from "@/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { Search, PlayCircle, Square, HelpCircle, CheckSquare, Scale, Wrench } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
-const nodeTypes = [
+interface NodeType {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.FC<{ className?: string }>;
+  category: string;
+}
+
+const nodeTypes: NodeType[] = [
   {
     id: 'startNode',
     label: 'Start Node',
     description: 'Begins the flow',
-    icon: '▶️',
-    category: 'basic'
+    icon: PlayCircle,
+    category: 'flow'
   },
   {
     id: 'endNode',
     label: 'End Node',
     description: 'Ends the flow',
-    icon: '⏹️',
-    category: 'basic'
+    icon: Square,
+    category: 'flow'
   },
   {
     id: 'yesNo',
     label: 'Yes/No Question',
     description: 'Binary choice question',
-    icon: '❓',
-    category: 'question'
+    icon: HelpCircle,
+    category: 'input'
   },
   {
     id: 'singleChoice',
     label: 'Single Choice',
     description: 'One option from many',
-    icon: '☝️',
-    category: 'question'
+    icon: CheckSquare,
+    category: 'input'
   },
   {
     id: 'multipleChoice',
     label: 'Multiple Choice',
     description: 'Multiple selections allowed',
-    icon: '✨',
-    category: 'question'
+    icon: CheckSquare,
+    category: 'input'
   },
   {
     id: 'weightNode',
     label: 'Weight Node',
     description: 'Adjusts scoring weight',
-    icon: '⚖️',
+    icon: Scale,
     category: 'logic'
   },
   {
     id: 'functionNode',
     label: 'Function Node',
     description: 'Custom logic and calculations',
-    icon: '🔧',
+    icon: Wrench,
     category: 'logic'
   },
 ];
 
 const categories = [
-  { id: 'all', label: 'All Nodes' },
-  { id: 'basic', label: 'Basic' },
-  { id: 'question', label: 'Questions' },
+  { id: 'all', label: 'All' },
+  { id: 'flow', label: 'Flow' },
+  { id: 'input', label: 'Input' },
   { id: 'logic', label: 'Logic' },
 ];
 
@@ -88,77 +95,54 @@ export function NodeSidebar({ width, onWidthChange }: NodeSidebarProps) {
   );
 
   return (
-    <div className="flex flex-col h-full border-r bg-background min-w-[280px]">
-      {/* Search Bar */}
-      <div className="p-3 border-b">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search nodes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+    <div className="h-full w-[280px] border-r bg-background">
+      <div className="space-y-4 py-4">
+        <div className="px-3 py-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search nodes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 w-full"
+            />
+          </div>
         </div>
-      </div>
-
-      {/* Categories */}
-      <div className="p-3 border-b">
-        <div className="flex flex-wrap gap-2">
-          {categories.map((category) => (
+        <div className="flex gap-2 px-3">
+          {categories.map(category => (
             <Badge
               key={category.id}
-              variant={activeCategory === category.id ? "default" : "secondary"}
-              className={cn(
-                "cursor-pointer hover:opacity-80",
-                activeCategory === category.id && "bg-primary"
-              )}
+              variant={activeCategory === category.id ? "default" : "outline"}
+              className="cursor-pointer"
               onClick={() => setActiveCategory(category.id)}
             >
               {category.label}
             </Badge>
           ))}
         </div>
-      </div>
-
-      {/* Node List */}
-      <ScrollArea className="flex-1">
-        <div className="p-3 space-y-2">
-          <AnimatePresence>
-            {filteredNodes.map((node) => (
-              <motion.div
-                key={node.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, node.id)}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-              >
-                <Card
-                  className={cn(
-                    "cursor-move hover:border-primary/50",
-                    "hover:shadow-sm transition-all duration-200"
-                  )}
+        <ScrollArea className="flex-1">
+          <div className="px-3 space-y-1">
+            {filteredNodes.map(node => {
+              const Icon = node.icon;
+              return (
+                <div
+                  key={node.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, node.id)}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-move hover:bg-muted/50"
                 >
-                  <div className="flex items-center gap-3 p-3">
-                    <span className="text-xl">{node.icon}</span>
-                    <div>
-                      <h3 className="font-medium text-sm">
-                        {node.label}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {node.description}
-                      </p>
-                    </div>
+                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium truncate">{node.label}</span>
+                    <span className="text-xs text-muted-foreground truncate">{node.description}</span>
                   </div>
-                </Card>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      </ScrollArea>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 }

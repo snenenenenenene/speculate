@@ -99,7 +99,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="container mx-auto py-8 md:py-10">
+    <div className="container mx-auto py-8 md:py-20">
       <div className="w-full">
         <div className="flex items-center justify-between">
           <div>

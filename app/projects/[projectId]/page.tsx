@@ -20,6 +20,12 @@ interface ProjectData {
   }
 }
 
+interface Flow {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 export default function ProjectPage({
   params,
 }: {
@@ -29,7 +35,7 @@ export default function ProjectPage({
   const router = useRouter();
   const [project, setProject] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [flows, setFlows] = useState<{ id: string }[]>([]);
+  const [flows, setFlows] = useState<Flow[]>([]);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -37,7 +43,11 @@ export default function ProjectPage({
         const response = await fetch(`/api/projects/${projectId}`);
         const data = await response.json();
         setProject(data.project);
-        setFlows(data.flows);
+        
+        // Fetch flows
+        const flowsResponse = await fetch(`/api/projects/${projectId}/flows`);
+        const flowsData = await flowsResponse.json();
+        setFlows(flowsData.flows);
       } catch (error) {
         console.error("Error fetching project:", error);
       } finally {
@@ -109,14 +119,16 @@ export default function ProjectPage({
               <p className="text-sm text-muted-foreground mt-1">Requests this week</p>
             </Card>
             <Link 
-              href={`/projects/${projectId}/flows/${flows[0]?.id || ''}`}
+              href={flows.length > 0 ? `/projects/${projectId}/flows/${flows[0].id}` : `/projects/${projectId}/flows`}
               className="block"
             >
               <Card className="p-4 h-full hover:bg-muted/50 transition-colors cursor-pointer group">
                 <div className="h-full flex flex-col">
                   <h3 className="text-sm font-medium">Flow Editor</h3>
                   <div className="flex-1 flex items-center justify-between mt-2">
-                    <p className="text-sm text-muted-foreground">Open flows</p>
+                    <p className="text-sm text-muted-foreground">
+                      {flows.length > 0 ? 'Open latest flow' : 'Create new flow'}
+                    </p>
                     <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>
                 </div>

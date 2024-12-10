@@ -72,6 +72,7 @@ export function FlowSelector({
         },
         body: JSON.stringify({
           name: 'New Flow',
+          id: projectId
         }),
       });
 
@@ -80,7 +81,7 @@ export function FlowSelector({
       }
 
       const data = await response.json();
-      router.push(`/projects/${projectId}/flows/${data.flow.id}`);
+      router.push(`/projects/${projectId}/flows/${projectId}`);
       setIsOpen(false);
     } catch (error) {
       console.error('Error creating flow:', error);

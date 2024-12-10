@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "../../../auth/[...nextauth]/options";
+import { nanoid } from "nanoid";
 
 // GET /api/projects/[projectId]/flows
 export async function GET(
@@ -57,11 +58,12 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name } = await req.json();
+    const { name, id } = await req.json();
 
     // Create a new flow with basic structure
     const flow = await prisma.chartInstance.create({
       data: {
+        id: id || params.projectId, // Use provided ID or project ID
         name: name || "New Flow",
         content: JSON.stringify({
           nodes: [],

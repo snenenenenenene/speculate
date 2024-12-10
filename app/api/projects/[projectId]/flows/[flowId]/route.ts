@@ -52,7 +52,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { nodes, edges } = await req.json();
+    const body = await req.json();
+    console.log('Received body:', body);  // Debug log
 
     // Update the flow
     const flow = await prisma.chartInstance.update({
@@ -64,11 +65,12 @@ export async function PUT(
         }
       },
       data: {
-        content: JSON.stringify({ nodes, edges }),
+        content: body.content,  // Use the content field directly
         updatedAt: new Date()
       }
     });
 
+    console.log('Updated flow:', flow);  // Debug log
     return NextResponse.json({ flow });
   } catch (error) {
     console.error("Error saving flow:", error);

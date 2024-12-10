@@ -11,6 +11,8 @@ import {
   YesNoNode,
 } from "@/components/nodes";
 import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import ReactFlow, {
@@ -152,6 +154,42 @@ export default function FlowEditor({
   const [isLoading, setIsLoading] = useState(true);
   const { setViewport, project } = useReactFlow();
 
+  const handleSaveFlow = useCallback(async () => {
+    try {
+      console.log('Saving flow - Current nodes:', nodes);
+      console.log('Saving flow - Current edges:', edges);
+      
+      const payload = {
+        content: JSON.stringify({ nodes, edges })  // Stringify the content as the server expects
+      };
+      console.log('Saving flow - Payload:', payload);
+      
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save flow');
+      }
+
+      console.log('Flow saved successfully');
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error saving flow:', error);
+      return Promise.reject(error);
+    }
+  }, [projectId, flowId, nodes, edges]);
+
+  useEffect(() => {
+    if (window.setSaveFunction) {
+      window.setSaveFunction(handleSaveFlow);
+    }
+  }, [handleSaveFlow]);
+
   useEffect(() => {
     const loadFlow = async () => {
       try {
@@ -161,12 +199,16 @@ export default function FlowEditor({
         }
 
         const { flow } = await response.json();
+        console.log('Loading flow - Raw response:', flow);
         
         if (flow?.content) {
-          const flowContent = JSON.parse(flow.content);
+          console.log('Loading flow - Content:', flow.content);
+          const flowContent = typeof flow.content === 'string' ? JSON.parse(flow.content) : flow.content;
+          console.log('Loading flow - Parsed content:', flowContent);
           setNodes(flowContent.nodes || []);
           setEdges(flowContent.edges || []);
         } else {
+          console.log('Loading flow - No content found, setting empty nodes/edges');
           setNodes([]);
           setEdges([]);
         }
@@ -183,17 +225,6 @@ export default function FlowEditor({
 
     loadFlow();
   }, [projectId, flowId, setNodes, setEdges, setViewport]);
-
-  // Auto-save when nodes or edges change
-  useEffect(() => {
-    const saveTimeout = setTimeout(() => {
-      if (!isLoading && (nodes.length > 0 || edges.length > 0)) {
-        useFlowStore.getState().saveFlow(projectId, flowId);
-      }
-    }, 1000);
-
-    return () => clearTimeout(saveTimeout);
-  }, [nodes, edges, projectId, flowId, isLoading]);
 
   const onConnect = useCallback((params: Connection) => {
     setEdges((eds) => addEdge(params, eds));
@@ -313,6 +344,37 @@ export default function FlowEditor({
     );
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = async (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+        event.preventDefault();
+        try {
+          const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              content: JSON.stringify({ nodes, edges }),
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to save flow');
+          }
+
+          toast.success('Flow saved successfully');
+        } catch (error) {
+          console.error('Error saving flow:', error);
+          toast.error('Failed to save flow');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [projectId, flowId, nodes, edges]);
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -320,6 +382,8 @@ export default function FlowEditor({
       </div>
     );
   }
+
+  console.log(nodes)
 
   return (
     <div className="flex h-full w-full">
