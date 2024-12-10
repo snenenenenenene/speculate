@@ -63,8 +63,13 @@ export async function POST(
     // Create a new flow with basic structure
     const flow = await prisma.chartInstance.create({
       data: {
-        id: id || params.projectId, // Use provided ID or project ID
-        name: name || "New Flow",
+        id: id || nanoid(), // Use provided ID or generate a new one
+        name: name || `Flow ${new Date().toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric'
+        })}`,
         content: JSON.stringify({
           nodes: [],
           edges: [],

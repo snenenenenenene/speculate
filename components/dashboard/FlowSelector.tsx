@@ -12,18 +12,21 @@ interface Flow {
   id: string;
   name: string;
   createdAt: string;
+  color: string;
 }
 
 interface FlowSelectorProps {
   projectId: string;
   currentFlow?: string;
   onFlowSelect: (id: string) => void;
+  refreshTrigger?: number;
 }
 
 export function FlowSelector({
   projectId,
   currentFlow,
   onFlowSelect,
+  refreshTrigger,
 }: FlowSelectorProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -38,6 +41,7 @@ export function FlowSelector({
         const response = await fetch(`/api/projects/${projectId}/flows`);
         const data = await response.json();
         if (response.ok) {
+          console.log('Fetched flows:', data.flows);
           setFlows(data.flows);
           if (currentFlow) {
             const current = data.flows.find((f: Flow) => f.id === currentFlow);
@@ -49,15 +53,15 @@ export function FlowSelector({
           throw new Error(data.error);
         }
       } catch (error) {
-        console.error("Error fetching flows:", error);
-        toast.error("Failed to load flows");
+        console.error('Error fetching flows:', error);
+        toast.error('Failed to fetch flows');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchFlows();
-  }, [projectId, currentFlow]);
+  }, [projectId, currentFlow, refreshTrigger]);
 
   const filteredFlows = flows.filter(flow =>
     flow.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -106,9 +110,15 @@ export function FlowSelector({
         )}
       >
         <LayoutGrid className="h-4 w-4 text-base-500" />
-        <span className="text-sm font-medium text-base-700">
-          {currentFlowDetails?.name || 'Select Flow'}
-        </span>
+        <div className="flex items-center gap-3">
+          <div 
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: currentFlowDetails?.color || "#18181b" }}
+          />
+          <span className="text-sm font-medium">
+            {currentFlowDetails?.name || "Select a flow"}
+          </span>
+        </div>
         <ChevronDown className="h-4 w-4 text-base-500" />
       </button>
 
@@ -134,24 +144,27 @@ export function FlowSelector({
 
               <div className="max-h-64 overflow-y-auto">
                 {filteredFlows.map((flow) => (
-                  <button
+                  <div
                     key={flow.id}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors",
+                      flow.id === currentFlow
+                        ? "bg-zinc-100"
+                        : "hover:bg-zinc-50"
+                    )}
                     onClick={() => {
                       onFlowSelect(flow.id);
                       setIsOpen(false);
                     }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg",
-                      "hover:bg-base-50 transition-colors duration-200",
-                      currentFlow === flow.id && "bg-primary-50 text-primary-600"
-                    )}
                   >
-                    <div
+                    <div 
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: currentFlow === flow.id ? 'rgb(147, 51, 234)' : '#94a3b8' }}
+                      style={{ backgroundColor: flow.color }}
                     />
-                    <span className="text-sm font-medium">{flow.name}</span>
-                  </button>
+                    <span className="text-sm font-medium">
+                      {flow.name}
+                    </span>
+                  </div>
                 ))}
 
                 {filteredFlows.length === 0 && searchQuery && (

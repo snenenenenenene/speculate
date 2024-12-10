@@ -92,32 +92,39 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { content, name } = await req.json();
+    const { name, color, onePageMode, content } = await req.json();
+    const updateData: any = {};
 
-    if (!content) {
+    // Only include fields that exist in the schema
+    if (name !== undefined) updateData.name = name;
+    if (color !== undefined) updateData.color = color;
+    if (onePageMode !== undefined) updateData.onePageMode = onePageMode;
+    if (content !== undefined) updateData.content = content;
+
+    try {
+      // Update the flow
+      const flow = await prisma.chartInstance.update({
+        where: {
+          id: params.flowId,
+          projectId: params.projectId,
+          user: {
+            email: session.user.email
+          }
+        },
+        data: {
+          ...updateData,
+          updatedAt: new Date()
+        }
+      });
+
+      return NextResponse.json({ flow });
+    } catch (error) {
+      console.error("Error updating flow:", error);
       return NextResponse.json(
-        { error: "No content provided" },
-        { status: 400 }
+        { error: "Failed to update flow" },
+        { status: 500 }
       );
     }
-
-    // Update the flow
-    const flow = await prisma.chartInstance.update({
-      where: {
-        id: params.flowId,
-        projectId: params.projectId,
-        user: {
-          email: session.user.email
-        }
-      },
-      data: {
-        content,
-        name,
-        updatedAt: new Date()
-      }
-    });
-
-    return NextResponse.json({ flow });
   } catch (error) {
     console.error("Error updating flow:", error);
     return NextResponse.json(

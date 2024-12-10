@@ -21,8 +21,9 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle, Hash, LayoutDashboard, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface Variable {
   name: string;
@@ -32,85 +33,97 @@ interface Variable {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  flowId: string;
-  initialData?: {
+  projectId: string;
+  flowId?: string;
+  initialData: {
     name: string;
     color: string;
     onePageMode: boolean;
     variables: Variable[];
-  };
-  name?: string;
-  color?: string;
-  onePageMode?: boolean;
-  variables?: Variable[];
+  } | null;
 }
 
 export default function SettingsModal({
   isOpen,
   onClose,
+  projectId,
   flowId,
   initialData,
-  name: propName,
-  color: propColor,
-  onePageMode: propOnePageMode,
-  variables: propVariables,
 }: SettingsModalProps) {
+	console.log('initialData:', initialData);
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Form state
-  const [name, setName] = useState(propName || initialData?.name || "");
-  const [color, setColor] = useState(propColor || initialData?.color || "#6366f1");
-  const [onePageMode, setOnePageMode] = useState(propOnePageMode ?? initialData?.onePageMode ?? false);
-  const [variables, setVariables] = useState<Variable[]>(propVariables || initialData?.variables || []);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("");
+  const [onePageMode, setOnePageMode] = useState(false);
+  const [variables, setVariables] = useState<Variable[]>([]);
   const [newVariable, setNewVariable] = useState({ name: "", value: "" });
   const [variableScope, setVariableScope] = useState<"local" | "global">("local");
 
+  // Initialize form state when modal opens or initialData changes
+  useEffect(() => {
+    if (initialData) {
+      console.log('Setting initial data:', initialData);
+      setName(initialData.name);
+      setColor(initialData.color || "#18181b");
+      setOnePageMode(initialData.onePageMode);
+      setVariables(initialData.variables);
+    }
+  }, [initialData]);
+
   const handleSave = async () => {
-    if (!initialData && !name.trim()) {
+    if (!flowId) return;
+
+    if (!name.trim()) {
       toast.error("Flow name cannot be empty");
       return;
     }
 
+    console.log('Saving settings:', { name, color, onePageMode });
     setIsSaving(true);
     try {
-      const projectId = flowId.split('/')[0]; // Get project ID from flow ID
       const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           color,
           onePageMode,
-          variables: variables.filter(v => v.name && v.value),
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to save settings");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to save settings");
+      }
 
       toast.success("Settings saved successfully");
       onClose();
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save settings");
+      toast.error(error instanceof Error ? error.message : "Failed to save settings");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!flowId) return;
+    
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/projects/flows/${flowId}`, {
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
         method: "DELETE",
       });
 
       if (!response.ok) throw new Error("Failed to delete flow");
 
       toast.success("Flow deleted successfully");
-      router.push("/projects");
+      router.push(`/projects/${projectId}`);
       onClose();
     } catch (error) {
       console.error("Error deleting flow:", error);
@@ -166,45 +179,33 @@ export default function SettingsModal({
           <TabsContent value="general" className="space-y-4 mt-4">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Flow Name</Label>
+                <Label>Flow Name</Label>
                 <Input
-                  id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter flow name"
+                  placeholder="Enter flow name..."
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="color">Theme Color</Label>
-                <div className="flex gap-2">
+                <Label>Flow Color</Label>
+                <div className="flex items-center gap-4">
                   <Input
                     type="color"
-                    id="color"
-                    value={color}
+                    value={color || "#18181b"}
                     onChange={(e) => setColor(e.target.value)}
-                    className="w-16 p-1"
-                  />
-                  <Input
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    placeholder="#000000"
+                    className="w-12 h-12 p-1 cursor-pointer"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="onePageMode">One Page Mode</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Display all nodes on a single page
-                  </p>
-                </div>
+              <div className="flex items-center space-x-2">
                 <Switch
-                  id="onePageMode"
+                  id="one-page-mode"
                   checked={onePageMode}
                   onCheckedChange={setOnePageMode}
                 />
+                <Label htmlFor="one-page-mode">One Page Mode</Label>
               </div>
             </div>
           </TabsContent>

@@ -52,11 +52,22 @@ export const StartNode = memo(({ id, data, selected }: NodeProps) => {
       title="Start"
       selected={selected}
       onDelete={handleDelete}
-      handles={{ bottom: true }}
-      headerClassName="bg-emerald-50/50"
+      customHandles={
+        <Handle
+          type="target"
+          position={Position.Bottom}
+          className="react-flow__handle"
+        />
+      }
     >
-      <div className="p-4 flex items-center justify-center">
-        <Flag className="h-8 w-8 text-emerald-500" />
+      <div className="space-y-2">
+        <Label>Message</Label>
+        <Input
+          value={data.message || ""}
+          onChange={(e) => {}}
+          placeholder="Enter start message..."
+          className="h-9"
+        />
       </div>
     </NodeWrapper>
   );
@@ -71,12 +82,12 @@ export const EndNode = memo(({ id, data, selected }: NodeProps) => {
   );
 
   const [endType, setEndType] = useState(data.endType || 'end');
-  const [redirectTab, setRedirectTab] = useState(data.redirectTab || '');
+  const [selectedFlow, setSelectedFlow] = useState(data.redirectTab || '');
 
   useEffect(() => {
     data.endType = endType;
-    data.redirectTab = redirectTab;
-  }, [endType, redirectTab, data]);
+    data.redirectTab = selectedFlow;
+  }, [endType, selectedFlow, data]);
 
   const handleDelete = useCallback(() => {
     if (window.confirm('Are you sure you want to delete this node?')) {
@@ -86,142 +97,25 @@ export const EndNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <NodeWrapper
-      title={endType === 'redirect' ? 'Redirect Flow' : 'End Flow'}
+      title="End"
       selected={selected}
       onDelete={handleDelete}
-      handles={{ top: true }}
-      headerClassName={cn(
-        "transition-colors duration-200",
-        endType === 'redirect' ? "bg-blue-50" : "bg-red-50"
-      )}
+      customHandles={
+        <Handle
+          type="source"
+          position={Position.Top}
+          className="react-flow__handle"
+        />
+      }
     >
-      <div className="space-y-4">
-        {/* Label Input */}
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Label
-          </label>
-          <input
-            type="text"
-            value={data.label || 'End Node'}
-            onChange={(e) => data.label = e.target.value}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="End Node"
-          />
-        </div>
-
-        {/* End Type Selection */}
-        <div className="grid grid-cols-2 gap-2">
-          {/* End Flow Button */}
-          <motion.button
-            onClick={() => setEndType('end')}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-200",
-              endType === 'end'
-                ? "bg-red-50 border-2 border-red-200 shadow-sm"
-                : "border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-            )}
-          >
-            <Square className={cn(
-              "h-6 w-6 transition-colors",
-              endType === 'end' ? "text-red-500" : "text-gray-400"
-            )} />
-            <span className={cn(
-              "text-sm font-medium transition-colors",
-              endType === 'end' ? "text-red-700" : "text-gray-600"
-            )}>
-              End Flow
-            </span>
-            {endType === 'end' && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2"
-              >
-                <CheckCircle2 className="h-4 w-4 text-red-500" />
-              </motion.div>
-            )}
-          </motion.button>
-
-          {/* Redirect Button */}
-          <motion.button
-            onClick={() => setEndType('redirect')}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-200",
-              endType === 'redirect'
-                ? "bg-blue-50 border-2 border-blue-200 shadow-sm"
-                : "border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-            )}
-          >
-            <ArrowRight className={cn(
-              "h-6 w-6 transition-colors",
-              endType === 'redirect' ? "text-blue-500" : "text-gray-400"
-            )} />
-            <span className={cn(
-              "text-sm font-medium transition-colors",
-              endType === 'redirect' ? "text-blue-700" : "text-gray-600"
-            )}>
-              Redirect
-            </span>
-            {endType === 'redirect' && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2"
-              >
-                <CheckCircle2 className="h-4 w-4 text-blue-500" />
-              </motion.div>
-            )}
-          </motion.button>
-        </div>
-
-        {/* Redirect Selection */}
-        <AnimatePresence mode="wait">
-          {endType === 'redirect' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="space-y-2 pt-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Redirect To
-                </label>
-                {otherInstances.length > 0 ? (
-                  <select
-                    value={redirectTab}
-                    onChange={(e) => setRedirectTab(e.target.value)}
-                    className={cn(
-                      "w-full px-3 py-2 text-sm rounded-lg transition-all duration-200",
-                      "border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      !redirectTab && "text-gray-500"
-                    )}
-                  >
-                    <option value="" disabled>
-                      Select a flow...
-                    </option>
-                    {otherInstances.map(instance => (
-                      <option key={instance.id} value={instance.id}>
-                        {instance.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-500">
-                    <CircleSlashed className="h-4 w-4" />
-                    <span>No other flows available</span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <div className="space-y-2">
+        <Label>Message</Label>
+        <Input
+          value={data.message || ""}
+          onChange={(e) => {}}
+          placeholder="Enter end message..."
+          className="h-9"
+        />
       </div>
     </NodeWrapper>
   );
@@ -233,37 +127,24 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
   const DEFAULT_QUESTION = "Select one of the following options:";
 
   const handleQuestionChange = useCallback((value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      question: value || DEFAULT_QUESTION,
-    });
-  }, [chartStore, data, id]);
+    data.question = value;
+  }, [data]);
 
   const handleOptionChange = useCallback((optionId: string, value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.map(opt =>
-        opt.id === optionId ? { ...opt, label: value } : opt
-      ),
-    });
-  }, [chartStore, data, id]);
+    const option = data.options?.find(opt => opt.id === optionId);
+    if (option) {
+      option.label = value;
+    }
+  }, [data.options]);
 
   const handleAddOption = useCallback(() => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: [
-        ...data.options,
-        { id: crypto.randomUUID(), label: '', nextNodeId: null }
-      ],
-    });
-  }, [chartStore, data, id]);
+    const newOption = { id: nanoid(), label: '', nextNodeId: null };
+    data.options = [...(data.options || []), newOption];
+  }, [data]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.filter(opt => opt.id !== optionId),
-    });
-  }, [chartStore, data, id]);
+    data.options = data.options?.filter(opt => opt.id !== optionId) || [];
+  }, [data]);
 
   const handleDelete = useCallback(() => {
     if (window.confirm('Are you sure you want to delete this node?')) {
@@ -271,74 +152,92 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
     }
   }, [chartStore, data.instanceId, id]);
 
+  // Initialize options if they don't exist
+  useEffect(() => {
+    if (!data.options) {
+      data.options = [
+        { id: nanoid(), label: 'Option 1', nextNodeId: null },
+        { id: nanoid(), label: 'Option 2', nextNodeId: null }
+      ];
+    }
+  }, [data]);
+
   return (
     <NodeWrapper
       title="Single Choice"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-purple-50/50"
+      customHandles={
+        <>
+          <Handle
+            type="source"
+            position={Position.Top}
+            className="react-flow__handle"
+          />
+        </>
+      }
     >
       <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-        />
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Question
-          </label>
-          <input
-            type="text"
+        <div className="space-y-2">
+          <Label>Question</Label>
+          <Input
             value={data.question || DEFAULT_QUESTION}
             onChange={(e) => handleQuestionChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={DEFAULT_QUESTION}
+            placeholder="Enter your question..."
+            className="h-9"
           />
         </div>
 
         <div className="space-y-2">
-          {data.options.map((option, index) => (
-            <div key={option.id} className="relative group">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-xs font-medium text-gray-600">
-                  {index + 1}
+          <Label>Options</Label>
+          <div className="space-y-2">
+            {data.options?.map((option, index) => (
+              <div key={option.id} className="relative group">
+                <div className={cn(
+                  "flex items-center gap-2 rounded-md",
+                  selected ? "bg-zinc-100" : "bg-zinc-50",
+                  "transition-colors duration-200"
+                )}>
+                  <Input
+                    value={option.label}
+                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                    placeholder={`Option ${index + 1}`}
+                    className="h-9"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveOption(option.id)}
+                    className={cn(
+                      "h-8 w-8 p-0 opacity-0 group-hover:opacity-100",
+                      "transition-opacity duration-200"
+                    )}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id={option.id}
+                    className={cn(
+                      "react-flow__handle opacity-0 group-hover:opacity-100",
+                      "transition-all duration-200"
+                    )}
+                  />
                 </div>
-                <input
-                  type="text"
-                  value={option.label}
-                  onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                  placeholder={`Option ${index + 1}`}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={() => handleRemoveOption(option.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
-                >
-                  <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                </button>
               </div>
-              <Handle
-                type="source"
-                position={Position.Bottom}
-                id={`${option.id}-target`}
-                className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-                style={{
-                  left: `${((index + 1) / (data.options.length + 1)) * 100}%`,
-                }}
-              />
-            </div>
-          ))}
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddOption}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Option
+          </Button>
         </div>
-
-        <button
-          onClick={handleAddOption}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium text-gray-600 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Option
-        </button>
       </div>
     </NodeWrapper>
   );
@@ -350,45 +249,43 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
   const DEFAULT_QUESTION = "Select all that apply:";
 
   const handleQuestionChange = useCallback((value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      question: value || DEFAULT_QUESTION,
-    });
-  }, [chartStore, data, id]);
+    data.question = value;
+  }, [data]);
 
   const handleOptionChange = useCallback((optionId: string, value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.map(opt =>
-        opt.id === optionId ? { ...opt, label: value } : opt
-      ),
-    });
-  }, [chartStore, data, id]);
+    const option = data.options?.find(opt => opt.id === optionId);
+    if (option) {
+      option.label = value;
+    }
+  }, [data.options]);
 
   const handleAddOption = useCallback(() => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: [
-        ...data.options,
-        { id: crypto.randomUUID(), label: '', nextNodeId: null }
-      ],
-    });
-  }, [chartStore, data, id]);
+    const newOption = { id: nanoid(), label: '', nextNodeId: null };
+    data.options = [...(data.options || []), newOption];
+  }, [data]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.filter(opt => opt.id !== optionId),
-    });
-  }, [chartStore, data, id]);
+    data.options = data.options?.filter(opt => opt.id !== optionId) || [];
+  }, [data]);
 
   const handleSelectionLimitChange = useCallback((type: 'min' | 'max', value: string) => {
-    const numValue = parseInt(value) || undefined;
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      [type === 'min' ? 'minSelections' : 'maxSelections']: numValue,
-    });
-  }, [chartStore, data, id]);
+    const numValue = parseInt(value) || 0;
+    const maxAllowed = data.options?.length || 0;
+    
+    if (type === 'min') {
+      data.minSelections = Math.min(numValue, maxAllowed);
+      // Ensure max is not less than min
+      if (data.maxSelections && data.maxSelections < data.minSelections) {
+        data.maxSelections = data.minSelections;
+      }
+    } else {
+      data.maxSelections = Math.min(numValue, maxAllowed);
+      // Ensure min is not more than max
+      if (data.minSelections && data.minSelections > data.maxSelections) {
+        data.minSelections = data.maxSelections;
+      }
+    }
+  }, [data]);
 
   const handleDelete = useCallback(() => {
     if (window.confirm('Are you sure you want to delete this node?')) {
@@ -396,103 +293,117 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
     }
   }, [chartStore, data.instanceId, id]);
 
+  // Initialize options if they don't exist
+  useEffect(() => {
+    if (!data.options) {
+      data.options = [
+        { id: nanoid(), label: 'Option 1', nextNodeId: null },
+        { id: nanoid(), label: 'Option 2', nextNodeId: null }
+      ];
+      data.minSelections = 1;
+      data.maxSelections = 2;
+    }
+  }, [data]);
+
   return (
     <NodeWrapper
       title="Multiple Choice"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-indigo-50/50"
+      customHandles={
+        <>
+          <Handle
+            type="target"
+            position={Position.Top}
+            className="react-flow__handle"
+          />
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            className="react-flow__handle"
+          />
+        </>
+      }
     >
       <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-        />
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Question
-          </label>
-          <input
-            type="text"
+        <div className="space-y-2">
+          <Label>Question</Label>
+          <Input
             value={data.question || DEFAULT_QUESTION}
             onChange={(e) => handleQuestionChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={DEFAULT_QUESTION}
+            placeholder="Enter your question..."
+            className="h-9"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Options</Label>
+          <div className="space-y-2">
+            {data.options?.map((option, index) => (
+              <div key={option.id} className="relative group">
+                <div className={cn(
+                  "flex items-center gap-2 rounded-md",
+                  selected ? "bg-zinc-100" : "bg-zinc-50",
+                  "transition-colors duration-200"
+                )}>
+                  <Input
+                    value={option.label}
+                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                    placeholder={`Option ${index + 1}`}
+                    className="h-9"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveOption(option.id)}
+                    className={cn(
+                      "h-8 w-8 p-0 opacity-0 group-hover:opacity-100",
+                      "transition-opacity duration-200"
+                    )}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddOption}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Option
+          </Button>
         </div>
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Min Selections
-            </label>
-            <input
-              type="number"
-              min="0"
-              max={data.options.length}
-              value={data.minSelections || ''}
-              onChange={(e) => handleSelectionLimitChange('min', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Max Selections
-            </label>
-            <input
-              type="number"
-              min={data.minSelections || 0}
-              max={data.options.length}
-              value={data.maxSelections || ''}
-              onChange={(e) => handleSelectionLimitChange('max', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          {data.options.map((option, index) => (
-            <div key={option.id} className="relative group">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded text-xs font-medium text-gray-600">
-                  <Check className="h-4 w-4" />
-                </div>
-                <input
-                  type="text"
-                  value={option.label}
-                  onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                  placeholder={`Option ${index + 1}`}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={() => handleRemoveOption(option.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
-                >
-                  <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                </button>
-              </div>
-              <Handle
-                type="source"
-                position={Position.Bottom}
-                id={`${option.id}-target`}
-                className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-                style={{
-                  left: `${((index + 1) / (data.options.length + 1)) * 100}%`,
-                }}
+            <div className="space-y-2">
+              <Label>Min Selections</Label>
+              <Input
+                type="number"
+                min="0"
+                max={data.options?.length || 0}
+                value={data.minSelections || ''}
+                onChange={(e) => handleSelectionLimitChange('min', e.target.value)}
               />
             </div>
-          ))}
+          </div>
+          <div className="flex-1">
+            <div className="space-y-2">
+              <Label>Max Selections</Label>
+              <Input
+                type="number"
+                min={data.minSelections || 0}
+                max={data.options?.length || 0}
+                value={data.maxSelections || ''}
+                onChange={(e) => handleSelectionLimitChange('max', e.target.value)}
+              />
+            </div>
+          </div>
         </div>
-
-        <button
-          onClick={handleAddOption}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium text-gray-600 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Option
-        </button>
       </div>
     </NodeWrapper>
   );
@@ -504,11 +415,8 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
   const DEFAULT_QUESTION = "Does your claim meet this requirement?";
 
   const handleQuestionChange = useCallback((value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      question: value || DEFAULT_QUESTION
-    });
-  }, [chartStore, data, id]);
+    data.question = value;
+  }, [data]);
 
   const handleDelete = useCallback(() => {
     if (window.confirm('Are you sure you want to delete this node?')) {
@@ -518,54 +426,52 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
 
   return (
     <NodeWrapper
-      title="Yes/No Question"
+      title="Yes/No"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-emerald-50/50"
+      customHandles={
+        <>
+          <Handle
+            type="target"
+            position={Position.Top}
+            className="react-flow__handle"
+          />
+        </>
+      }
     >
       <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-        />
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Question
-          </label>
-          <input
-            type="text"
+        <div className="space-y-2">
+          <Label>Question</Label>
+          <Input
             value={data.question || DEFAULT_QUESTION}
             onChange={(e) => handleQuestionChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={DEFAULT_QUESTION}
+            placeholder="Enter your question..."
+            className="h-9"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           {[
-            { label: 'Yes', id: 'yes', position: Position.Bottom },
-            { label: 'No', id: 'no', position: Position.Bottom }
+            { label: 'Yes', id: 'yes' },
+            { label: 'No', id: 'no' }
           ].map((option) => (
-            <div key={option.id} className="relative">
+            <div key={option.id} className="relative group">
               <div className={cn(
-                "p-2 text-center border rounded-lg bg-gray-50 text-sm font-medium transition-all duration-200",
-                selected ? "border-gray-300" : "border-gray-200",
-                "hover:border-blue-500 hover:bg-blue-50"
+                "p-3 text-center rounded-lg text-sm font-medium transition-all duration-200",
+                selected ? "bg-zinc-100 ring-1 ring-zinc-300" : "bg-zinc-50 ring-1 ring-zinc-200",
+                "hover:ring-2 hover:ring-zinc-950/50 hover:bg-white"
               )}>
                 {option.label}
+                <Handle
+                  type="source"
+                  position={Position.Bottom}
+                  id={option.id}
+                  className={cn(
+                    "react-flow__handle opacity-0 group-hover:opacity-100",
+                    "transition-all duration-200"
+                  )}
+                />
               </div>
-              <Handle
-                type="source"
-                position={option.position}
-                id={option.id}
-                className={cn(
-                  "w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110",
-                  option.id === 'yes' ? "left-[25%]" : "left-[75%]",
-                  "bottom-0 translate-y-1/2"
-                )}
-              />
             </div>
           ))}
         </div>
@@ -597,36 +503,37 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
       title="Weight"
       selected={selected}
       onDelete={handleDelete}
+      customHandles={
+        <>
+          <Handle
+            type="target"
+            position={Position.Top}
+            className="react-flow__handle"
+          />
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            className="react-flow__handle"
+          />
+        </>
+      }
       headerClassName="bg-amber-50/50"
     >
       <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-amber-500 border-2 border-white transition-all duration-200 hover:bg-amber-600 hover:scale-110"
-        />
-
         <div className="flex items-center gap-4">
           <Scale className="h-5 w-5 text-amber-500" />
-          <input
+          <Input
             type="number"
             value={data.weight}
             onChange={(e) => handleWeightChange(e.target.value)}
             step="0.1"
             min="0"
-            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
         </div>
 
         <div className="text-xs text-gray-500">
           Score will be multiplied by this weight
         </div>
-
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="w-3 h-3 bg-amber-500 border-2 border-white transition-all duration-200 hover:bg-amber-600 hover:scale-110"
-        />
       </div>
     </NodeWrapper>
   );
@@ -737,20 +644,31 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
       title="Function"
       selected={selected}
       onDelete={() => chartStore.removeNode(data.instanceId, id)}
+      customHandles={
+        <>
+          <Handle
+            type="target"
+            position={Position.Top}
+            className="react-flow__handle"
+          />
+          {data.steps?.map((step, index) => (
+            <Handle
+              key={step.id}
+              type="source"
+              position={Position.Right}
+              id={step.id}
+              className="react-flow__handle"
+              style={{ top: `${25 + (index * 30)}%` }}
+            />
+          ))}
+        </>
+      }
       headerClassName="bg-violet-50/50"
     >
       <div className="p-4 space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-violet-500 border-2 border-white transition-all duration-200 hover:bg-violet-600 hover:scale-110"
-        />
-
-        <input
-          type="text"
+        <Input
           value={nodeData.label}
           onChange={(e) => setNodeData(prev => ({ ...prev, label: e.target.value }))}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
           placeholder="Function Name"
         />
 

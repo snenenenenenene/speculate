@@ -30,6 +30,7 @@ import ReactFlow, {
   ConnectionMode,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import '@/styles/flow-theme.css';
 import { useFlowStore } from "@/app/stores/flowStore";
 import { nanoid } from "nanoid";
 
@@ -152,79 +153,89 @@ export default function FlowEditor({
 }) {
   const { nodes, edges, onNodesChange, onEdgesChange, setNodes, setEdges } = useFlowStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [flowData, setFlowData] = useState<any>(null);
   const { setViewport, project } = useReactFlow();
 
-  const handleSaveFlow = useCallback(async () => {
+  const saveFlow = useCallback(async () => {
+    const flowData = {
+      nodes,
+      edges,
+    };
+    
     try {
-      console.log('Saving flow - Current nodes:', nodes);
-      console.log('Saving flow - Current edges:', edges);
-      
-      const payload = {
-        content: JSON.stringify({ nodes, edges })  // Stringify the content as the server expects
-      };
-      console.log('Saving flow - Payload:', payload);
-      
       const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(flowData),
       });
 
       if (!response.ok) {
         throw new Error('Failed to save flow');
       }
-
-      console.log('Flow saved successfully');
-      return Promise.resolve();
     } catch (error) {
       console.error('Error saving flow:', error);
-      return Promise.reject(error);
+      throw error;
     }
-  }, [projectId, flowId, nodes, edges]);
+  }, [nodes, edges, projectId, flowId]);
 
   useEffect(() => {
-    if (window.setSaveFunction) {
-      window.setSaveFunction(handleSaveFlow);
+    const parentLayout = window.parent as any;
+    if (parentLayout && parentLayout.setSaveFunction) {
+      parentLayout.setSaveFunction(saveFlow);
+    } else if (typeof (window as any).setSaveFunction === 'function') {
+      (window as any).setSaveFunction(saveFlow);
     }
-  }, [handleSaveFlow]);
+    
+    return () => {
+      if (parentLayout && parentLayout.setSaveFunction) {
+        parentLayout.setSaveFunction(null);
+      } else if (typeof (window as any).setSaveFunction === 'function') {
+        (window as any).setSaveFunction(null);
+      }
+    };
+  }, [saveFlow]);
 
   useEffect(() => {
-    const loadFlow = async () => {
+    const fetchFlow = async () => {
+      setIsLoading(true);
       try {
-        const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`);
+        const response = await fetch(
+          `/api/projects/${projectId}/flows/${flowId}`
+        );
+        const data = await response.json();
+
         if (!response.ok) {
-          throw new Error('Failed to load flow');
+          throw new Error(data.error || "Failed to fetch flow");
         }
 
-        const { flow } = await response.json();
-        console.log('Loading flow - Raw response:', flow);
-        
-        if (flow?.content) {
-          console.log('Loading flow - Content:', flow.content);
-          const flowContent = typeof flow.content === 'string' ? JSON.parse(flow.content) : flow.content;
-          console.log('Loading flow - Parsed content:', flowContent);
-          setNodes(flowContent.nodes || []);
-          setEdges(flowContent.edges || []);
+        const flow = data.flow;
+        console.log('Fetched flow:', flow);
+
+        if (flow.content) {
+          const content = JSON.parse(flow.content);
+          setNodes(content.nodes || []);
+          setEdges(content.edges || []);
         } else {
-          console.log('Loading flow - No content found, setting empty nodes/edges');
           setNodes([]);
           setEdges([]);
         }
 
+        setFlowData(flow);
+
         // Set initial viewport
         setViewport({ x: 0, y: 0, zoom: 1 });
       } catch (error) {
-        console.error('Error loading flow:', error);
-        toast.error('Failed to load flow');
+        console.error("Error loading flow:", error);
+        toast.error("Failed to load flow");
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadFlow();
-  }, [projectId, flowId, setNodes, setEdges, setViewport]);
+    fetchFlow();
+  }, [projectId, flowId]);
 
   const onConnect = useCallback((params: Connection) => {
     setEdges((eds) => addEdge(params, eds));
@@ -387,27 +398,22 @@ export default function FlowEditor({
 
   return (
     <div className="flex h-full w-full">
-      <NodeSidebar
-        width={280}
-        onWidthChange={(width) => {}}
-      />
-      <div className="h-full w-full flex">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={onDrop}
-          nodeTypes={nodeTypes}
-          connectionMode={ConnectionMode.Loose}
-          fitView
-        >
-          <Background />
-          <Controls />
-        </ReactFlow>
-      </div>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={onDrop}
+        nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
+        fitView
+        className="bg-white"
+      >
+        <Background color={flowData?.color || "#27272a"} gap={16} />
+        <Controls />
+      </ReactFlow>
     </div>
   );
 }

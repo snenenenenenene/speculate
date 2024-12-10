@@ -163,36 +163,100 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 
 export default function PricingPage() {
 	return (
-		<div className="bg-white">
-			<div className="py-24">
-				<div className="max-w-7xl mx-auto px-4">
-					<div className="text-center mb-16">
-						<h1 className="text-4xl font-bold text-base-800 mb-4">
-							Simple, transparent pricing
-						</h1>
-						<p className="text-xl text-base-600">
-							Plans for teams of all sizes. Always free to try.
-						</p>
-					</div>
+		<div className="py-24 sm:py-32">
+			<div className="mx-auto max-w-7xl px-6 lg:px-8">
+				<div className="mx-auto max-w-4xl text-center">
+					<h1 className="text-base font-semibold leading-7 text-primary-600">
+						Pricing
+					</h1>
+					<p className="mt-2 text-4xl font-bold tracking-tight text-base-900 sm:text-5xl">
+						Choose your plan
+					</p>
+					<p className="mt-6 text-lg leading-8 text-base-600">
+						Start building for free, then add a plan to go further
+					</p>
+				</div>
 
-					<ol className="grid md:grid-cols-3 gap-8">
-						{pricingTiers.map((tier, index) => (
-							<PricingTier key={tier.name} tier={tier} index={index} />
-						))}
-					</ol>
-
-					<div className="mt-16 flex justify-center">
-						<div className="inline-flex items-center gap-3 bg-base-50 rounded-full px-6 py-3 text-sm text-base-600">
-							<img
-								src="/assets/images/gdpr.png"
-								alt=""
-								className="w-8 h-8 object-contain"
-							/>
-							<span>
-								We follow GDPR guidelines to ensure your data is protected.
-							</span>
+				<div className="isolate mx-auto mt-16 grid max-w-md grid-cols-1 gap-y-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-x-8 xl:gap-x-12">
+					{pricingTiers.map((tier, index) => (
+						<div
+							key={tier.name}
+							className={cn(
+								"relative flex flex-col gap-6 rounded-3xl p-8",
+								tier.popular ? "ring-2 ring-primary-600" : "ring-1 ring-base-200"
+							)}
+						>
+							<div className="flex items-center justify-between gap-x-4">
+								<h3
+									className={cn(
+										"text-lg font-semibold leading-8",
+										tier.popular ? "text-primary-600" : "text-base-900"
+									)}
+								>
+									{tier.name}
+								</h3>
+								{tier.popular && (
+									<p className="rounded-full bg-primary-600/10 px-2.5 py-1 text-xs font-semibold leading-5 text-primary-600">
+										Most popular
+									</p>
+								)}
+							</div>
+							<p className="text-sm leading-6 text-base-600">
+								{tier.headerDescription}
+							</p>
+							<div className="mt-2 flex items-baseline gap-x-1">
+								{tier.price === "Free" ? (
+									<span className="text-4xl font-bold tracking-tight text-base-900">
+										Free
+									</span>
+								) : (
+									<>
+										<span className="text-4xl font-bold tracking-tight text-base-900">
+											€{tier.price}
+										</span>
+										<span className="text-sm font-semibold leading-6 text-base-600">
+											/month
+										</span>
+									</>
+								)}
+							</div>
+							{tier.priceNote && (
+								<p className="text-sm leading-6 text-base-500">
+									{tier.priceNote}
+								</p>
+							)}
+							<ul className="mt-8 space-y-3 text-sm leading-6 text-base-600">
+								{tier.features.map((feature: string) => (
+									<li key={feature} className="flex gap-x-3">
+										<svg
+											className="h-6 w-5 flex-none text-primary-600"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+											aria-hidden="true"
+										>
+											<path
+												fillRule="evenodd"
+												d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+												clipRule="evenodd"
+											/>
+										</svg>
+										{feature}
+									</li>
+								))}
+							</ul>
+							<Link
+								href={tier.name === "Starter" ? "/signup" : "/contact"}
+								className={cn(
+									"mt-8 block rounded-md px-3 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
+									tier.popular
+										? "bg-primary-600 text-white hover:bg-primary-500 focus-visible:outline-primary-600"
+										: "bg-base-900 text-white hover:bg-base-800 focus-visible:outline-base-600"
+								)}
+							>
+								{tier.name === "Starter" ? "Get started" : "Contact sales"}
+							</Link>
 						</div>
-					</div>
+					))}
 				</div>
 			</div>
 		</div>

@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { GripVertical, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Handle, Position } from 'reactflow';
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface NodeWrapperProps {
 	title: string;
@@ -37,75 +39,102 @@ export const NodeWrapper: React.FC<NodeWrapperProps> = ({
 		<motion.div
 			initial={{ scale: 0.9, opacity: 0 }}
 			animate={{ scale: 1, opacity: 1 }}
-			className={cn(
-				"group min-w-[200px] bg-white rounded-xl border transition-all duration-200",
-				selected ? "border-blue-500 shadow-lg" : "border-gray-200 shadow-sm",
-				"hover:shadow-md"
-			)}
 			onMouseEnter={() => setShowDelete(true)}
 			onMouseLeave={() => setShowDelete(false)}
 		>
-			{/* Default Node Handles */}
-			{!customHandles && (
-				<>
-					{handles.top && (
-						<Handle
-							type="target"
-							position={Position.Top}
-							className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-						/>
-					)}
-					{handles.right && (
-						<Handle
-							type="source"
-							position={Position.Right}
-							className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-						/>
-					)}
-					{handles.bottom && (
-						<Handle
-							type="source"
-							position={Position.Bottom}
-							className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-						/>
-					)}
-					{handles.left && (
-						<Handle
-							type="target"
-							position={Position.Left}
-							className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-						/>
-					)}
-				</>
-			)}
-
-			{/* Custom Handles */}
-			{customHandles}
-
-			{/* Header */}
-			<div className={cn(
-				"flex items-center justify-between px-3 py-2 border-b border-gray-100 rounded-t-xl",
-				"bg-gray-50/50 backdrop-blur-sm",
-				headerClassName
+			<Card className={cn(
+				"group min-w-[240px] shadow-sm relative",
+				selected ? "ring-1 ring-black bg-white" : "ring-1 ring-zinc-200 bg-white",
+				"transition-all duration-200"
 			)}>
-				<div className="flex items-center gap-2">
-					<GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
-					<span className="text-sm font-medium text-gray-700">{title}</span>
-				</div>
-				{onDelete && showDelete && (
-					<button
-						onClick={onDelete}
-						className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
-					>
-						<Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-					</button>
+				{/* Default Node Handles */}
+				{!customHandles && (
+					<>
+						{handles.top && (
+							<Handle
+								type="target"
+								position={Position.Top}
+								className={cn(
+									"w-8 h-8 bg-white border-[3px] rounded-full -translate-y-[16px]",
+									"hover:scale-110 hover:shadow-lg",
+									selected ? "border-zinc-950" : "border-zinc-400",
+									"transition-all duration-200 hover:border-zinc-950"
+								)}
+							/>
+						)}
+						{handles.right && (
+							<Handle
+								type="source"
+								position={Position.Right}
+								className={cn(
+									"w-8 h-8 bg-white border-[3px] rounded-full translate-x-[16px]",
+									"hover:scale-110 hover:shadow-lg",
+									selected ? "border-zinc-950" : "border-zinc-400",
+									"transition-all duration-200 hover:border-zinc-950"
+								)}
+							/>
+						)}
+						{handles.bottom && (
+							<Handle
+								type="source"
+								position={Position.Bottom}
+								className={cn(
+									"w-8 h-8 bg-white border-[3px] rounded-full translate-y-[16px]",
+									"hover:scale-110 hover:shadow-lg",
+									selected ? "border-zinc-950" : "border-zinc-400",
+									"transition-all duration-200 hover:border-zinc-950"
+								)}
+							/>
+						)}
+						{handles.left && (
+							<Handle
+								type="target"
+								position={Position.Left}
+								className={cn(
+									"w-8 h-8 bg-white border-[3px] rounded-full -translate-x-[16px]",
+									"hover:scale-110 hover:shadow-lg",
+									selected ? "border-zinc-950" : "border-zinc-400",
+									"transition-all duration-200 hover:border-zinc-950"
+								)}
+							/>
+						)}
+					</>
 				)}
-			</div>
 
-			{/* Content */}
-			<div className={cn("p-3", contentClassName)}>
-				{children}
-			</div>
+				<CardHeader className={cn(
+					"flex flex-row items-center justify-between space-y-0 pb-2",
+					headerClassName
+				)}>
+					<div className="flex items-center gap-2">
+						<div className="cursor-move">
+							<GripVertical className="h-4 w-4 text-zinc-500" />
+						</div>
+						<h4 className="font-medium leading-none nodrag">{title}</h4>
+					</div>
+					{onDelete && (
+						<div className={cn(
+							"absolute right-2 top-2 opacity-0 group-hover:opacity-100",
+							"transition-opacity duration-200"
+						)}>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={onDelete}
+								className="h-8 w-8 p-0 nodrag"
+							>
+								<Trash2 className="h-4 w-4" />
+							</Button>
+						</div>
+					)}
+				</CardHeader>
+				<CardContent className={cn(
+					"pt-0 nodrag",
+					contentClassName
+				)}>
+					{children}
+				</CardContent>
+				{customHandles}
+			</Card>
 		</motion.div>
 	);
 };
