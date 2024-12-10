@@ -1,185 +1,146 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
-import { ArrowLeft, ChevronRight } from "lucide-react";
-import { signIn } from "next-auth/react";
-import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import Image from "next/image";
+import { signIn } from "next-auth/react";
 import { useState } from "react";
 
 export default function LoginPage() {
-	const [signInClicked, setSignInClicked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-	return (
-		<div className="min-h-screen bg-base-50 flex flex-col">
-			{/* Top Navigation */}
-			<nav className="w-full p-4">
-				<div className="max-w-screen-xl mx-auto flex justify-between items-center">
-					<Link
-						href="/"
-						className="flex items-center gap-2 text-base-600 hover:text-base-800 transition-colors group"
-					>
-						<ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-						<span className="text-sm font-medium">Back to home</span>
-					</Link>
-					<Link
-						href="/auth"
-						className="text-sm text-base-600 hover:text-base-800 transition-colors"
-					>
-						Don&apos;t have an account?
-					</Link>
-				</div>
-			</nav>
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      await signIn("google", { 
+        callbackUrl: '/projects',
+        redirect: true,
+      });
+    } catch (error) {
+      console.error('Sign in error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-			{/* Main Content */}
-			<div className="flex-1 flex items-center justify-center p-4">
-				<motion.div
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					className="w-full max-w-md"
-				>
-					<div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-base-200">
-						{/* Header Section */}
-						<div className="flex flex-col items-center justify-center space-y-3 border-b border-base-100 bg-white px-4 py-8 text-center">
-							<motion.div
-								initial={{ scale: 0 }}
-								animate={{ scale: 1 }}
-								transition={{ type: "spring", duration: 0.5 }}
-							>
-								<Image
-									src="/assets/images/logo.png"
-									alt="Logo"
-									width={48}
-									height={48}
-									className="rounded-xl"
-								/>
-							</motion.div>
-							<h1 className="font-display text-2xl font-bold text-base-800">
-								Welcome back
-							</h1>
-							<p className="text-sm text-base-600 max-w-sm">
-								Sign in to access your questionnaires, analytics, and settings.
-							</p>
-						</div>
-
-						{/* Sign In Options */}
-						<div className="flex flex-col space-y-4 bg-base-50 px-4 py-8 md:px-16">
-							<button
-								disabled={signInClicked}
-								onClick={() => {
-									setSignInClicked(true);
-									signIn("google", { callbackUrl: '/projects' });
-								}}
-								className={cn(
-									"flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
-									"text-sm font-medium transition-all duration-200",
-									"border shadow-sm hover:shadow-md",
-									signInClicked
-										? "cursor-not-allowed border-base-200 bg-base-100"
-										: "border-base-200 bg-white hover:bg-base-50"
-								)}
-							>
-								{signInClicked ? (
-									<Loader2 />
-								) : (
-									<>
-										<Image
-											src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"
-											alt="Google"
-											width={20}
-											height={20}
-										/>
-										<span>Continue with Google</span>
-									</>
-								)}
-							</button>
-
-							{/* Divider */}
-							<div className="relative">
-								<div className="absolute inset-0 flex items-center">
-									<div className="w-full border-t border-base-200"></div>
-								</div>
-								<div className="relative flex justify-center text-sm">
-									<span className="px-2 text-base-600 bg-base-50">
-										Or continue with
-									</span>
-								</div>
-							</div>
-
-							{/* Email/Password Fields */}
-							<div className="space-y-4">
-								<div>
-									<label htmlFor="email" className="sr-only">
-										Email
-									</label>
-									<input
-										id="email"
-										type="email"
-										placeholder="Email"
-										disabled={signInClicked}
-										className={cn(
-											"w-full px-4 py-3 rounded-xl text-sm",
-											"border border-base-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-200",
-											"transition-all duration-200",
-											"disabled:opacity-50 disabled:cursor-not-allowed",
-											"bg-white"
-										)}
-									/>
-								</div>
-								<div>
-									<label htmlFor="password" className="sr-only">
-										Password
-									</label>
-									<input
-										id="password"
-										type="password"
-										placeholder="Password"
-										disabled={signInClicked}
-										className={cn(
-											"w-full px-4 py-3 rounded-xl text-sm",
-											"border border-base-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-200",
-											"transition-all duration-200",
-											"disabled:opacity-50 disabled:cursor-not-allowed",
-											"bg-white"
-										)}
-									/>
-								</div>
-								<button
-									disabled={signInClicked}
-									className={cn(
-										"w-full px-4 py-3 rounded-xl",
-										"bg-primary-600 hover:bg-primary-700",
-										"text-white text-sm font-medium",
-										"transition-all duration-200",
-										"hover:shadow-md",
-										"disabled:opacity-50 disabled:cursor-not-allowed",
-										"flex items-center justify-center gap-2"
-									)}
-								>
-									<span>Continue</span>
-									<ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-								</button>
-							</div>
-						</div>
-
-						{/* Footer */}
-						<div className="px-4 py-4 bg-base-50 border-t border-base-200">
-							<p className="text-xs text-center text-base-600">
-								By signing in, you agree to our{" "}
-								<Link href="/terms" className="text-primary-600 hover:text-primary-700">
-									Terms of Service
-								</Link>{" "}
-								and{" "}
-								<Link href="/privacy" className="text-primary-600 hover:text-primary-700">
-									Privacy Policy
-								</Link>
-							</p>
-						</div>
-					</div>
-				</motion.div>
-			</div>
-		</div>
-	);
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white dark:bg-black relative overflow-hidden">
+      <div 
+        className="absolute inset-0 -z-10 overflow-hidden"
+        style={{
+          backgroundImage: `repeating-linear-gradient(
+            45deg,
+            transparent 0px,
+            transparent 10px,
+            rgba(0, 0, 0, 0.01) 10px,
+            rgba(0, 0, 0, 0.01) 20px
+          )`,
+          backgroundSize: '100px 100px',
+        }}
+      >
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div 
+            key={i}
+            className="absolute whitespace-nowrap text-black/[0.015] dark:text-white/[0.015] text-4xl font-bold"
+            style={{
+              transform: `rotate(-45deg) translate(${i * 200}px, ${i * 200}px)`,
+            }}
+          >
+            Speculate
+          </div>
+        ))}
+      </div>
+      
+      <Card className="w-full max-w-md mx-auto bg-white dark:bg-black border border-black/10 dark:border-white/10">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold tracking-tight">Sign in</CardTitle>
+          <CardDescription className="text-black/60 dark:text-white/60">
+            Choose your preferred sign in method
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Button 
+              variant="outline" 
+              className="w-full border-black/20 text-black hover:bg-black/[0.03] dark:border-white/20 dark:text-white dark:hover:bg-white/[0.03]"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-black dark:border-white" />
+                </div>
+              ) : (
+                <>
+                  <Image
+                    src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"
+                    alt="Google"
+                    width={20}
+                    height={20}
+                    className="mr-2"
+                  />
+                  Continue with Google
+                </>
+              )}
+            </Button>
+          </div>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-black/10 dark:border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-black/60 dark:bg-black dark:text-white/60">
+                Or continue with
+              </span>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-black dark:text-white">Email</Label>
+              <Input 
+                id="email" 
+                placeholder="m@example.com" 
+                type="email" 
+                className="border-black/20 bg-transparent focus:border-black dark:border-white/20 dark:focus:border-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-black dark:text-white">Password</Label>
+              <Input 
+                id="password" 
+                type="password"
+                className="border-black/20 bg-transparent focus:border-black dark:border-white/20 dark:focus:border-white"
+              />
+            </div>
+            <Button className="w-full bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90">
+              Sign In
+            </Button>
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-4 pt-4">
+          <div className="text-sm text-black/60 dark:text-white/60">
+            <Link href="/forgot-password" className="hover:text-black dark:hover:text-white">
+              Forgot your password?
+            </Link>
+          </div>
+          <div className="text-sm text-black/60 dark:text-white/60">
+            Don't have an account?{" "}
+            <Link href="/signup" className="hover:text-black dark:hover:text-white">
+              Sign up
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
+  );
 }

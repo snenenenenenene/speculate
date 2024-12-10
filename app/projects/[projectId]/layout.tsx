@@ -49,12 +49,12 @@ export default function ProjectLayout({
     setIsImportModalOpen(true);
     toast.promise(
       new Promise((resolve) => {
-        setTimeout(resolve, 500);
+        setTimeout(resolve, 2000);
       }),
       {
-        loading: 'Opening import/export dialog...',
-        success: 'Ready to import/export',
-        error: 'Failed to open dialog',
+        loading: 'Importing...',
+        success: 'Flow imported successfully',
+        error: 'Failed to import flow',
       }
     );
   };
@@ -89,93 +89,94 @@ export default function ProjectLayout({
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="h-16 border-b bg-background flex-shrink-0">
-        <div className="flex h-full items-center justify-between px-4">
-          <div className="flex items-center gap-4">
+    <div className="flex h-screen w-full flex-col">
+      {/* Header */}
+      <header className="flex h-14 items-center gap-4 border-b bg-background">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="gap-2"
+          >
+            <Link href={isFlowPage ? `/projects/${projectId}` : '/projects'}>
+              <ArrowLeft className="h-4 w-4" />
+              {isFlowPage ? 'Back to Project' : 'Back to Projects'}
+            </Link>
+          </Button>
+
+          {isFlowPage && (
+            <>
+              <Separator orientation="vertical" className="h-6" />
+              <FlowSelector
+                currentFlow={flowId}
+                projectId={projectId}
+                onFlowSelect={(id) => router.push(`/projects/${projectId}/flows/${id}`)}
+              />
+            </>
+          )}
+        </div>
+
+        {isFlowPage && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              size="sm"
+              className="gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Save
+                </>
+              )}
+            </Button>
+
             <Button
               variant="ghost"
               size="sm"
-              asChild
+              onClick={handleImportExport}
               className="gap-2"
             >
-              <Link href={isFlowPage ? `/projects/${projectId}` : '/projects'}>
-                <ArrowLeft className="h-4 w-4" />
-                {isFlowPage ? 'Back to Project' : 'Back to Projects'}
-              </Link>
+              <Upload className="h-4 w-4" />
+              Import/Export
             </Button>
 
-            {isFlowPage && (
-              <>
-                <Separator orientation="vertical" className="h-6" />
-                <FlowSelector
-                  currentFlow={flowId}
-                  projectId={projectId}
-                  onFlowSelect={(id) => router.push(`/projects/${projectId}/flows/${id}`)}
-                />
-              </>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCommit}
+              className="gap-2"
+            >
+              <GitCommit className="h-4 w-4" />
+              Commit
+            </Button>
+
+            <Separator orientation="vertical" className="h-6" />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSettings}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Button>
           </div>
+        )}
+      </header>
 
-          {isFlowPage && (
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                size="sm"
-                className="gap-2"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    Save
-                  </>
-                )}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleImportExport}
-                className="gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Import/Export
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCommit}
-                className="gap-2"
-              >
-                <GitCommit className="h-4 w-4" />
-                Commit
-              </Button>
-
-              <Separator orientation="vertical" className="h-6" />
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSettings}
-                className="gap-2"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="flex-1 min-h-0">
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden w-full h-full">
         {children}
-      </div>
+      </main>
     </div>
   );
 }
