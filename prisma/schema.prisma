@@ -79,6 +79,7 @@ model Project {
   apiKey      String?         @unique
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  variables   Json[]          @default([])  // Added for global variables
   
   userId      String
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -95,6 +96,7 @@ model ChartInstance {
   onePageMode Boolean   @default(false)
   isPublished Boolean   @default(false)
   version     Int       @default(1)
+  variables   Json[]    @default([])  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   

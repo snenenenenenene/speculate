@@ -170,12 +170,15 @@ export function useKeyboardShortcuts(
 
         // Flow Management
         case SHORTCUTS.SAVE_FLOW:
+          const utilityStore = useUtilityStore.getState();
+          const chartStore = useChartStore.getState();
           utilityStore
-            .saveToDb(chartStore.chartInstances)
+            .saveToDb(chartStore.flows)
             .then(() => {
               toast.success("Flow saved successfully");
             })
-            .catch(() => {
+            .catch((error) => {
+              console.error("Error saving flow:", error);
               toast.error("Failed to save flow");
             });
           break;

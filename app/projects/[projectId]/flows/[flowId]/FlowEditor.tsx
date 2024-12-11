@@ -13,26 +13,23 @@ import {
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Save } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import ReactFlow, {
   Background,
   Controls,
-  useReactFlow,
   Node,
   Edge,
   applyEdgeChanges,
   applyNodeChanges,
   addEdge,
-  OnNodesChange,
-  OnEdgesChange,
-  OnConnect,
   ConnectionMode,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import '@/styles/flow-theme.css';
-import { useFlowStore } from "@/app/stores/flowStore";
+import { useChartStore } from "@/stores/chartStore";
 import { nanoid } from "nanoid";
+import { useParams } from "next/navigation";
 
 const nodeTypes = {
   startNode: StartNode,
@@ -42,10 +39,11 @@ const nodeTypes = {
   yesNo: YesNoNode,
   weightNode: WeightNode,
   functionNode: FunctionNode,
-};
+} as const;
 
-function createNewNode(type: string, position: { x: number; y: number }, instanceId: string) {
-  const newNodeId = `${type}-${Math.random().toString(36).substr(2, 9)}`;
+function createNewNode(type: string, position: { x: number; y: number }, flowId: string) {
+  const newNodeId = `${type}-${nanoid()}`;
+  console.log('Creating node with ID:', newNodeId);
 
   const baseNode = {
     id: newNodeId,
@@ -53,114 +51,255 @@ function createNewNode(type: string, position: { x: number; y: number }, instanc
     position,
     data: {
       label: `${type} node`,
-      instanceId,
-    },
-    style: {
-      background: '#ffffff',
-      border: '1px solid #e2e8f0',
-      borderRadius: '8px',
-      padding: '12px',
+      flowId,
     },
   };
 
   switch (type) {
-    case "startNode":
+    case 'startNode':
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          options: [{ label: "Start", nextNodeId: null }],
+          type: 'start',
         },
       };
-    case "yesNo":
+    case 'endNode':
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          question: "Yes/No Question",
-          options: [
-            { label: "yes", nextNodeId: null },
-            { label: "no", nextNodeId: null },
-          ],
+          type: 'end',
         },
       };
-    case "singleChoice":
+    case 'singleChoice':
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          question: "Single Choice Question",
-          options: [
-            { id: crypto.randomUUID(), label: "Option 1", nextNodeId: null },
-            { id: crypto.randomUUID(), label: "Option 2", nextNodeId: null },
-          ],
+          type: 'singleChoice',
+          options: [],
         },
       };
-    case "multipleChoice":
+    case 'multipleChoice':
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          question: "Multiple Choice Question",
-          options: [
-            { id: crypto.randomUUID(), label: "Option 1", nextNodeId: null },
-            { id: crypto.randomUUID(), label: "Option 2", nextNodeId: null },
-          ],
+          type: 'multipleChoice',
+          options: [],
         },
       };
-    case "weightNode":
+    case 'yesNo':
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
+          type: 'yesNo',
+        },
+      };
+    case 'weightNode':
+      return {
+        ...baseNode,
+        data: {
+          ...baseNode.data,
+          type: 'weight',
           weight: 1,
-          nextNodeId: null,
-          options: [{ label: "DEFAULT", nextNodeId: null }],
         },
       };
-    case "functionNode":
+    case 'functionNode':
       return {
         ...baseNode,
         data: {
           ...baseNode.data,
-          variableScope: "local",
-          selectedVariable: "",
-          sequences: [],
-          handles: ["default"],
-        },
-      };
-    case "endNode":
-      return {
-        ...baseNode,
-        data: {
-          ...baseNode.data,
-          label: "End",
-          endType: "end",
-          redirectTab: "",
+          type: 'function',
+          code: '',
         },
       };
     default:
+      console.warn('Unknown node type:', type);
       return baseNode;
   }
 }
 
-export default function FlowEditor({
-  projectId,
-  flowId,
-}: {
-  projectId: string;
-  flowId: string;
-}) {
-  const { nodes, edges, onNodesChange, onEdgesChange, setNodes, setEdges } = useFlowStore();
+export default function FlowEditor() {
+  const params = useParams();
+  const flowId = params.flowId as string;
+  const projectId = params.projectId as string;
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, updateFlow } = useChartStore();
+  const flow = useChartStore((state) => state.flows.find((flow) => flow.id === flowId));
+
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [flowData, setFlowData] = useState<any>(null);
-  const { setViewport, project } = useReactFlow();
+  const [globalVariables, setGlobalVariables] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (flow) {
+      setNodes(flow.nodes);
+      setEdges(flow.edges);
+    }
+  }, [flow]);
+
+  useEffect(() => {
+    if (!flowId) return;
+
+    const fetchFlow = async () => {
+      setIsLoading(true);
+      try {
+        const [flowResponse, projectResponse] = await Promise.all([
+          fetch(`/api/projects/${projectId}/flows/${flowId}`),
+          fetch(`/api/projects/${projectId}`)
+        ]);
+
+        if (!flowResponse.ok || !projectResponse.ok) {
+          throw new Error("Failed to fetch flow or project data");
+        }
+
+        const flow = await flowResponse.json();
+        const project = await projectResponse.json();
+
+        console.log("Fetched flow:", flow);
+        console.log("Fetched project:", project);
+
+        setFlowData(flow);
+        setGlobalVariables(project.variables || []);
+
+        if (flow.flow.content) {
+          const content = JSON.parse(flow.flow.content);
+          
+          const localVariables = (content.variables || []).map(v => ({
+            ...v,
+            scope: 'local'
+          }));
+          const projectGlobalVars = (project.variables || []).map(v => ({
+            ...v,
+            scope: 'global'
+          }));
+          
+          content.variables = [...localVariables, ...projectGlobalVars];
+
+          const newFlow = {
+            id: flowId,
+            name: flow.flow.name,
+            nodes: content.nodes || [],
+            edges: content.edges || [],
+            color: flow.flow.color,
+            onePageMode: flow.flow.onePageMode,
+            publishedVersions: [],
+            variables: content.variables || [],
+          };
+
+          console.log('Setting flow:', newFlow);
+          setNodes(newFlow.nodes);
+          setEdges(newFlow.edges);
+          setFlows([newFlow]);
+          setCurrentDashboardTab(flowId);
+        } else {
+          const emptyFlow = {
+            id: flowId,
+            name: flow.flow.name,
+            nodes: [],
+            edges: [],
+            color: flow.flow.color,
+            onePageMode: flow.flow.onePageMode,
+            publishedVersions: [],
+            variables: [],
+          };
+          
+          console.log('Setting empty flow:', emptyFlow);
+          setNodes([]);
+          setEdges([]);
+          setFlows([emptyFlow]);
+          setCurrentDashboardTab(flowId);
+        }
+      } catch (error) {
+        console.error("Error loading flow:", error);
+        toast.error("Failed to load flow");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFlow();
+  }, [flowId, projectId, setFlows, setCurrentDashboardTab]);
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setNodes((nds) => applyNodeChanges(changes, nds));
+      if (flowId && flow) {
+        updateNodes(flowId, changes);
+      }
+    },
+    [flowId, flow, updateNodes]
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+      if (flowId && flow) {
+        updateEdges(flowId, changes);
+      }
+    },
+    [flowId, flow, updateEdges]
+  );
+
+  const handleConnect = useCallback(
+    (params: Connection) => {
+      setEdges((eds) => addEdge(params, eds));
+    },
+    []
+  );
+
+  const onDrop = useCallback(
+    (event: DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer?.getData("application/reactflow");
+      if (!type || !flow || !reactFlowInstance) return;
+
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      console.log('Creating new node:', { type, position });
+      const newNode = createNewNode(type, position, flowId);
+      console.log('New node created:', newNode);
+
+      // Update React Flow's state through the change handler
+      handleNodesChange([{ type: 'add', item: newNode }]);
+    },
+    [flow, flowId, reactFlowInstance, handleNodesChange]
+  );
 
   const saveFlow = useCallback(async () => {
-    const flowData = {
+    if (!flow) return;
+    
+    console.log('Saving flow with:', {
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
       nodes,
       edges,
+      variables: flow?.variables,
+      name: flow.name,
+    });
+
+    const flowData = {
+      content: JSON.stringify({
+        nodes,
+        edges,
+        variables: flow?.variables || [],
+      }),
+      name: flow.name,
+      color: flow.color,
+      onePageMode: flow.onePageMode,
     };
+    
+    console.log('Sending flow data:', flowData);
     
     try {
       const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
@@ -171,14 +310,45 @@ export default function FlowEditor({
         body: JSON.stringify(flowData),
       });
 
+      const responseData = await response.json();
+      console.log('Save response:', responseData);
+
       if (!response.ok) {
         throw new Error('Failed to save flow');
       }
+
+      // Parse the content from the response
+      let savedContent;
+      try {
+        savedContent = JSON.parse(responseData.flow.content);
+        console.log('Saved content:', savedContent);
+      } catch (err) {
+        console.error('Error parsing saved content:', err);
+        savedContent = { nodes, edges, variables: flow?.variables || [] };
+      }
+
+      // Update the flow in our store
+      if (flow) {
+        const updatedFlow = {
+          ...flow,
+          name: responseData.flow.name,
+          color: responseData.flow.color,
+          onePageMode: responseData.flow.onePageMode,
+          nodes: savedContent.nodes,
+          edges: savedContent.edges,
+          variables: savedContent.variables || flow.variables || [],
+        };
+        console.log('Updating flow store with:', updatedFlow);
+        setFlows([updatedFlow]);
+        setCurrentDashboardTab(flowId);
+      }
+
+      toast.success('Flow saved successfully');
     } catch (error) {
       console.error('Error saving flow:', error);
-      throw error;
+      toast.error('Failed to save flow');
     }
-  }, [nodes, edges, projectId, flowId]);
+  }, [nodes, edges, flow, projectId, flowId, setFlows, setCurrentDashboardTab]);
 
   useEffect(() => {
     const parentLayout = window.parent as any;
@@ -186,6 +356,8 @@ export default function FlowEditor({
       parentLayout.setSaveFunction(saveFlow);
     } else if (typeof (window as any).setSaveFunction === 'function') {
       (window as any).setSaveFunction(saveFlow);
+    } else {
+      console.log('No parent layout or save function available');
     }
     
     return () => {
@@ -198,80 +370,21 @@ export default function FlowEditor({
   }, [saveFlow]);
 
   useEffect(() => {
-    const fetchFlow = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/flows/${flowId}`
-        );
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to fetch flow");
-        }
-
-        const flow = data.flow;
-        console.log('Fetched flow:', flow);
-
-        if (flow.content) {
-          const content = JSON.parse(flow.content);
-          setNodes(content.nodes || []);
-          setEdges(content.edges || []);
-        } else {
-          setNodes([]);
-          setEdges([]);
-        }
-
-        setFlowData(flow);
-
-        // Set initial viewport
-        setViewport({ x: 0, y: 0, zoom: 1 });
-      } catch (error) {
-        console.error("Error loading flow:", error);
-        toast.error("Failed to load flow");
-      } finally {
-        setIsLoading(false);
+    const handleKeyDown = async (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+        event.preventDefault();
+        await saveFlow();
       }
     };
 
-    fetchFlow();
-  }, [projectId, flowId]);
-
-  const onConnect = useCallback((params: Connection) => {
-    setEdges((eds) => addEdge(params, eds));
-  }, [setEdges]);
-
-  const onDrop = useCallback(
-    (event: DragEvent) => {
-      event.preventDefault();
-
-      const type = event.dataTransfer?.getData("application/reactflow");
-      if (!type) {
-        return;
-      }
-
-      const position = project({
-        x: event.clientX - 280,
-        y: event.clientY - 64,
-      });
-
-      const newNode: Node = {
-        id: `${type}-${nanoid()}`,
-        type,
-        position,
-        data: { label: `${type} node` },
-      };
-
-      setNodes((nds) => [...nds, newNode]);
-      toast.success(`Added ${type} node`);
-    },
-    [project, setNodes]
-  );
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [saveFlow]);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-  }, [setNodes, setEdges]);
+  }, []);
 
   const handleEditNode = useCallback((nodeId: string, newData: any) => {
     setNodes((nodes) =>
@@ -341,9 +454,7 @@ export default function FlowEditor({
   const handleAutoLayout = useCallback(() => {
     toast.promise(
       () => new Promise((resolve) => {
-        // Simulate auto-layout calculation
         setTimeout(() => {
-          // Add your auto-layout logic here
           resolve(true);
         }, 1000);
       }),
@@ -355,37 +466,6 @@ export default function FlowEditor({
     );
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = async (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 's') {
-        event.preventDefault();
-        try {
-          const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              content: JSON.stringify({ nodes, edges }),
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to save flow');
-          }
-
-          toast.success('Flow saved successfully');
-        } catch (error) {
-          console.error('Error saving flow:', error);
-          toast.error('Failed to save flow');
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [projectId, flowId, nodes, edges]);
-
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -394,25 +474,27 @@ export default function FlowEditor({
     );
   }
 
-  console.log(nodes)
-
   return (
-    <div className="flex h-full w-full">
+    <div className="flex h-full w-full" ref={reactFlowWrapper}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onConnect={handleConnect}
+        onInit={setReactFlowInstance}
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
         nodeTypes={nodeTypes}
         connectionMode={ConnectionMode.Loose}
+        defaultEdgeOptions={{ type: 'smoothstep' }}
+        deleteKeyCode={['Backspace', 'Delete']}
+        minZoom={0.2}
+        maxZoom={4}
         fitView
         className="bg-white"
       >
-        <Background color={flowData?.color || "#27272a"} gap={16} />
-        <Controls />
+        <Background color={flowData?.color || "#27272a"} gap={16} size={1} />
       </ReactFlow>
     </div>
   );

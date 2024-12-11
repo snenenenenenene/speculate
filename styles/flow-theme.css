@@ -55,7 +55,6 @@
     background: white;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    transition: all 0.2s ease;
 }
 
 .react-flow__node:hover {
@@ -70,7 +69,6 @@
 .react-flow__edge-path {
     stroke: #94a3b8;
     stroke-width: 2;
-    transition: stroke 0.2s ease;
 }
 
 .react-flow__edge.selected .react-flow__edge-path,

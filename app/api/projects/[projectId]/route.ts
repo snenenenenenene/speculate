@@ -6,26 +6,56 @@ import { authOptions } from "../../auth/[...nextauth]/options";
 
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
   try {
-    // Simulated database response
-    const project = {
-      id: params.projectId,
-      name: "Example Project",
-      description: "This is an example project description.",
-      _count: {
-        charts: 15
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const project = await prisma.project.findUnique({
+      where: {
+        id: params.projectId,
+        user: {
+          email: session.user.email
+        }
       }
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    console.log('API GET project - Full project data:', JSON.stringify(project, null, 2));
+
+    // Get flows for this project
+    const flows = await prisma.chartInstance.findMany({
+      where: {
+        projectId: params.projectId,
+        user: {
+          email: session.user.email
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        content: true
+      }
+    });
+
+    const response = { 
+      project: {
+        ...project,
+        globalVariables: project.variables || []
+      },
+      flows
     };
 
-    // Simulated flows data
-    const flows = [
-      { id: `${params.projectId}_flow1` },
-      { id: `${params.projectId}_flow2` }
-    ];
+    console.log('API GET project - Full response:', JSON.stringify(response, null, 2));
 
-    return NextResponse.json({ 
-      project,
-      flows
-    });
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching project:", error);
     return NextResponse.json(
@@ -43,42 +73,39 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, description } = await req.json();
+    const body = await req.json();
+    console.log('API PATCH project - Request body:', JSON.stringify(body, null, 2));
 
-    const project = await prisma.project.updateMany({
+    const updateData: any = {
+      updatedAt: new Date()
+    };
+
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.variables !== undefined) {
+      updateData.variables = body.variables;
+    }
+
+    console.log('API PATCH project - Update data:', JSON.stringify(updateData, null, 2));
+
+    const project = await prisma.project.update({
       where: {
         id: params.projectId,
         user: {
           email: session.user.email
         }
       },
-      data: {
-        name,
-        description
-      }
+      data: updateData
     });
 
-    if (project.count === 0) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
-    }
+    console.log('API PATCH project - Updated project:', JSON.stringify(project, null, 2));
 
-    const updatedProject = await prisma.project.findUnique({
-      where: {
-        id: params.projectId
-      },
-      include: {
-        _count: {
-          select: {
-            charts: true
-          }
-        }
+    return NextResponse.json({ 
+      project: {
+        ...project,
+        globalVariables: project.variables || []
       }
     });
-
-    return NextResponse.json({ project: updatedProject });
   } catch (error) {
     console.error("Error updating project:", error);
     return NextResponse.json(

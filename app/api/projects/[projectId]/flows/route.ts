@@ -23,20 +23,33 @@ export async function GET(
           email: session.user.email
         }
       },
-      select: {
-        id: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-        isPublished: true,
-        version: true,
-      },
       orderBy: {
-        createdAt: 'desc'
+        updatedAt: 'desc'
       }
     });
 
-    return NextResponse.json({ flows });
+    // Process each flow to extract variables from content
+    const processedFlows = flows.map(flow => {
+      let variables = [];
+      if (flow.content) {
+        try {
+          const contentObj = JSON.parse(flow.content);
+          if (contentObj && Array.isArray(contentObj.variables)) {
+            variables = contentObj.variables;
+          }
+        } catch (err) {
+          console.error('Error parsing flow content:', err);
+        }
+      }
+      
+      return {
+        ...flow,
+        variables
+      };
+    });
+
+    console.log('API: Returning flows with variables:', processedFlows);
+    return NextResponse.json({ flows: processedFlows });
   } catch (error) {
     console.error("Error fetching flows:", error);
     return NextResponse.json(

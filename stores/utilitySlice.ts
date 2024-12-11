@@ -14,35 +14,20 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
       return state;
     }),
 
-  saveToDb: async (chartInstances: ChartInstance[]) => {
+  saveToDb: async (flows: ChartInstance[]) => {
     try {
-      console.log("saveToDb called with:", chartInstances);
+      console.log("saveToDb called with:", flows);
 
-      const response = await fetch("/api/save-chart", {
+      const response = await fetch("/api/flows", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: chartInstances }),
+        body: JSON.stringify({ content: flows }),
       });
 
-      console.log("Response status:", response.status);
-
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error response:", errorData);
-        throw new Error(errorData.message || "Failed to save to database");
-      }
-
-      const result = await response.json();
-      console.log("Save result:", result);
-
-      if (result.success) {
-        console.log("Chart saved successfully:", result.id);
-      } else {
-        throw new Error(
-          result.message || "Unknown error occurred while saving"
-        );
+        throw new Error("Failed to save to database");
       }
     } catch (error) {
       console.error("Error saving to database:", error);

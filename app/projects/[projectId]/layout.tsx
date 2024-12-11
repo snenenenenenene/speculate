@@ -40,6 +40,7 @@ export default function ProjectLayout({
     color: string;
     onePageMode: boolean;
     variables: { name: string; value: string; }[];
+    globalVariables: { name: string; value: string; }[];
   } | null>(null);
 
   const saveFlowRef = React.useRef<() => Promise<void>>();
@@ -91,15 +92,24 @@ export default function ProjectLayout({
     if (!flowId) return;
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}`);
-      if (!response.ok) throw new Error('Failed to load flow data');
+      // Fetch both flow and project data
+      const [flowResponse, projectResponse] = await Promise.all([
+        fetch(`/api/projects/${projectId}/flows/${flowId}`),
+        fetch(`/api/projects/${projectId}`)
+      ]);
+
+      if (!flowResponse.ok) throw new Error('Failed to load flow data');
+      if (!projectResponse.ok) throw new Error('Failed to load project data');
       
-      const { flow } = await response.json();
+      const { flow } = await flowResponse.json();
+      const { project } = await projectResponse.json();
+
       setFlowData({
         name: flow.name || "",
         color: flow.color || "#6366f1",
         onePageMode: flow.onePageMode || false,
-        variables: flow.variables || []
+        variables: flow.variables || [],
+        globalVariables: project.variables || []
       });
     } catch (error) {
       console.error('Error loading flow data:', error);

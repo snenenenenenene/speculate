@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { GitBranch, Users2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
 
 interface ProjectData {
@@ -31,7 +31,7 @@ export default function ProjectPage({
 }: {
   params: { projectId: string };
 }) {
-  const projectId = params.projectId as string;
+  const projectId = use(params).projectId as string;
   const router = useRouter();
   const [project, setProject] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,10 +102,10 @@ export default function ProjectPage({
           </div>
 
           {/* Project Stats with Flow Access */}
-          <div className="grid gap-4 grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
               <h3 className="text-sm font-medium">Total Charts</h3>
-              <p className="text-2xl font-semibold mt-2">{project._count.charts}</p>
+              <p className="text-2xl font-semibold mt-2">{project?._count?.charts || 0}</p>
               <p className="text-sm text-muted-foreground mt-1">+3 this week</p>
             </Card>
             <Card className="p-4">
@@ -119,7 +119,7 @@ export default function ProjectPage({
               <p className="text-sm text-muted-foreground mt-1">Requests this week</p>
             </Card>
             <Link 
-              href={flows.length > 0 ? `/projects/${projectId}/flows/${flows[0].id}` : `/projects/${projectId}/flows`}
+              href={flows?.length > 0 ? `/projects/${projectId}/flows/${flows[0].id}` : `/projects/${projectId}/flows`}
               className="block"
             >
               <Card className="p-4 h-full hover:bg-muted/50 transition-colors cursor-pointer group">
@@ -127,7 +127,7 @@ export default function ProjectPage({
                   <h3 className="text-sm font-medium">Flow Editor</h3>
                   <div className="flex-1 flex items-center justify-between mt-2">
                     <p className="text-sm text-muted-foreground">
-                      {flows.length > 0 ? 'Open latest flow' : 'Create new flow'}
+                      {flows?.length > 0 ? 'Open latest flow' : 'Create new flow'}
                     </p>
                     <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>

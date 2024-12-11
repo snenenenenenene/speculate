@@ -15,7 +15,7 @@ import {
 const APPLICATION_VERSION = "1.0.0";
 
 const createChartSlice: StateCreator<any> = (set, get) => ({
-  chartInstances: [],
+  flows: [],
   currentDashboardTab: "",
   tempGeneratedChart: null, // Temporary storage for AI-generated chart
 
@@ -29,30 +29,30 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
 
   updateNodes: (instanceId: string, changes: NodeChange[]) =>
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
+      flows: state.flows.map((flow) =>
+        flow.id === instanceId
           ? {
-              ...instance,
-              nodes: applyNodeChanges(changes as any, instance.nodes),
+              ...flow,
+              nodes: Array.isArray(changes) ? applyNodeChanges(changes, flow.nodes) : flow.nodes,
             }
-          : instance
+          : flow
       ),
     })),
 
   updateEdges: (instanceId: string, changes: EdgeChange[]) =>
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
+      flows: state.flows.map((flow) =>
+        flow.id === instanceId
           ? {
-              ...instance,
-              edges: applyEdgeChanges(changes as any, instance.edges),
+              ...flow,
+              edges: applyEdgeChanges(changes as any, flow.edges),
             }
-          : instance
+          : flow
       ),
     })),
 
   addNewTab: async (newTabName: string) => {
-    const newTab: ChartInstance = {
+    const newFlow: ChartInstance = {
       id: uuidv4(),
       name: newTabName,
       nodes: [],
@@ -64,13 +64,13 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     };
 
     set((state) => ({
-      chartInstances: [...state.chartInstances, newTab],
-      currentDashboardTab: newTab.id,
+      flows: [...state.flows, newFlow],
+      currentDashboardTab: newFlow.id,
     }));
 
     try {
-      await get().saveToDb([...get().chartInstances]); // Save all instances
-      return newTab.id;
+      await get().saveToDb([...get().flows]); // Save all flows
+      return newFlow.id;
     } catch (error) {
       console.error("Failed to save new tab:", error);
       throw error;
@@ -79,129 +79,157 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
 
   addNode: (instanceId: string, newNode: Node) =>
     set((state: any) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
-          ? { ...instance, nodes: [...instance.nodes, newNode] }
-          : instance
+      flows: state.flows.map((flow) =>
+        flow.id === instanceId
+          ? { ...flow, nodes: [...flow.nodes, newNode] }
+          : flow
       ),
     })),
 
   addEdge: (instanceId: string, newEdge: Edge) =>
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
-          ? { ...instance, edges: addEdge(newEdge, instance.edges) }
-          : instance
+      flows: state.flows.map((flow) =>
+        flow.id === instanceId
+          ? { ...flow, edges: addEdge(newEdge, flow.edges) }
+          : flow
       ),
     })),
 
   updateNode: (instanceId: string, nodeId: string, newData: Partial<Node>) =>
     set((state: any) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
+      flows: state.flows.map((flow) =>
+        flow.id === instanceId
           ? {
-              ...instance,
-              nodes: instance.nodes.map((node) =>
+              ...flow,
+              nodes: flow.nodes.map((node) =>
                 node.id === nodeId ? { ...node, ...newData } : node
               ),
             }
-          : instance
+          : flow
       ),
     })),
 
-  removeNode: (instanceId: string, nodeId: string) =>
-    set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === instanceId
-          ? {
-              ...instance,
-              nodes: instance.nodes.filter((node) => node.id !== nodeId),
-              edges: instance.edges.filter(
-                (edge) => edge.source !== nodeId && edge.target !== nodeId
-              ),
-            }
-          : instance
-      ),
-    })),
+  removeNode: (instanceId: string, nodeId: string) => {
+    console.log('ChartSlice: Removing node', { instanceId, nodeId });
+    console.log('ChartSlice: Current state before removal:', get().flows);
+    
+    set((state) => {
+      const newState = {
+        flows: state.flows.map((flow) =>
+          flow.id === instanceId
+            ? {
+                ...flow,
+                nodes: flow.nodes.filter((node) => {
+                  const keep = node.id !== nodeId;
+                  console.log('ChartSlice: Filtering node', { nodeId: node.id, keep });
+                  return keep;
+                }),
+                edges: flow.edges.filter(
+                  (edge) => edge.source !== nodeId && edge.target !== nodeId
+                ),
+              }
+            : flow
+        ),
+      };
+      console.log('ChartSlice: New state after removal:', newState);
+      return newState;
+    });
+    
+    const updatedFlow = get().flows.find(flow => flow.id === instanceId);
+    console.log('ChartSlice: Updated flow after removal:', updatedFlow);
+    
+    return updatedFlow;
+  },
 
   deleteTab: (tabId: string) =>
     set((state) => {
-      const updatedInstances = state.chartInstances.filter(
-        (instance) => instance.id !== tabId
+      const updatedFlows = state.flows.filter(
+        (flow) => flow.id !== tabId
       );
       const newCurrentTab =
-        updatedInstances.length > 0 ? updatedInstances[0].id : "";
+        updatedFlows.length > 0 ? updatedFlows[0].id : "";
       return {
-        chartInstances: updatedInstances,
+        flows: updatedFlows,
         currentDashboardTab: newCurrentTab,
       };
     }),
 
-  updateChartInstance: (updatedInstance: ChartInstance) =>
+  updateFlow: (updatedFlow: ChartInstance) =>
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === updatedInstance.id ? updatedInstance : instance
+      flows: state.flows.map((flow) =>
+        flow.id === updatedFlow.id ? updatedFlow : flow
       ),
     })),
 
-  setChartInstances: (newInstances: ChartInstance[]) =>
-    set({ chartInstances: newInstances }),
-
-  updateChartInstanceName: (tabId: string, newName: string) =>
+  addFlow: (flow: ChartInstance) => {
+    console.log('ChartSlice: Adding flow:', flow);
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === tabId ? { ...instance, name: newName } : instance
+      flows: [...state.flows, flow],
+    }));
+    console.log('ChartSlice: Updated flows:', get().flows);
+  },
+
+  setFlows: (flows: ChartInstance[]) => {
+    console.log('ChartSlice: Setting flows:', flows);
+    set({ flows });
+    console.log('ChartSlice: Updated flows:', get().flows);
+  },
+
+  updateFlowName: (tabId: string, newName: string) =>
+    set((state) => ({
+      flows: state.flows.map((flow) =>
+        flow.id === tabId ? { ...flow, name: newName } : flow
       ),
     })),
 
   setCurrentTabColor: (tabId: string, color: string) =>
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === tabId ? { ...instance, color } : instance
+      flows: state.flows.map((flow) =>
+        flow.id === tabId ? { ...flow, color } : flow
       ),
     })),
 
   setOnePage: (tabId: string, value: boolean) =>
     set((state) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === tabId ? { ...instance, onePageMode: value } : instance
+      flows: state.flows.map((flow) =>
+        flow.id === tabId ? { ...flow, onePageMode: value } : flow
       ),
     })),
 
   addPublishedVersion: (tabId: string, version: number, date: string) =>
     set((state: any) => ({
-      chartInstances: state.chartInstances.map((instance) =>
-        instance.id === tabId
+      flows: state.flows.map((flow) =>
+        flow.id === tabId
           ? {
-              ...instance,
+              ...flow,
               publishedVersions: [
-                ...(instance.publishedVersions || []),
+                ...(flow.publishedVersions || []),
                 { version, date },
               ],
             }
-          : instance
+          : flow
       ),
     })),
 
   revertToVersion: (tabId: string, version: number) =>
     set((state) => {
-      const instance = state.chartInstances.find(
-        (instance) => instance.id === tabId
+      const flow = state.flows.find(
+        (flow) => flow.id === tabId
       );
-      if (instance && instance.publishedVersions) {
-        const versionData = instance.publishedVersions.find(
+      if (flow && flow.publishedVersions) {
+        const versionData = flow.publishedVersions.find(
           (v) => v.version === version
         );
         if (versionData) {
           return {
-            chartInstances: state.chartInstances.map((instance) =>
-              instance.id === tabId
+            flows: state.flows.map((flow) =>
+              flow.id === tabId
                 ? {
-                    ...instance,
+                    ...flow,
                     nodes: versionData.nodes,
                     edges: versionData.edges,
                   }
-                : instance
+                : flow
             ),
           };
         }
@@ -211,47 +239,62 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
 
   publishTab: (tabId: string) =>
     set((state) => {
-      const instance = state.chartInstances.find(
-        (instance) => instance.id === tabId
+      const flow = state.flows.find(
+        (flow) => flow.id === tabId
       );
-      if (instance) {
-        const newVersion = (instance.publishedVersions?.length || 0) + 1;
+      if (flow) {
+        const newVersion = (flow.publishedVersions?.length || 0) + 1;
         return {
-          chartInstances: state.chartInstances.map((instance) =>
-            instance.id === tabId
+          flows: state.flows.map((flow) =>
+            flow.id === tabId
               ? {
-                  ...instance,
+                  ...flow,
                   publishedVersions: [
-                    ...(instance.publishedVersions || []),
+                    ...(flow.publishedVersions || []),
                     {
                       version: newVersion,
                       date: new Date().toISOString(),
-                      nodes: instance.nodes,
-                      edges: instance.edges,
+                      nodes: flow.nodes,
+                      edges: flow.edges,
                     },
                   ],
                 }
-              : instance
+              : flow
           ),
         };
       }
       return state;
     }),
 
-  getChartInstance: (tabId: string) => {
-    const { chartInstances } = get();
-    return chartInstances.find((instance) => instance.id === tabId);
+  getFlow: (tabId: string) => {
+    const { flows } = get();
+    return flows.find((flow) => flow.id === tabId);
   },
 
-  getCurrentChartInstance: () => {
-    const { chartInstances, currentDashboardTab } = get();
-    console.log(chartInstances);
-    return Array.isArray(chartInstances)
-      ? chartInstances.find((instance) => instance.id === currentDashboardTab)
-      : null;
+  getCurrentFlow: () => {
+    const { flows, currentDashboardTab } = get();
+    console.log('ChartSlice: Getting current flow', {
+      flows,
+      currentDashboardTab,
+      hasFlows: Array.isArray(flows) && flows.length > 0
+    });
+    
+    if (!Array.isArray(flows) || flows.length === 0) {
+      console.error('ChartSlice: No flows found');
+      return null;
+    }
+    
+    if (!currentDashboardTab) {
+      console.error('ChartSlice: No current dashboard tab selected');
+      return null;
+    }
+    
+    const flow = flows.find((flow) => flow.id === currentDashboardTab);
+    console.log('ChartSlice: Found flow:', flow);
+    return flow || null;
   },
   addAIChart: (chartData: any) => {
-    const newChart: ChartInstance = {
+    const newFlow: ChartInstance = {
       id: uuidv4(),
       name: chartData.name || "New AI Flow",
       nodes: chartData.nodes || [],
@@ -263,17 +306,17 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     };
 
     set((state) => ({
-      chartInstances: [...state.chartInstances, newChart],
-      currentDashboardTab: newChart.id,
+      flows: [...state.flows, newFlow],
+      currentDashboardTab: newFlow.id,
     }));
 
-    return newChart.id;
+    return newFlow.id;
   },
   applyAIChart: () =>
     set((state) => {
       if (state.tempGeneratedChart) {
         return {
-          chartInstances: [...state.chartInstances, state.tempGeneratedChart],
+          flows: [...state.flows, state.tempGeneratedChart],
           tempGeneratedChart: null,
         };
       }
@@ -346,8 +389,8 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
   },
 
   exportFlow: (instanceId: string) => {
-    const instance = get().getChartInstance(instanceId);
-    if (!instance) {
+    const flow = get().getFlow(instanceId);
+    if (!flow) {
       toast.error("Flow not found");
       return;
     }
@@ -357,7 +400,7 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
       exportDate: new Date().toISOString(),
       type: "single",
       applicationVersion: APPLICATION_VERSION,
-      flow: instance,
+      flow,
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -366,7 +409,7 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${instance.name
+    link.download = `${flow.name
       .toLowerCase()
       .replace(/\s+/g, "-")}-flow.json`;
     document.body.appendChild(link);
@@ -378,14 +421,14 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
   },
 
   exportAllFlows: () => {
-    const { chartInstances } = get();
+    const { flows } = get();
 
     const exportData: CompleteExport = {
       version: "1.0",
       exportDate: new Date().toISOString(),
       type: "complete",
       applicationVersion: APPLICATION_VERSION,
-      flows: chartInstances,
+      flows,
       references: [],
     };
 

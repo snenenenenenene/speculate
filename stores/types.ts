@@ -90,8 +90,22 @@ export interface QuestionnaireState {
   // Define questionnaire state and methods
 }
 
+export interface Commit {
+  id: string;
+  date: string;
+  message: string;
+  flows: ChartInstance[];
+}
+
 export interface CommitState {
-  // Define commit state and methods
+  localCommits: Commit[];
+  globalCommits: Commit[];
+  saveLocalCommit: (message: string) => void;
+  restoreToLocalCommit: (commit: Commit) => void;
+  saveGlobalCommit: (message: string) => void;
+  restoreToGlobalCommit: (commit: Commit) => void;
+  exportCommits: () => void;
+  importCommits: (commit: Commit) => void;
 }
 
 export interface VariableState {
@@ -119,7 +133,9 @@ export interface ModalState {
 export interface UtilityState {
   currentTab: string;
   setCurrentTab: (tabId: string) => void;
-  saveToDb: (chartInstances: ChartInstance[]) => Promise<void>;
+  showGrid: boolean;
+  toggleGrid: () => void;
+  saveToDb: (flows: ChartInstance[]) => Promise<void>;
   loadSavedData: () => Promise<ChartInstance[] | null>;
 }
 

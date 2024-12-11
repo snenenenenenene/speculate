@@ -1,49 +1,86 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
-import { Handle, Position, NodeProps } from 'reactflow';
-import { memo, useCallback, useEffect, useState, useMemo } from 'react';
+import { Handle, NodeProps, Position } from 'reactflow';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { nanoid } from 'nanoid';
-import isEqual from 'lodash/isEqual';
-import { useStores } from '@/hooks/useStores';
-import { NodeWrapper } from './base/NodeWrapper';
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, GitBranch, Plus, Variable, X } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FunctionNodeData, MultipleChoiceNodeData, SingleChoiceNodeData, WeightNodeData, YesNoNodeData } from '@/types/nodes';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  CircleDot,
-  CircleSlashed,
-  Flag,
-  FunctionSquare,
-  List,
-  Scale,
-  Settings,
-  Square,
-  Trash2,
-  XCircle
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Operation } from '@prisma/client/runtime/library';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+import { useStores } from '@/hooks/useStores';
+import { Card } from '@/components/ui/card';
 
 type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
+
+interface NodeWrapperProps {
+  title: string;
+  children: React.ReactNode;
+  selected?: boolean;
+  onDelete?: () => void;
+  handles?: {
+    top?: boolean;
+    bottom?: boolean;
+  };
+  headerClassName?: string;
+}
+
+const NodeWrapper = memo(({ title, children, selected, onDelete, handles, headerClassName }: NodeWrapperProps) => {
+  return (
+    <Card className={`min-w-[300px] shadow-md ${selected ? 'ring-2 ring-blue-500' : ''}`}>
+      <div className={`flex items-center justify-between p-3 border-b ${headerClassName || ''}`}>
+        <span className="font-medium">{title}</span>
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            className="h-8 w-8 p-0"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+      {handles?.top && (
+        <Handle
+          type="target"
+          position={Position.Top}
+          style={{ top: -5 }}
+        />
+      )}
+      {children}
+      {handles?.bottom && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          style={{ bottom: -5 }}
+        />
+      )}
+    </Card>
+  );
+});
+
+NodeWrapper.displayName = 'NodeWrapper';
 
 export const StartNode = memo(({ id, data, selected }: NodeProps) => {
   const { chartStore } = useStores() as any;
 
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete the start node?')) {
-      chartStore.removeNode(data.instanceId, id);
+  const handleDelete = useCallback((onSuccess: () => void, onError: (error: Error) => void) => {
+    console.log('StartNode: Attempting to delete node', { id, instanceId: data.instanceId });
+    try {
+      const result = chartStore.removeNode(data.instanceId, id);
+      console.log('StartNode: Node deletion result:', result);
+      console.log('StartNode: Current nodes after deletion:', chartStore.getCurrentChartInstance()?.nodes);
+      onSuccess();
+    } catch (error) {
+      console.error('StartNode: Error deleting node:', error);
+      onError(error instanceof Error ? error : new Error('Failed to delete node'));
     }
   }, [chartStore, data.instanceId, id]);
 
@@ -51,14 +88,8 @@ export const StartNode = memo(({ id, data, selected }: NodeProps) => {
     <NodeWrapper
       title="Start"
       selected={selected}
-      onDelete={handleDelete}
-      customHandles={
-        <Handle
-          type="target"
-          position={Position.Bottom}
-          className="react-flow__handle"
-        />
-      }
+      onDelete={() => handleDelete(() => {}, () => {})}
+      handles={{ bottom: true }}
     >
       <div className="space-y-2">
         <Label>Message</Label>
@@ -72,41 +103,40 @@ export const StartNode = memo(({ id, data, selected }: NodeProps) => {
     </NodeWrapper>
   );
 });
-StartNode.displayName = 'StartNode';
 
 export const EndNode = memo(({ id, data, selected }: NodeProps) => {
-  const { chartStore } = useStores() as any;
-  const chartInstances = chartStore.chartInstances;
-  const otherInstances = chartInstances.filter(
-    instance => instance.id !== data.instanceId
-  );
-
-  const [endType, setEndType] = useState(data.endType || 'end');
-  const [selectedFlow, setSelectedFlow] = useState(data.redirectTab || '');
-
-  useEffect(() => {
-    data.endType = endType;
-    data.redirectTab = selectedFlow;
-  }, [endType, selectedFlow, data]);
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
 
   const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
+    console.log('EndNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('EndNode: No flow ID found');
+      return;
     }
-  }, [chartStore, data.instanceId, id]);
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('EndNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
 
   return (
     <NodeWrapper
       title="End"
       selected={selected}
       onDelete={handleDelete}
-      customHandles={
-        <Handle
-          type="source"
-          position={Position.Top}
-          className="react-flow__handle"
-        />
-      }
+      handles={{ top: true }}
     >
       <div className="space-y-2">
         <Label>Message</Label>
@@ -120,10 +150,34 @@ export const EndNode = memo(({ id, data, selected }: NodeProps) => {
     </NodeWrapper>
   );
 });
-EndNode.displayName = 'EndNode';
 
 export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
-  const { chartStore } = useStores() as any;
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    console.log('SingleChoiceNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('SingleChoiceNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('SingleChoiceNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('SingleChoiceNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
+
   const DEFAULT_QUESTION = "Select one of the following options:";
 
   const handleQuestionChange = useCallback((value: string) => {
@@ -146,12 +200,6 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
     data.options = data.options?.filter(opt => opt.id !== optionId) || [];
   }, [data]);
 
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
-
   // Initialize options if they don't exist
   useEffect(() => {
     if (!data.options) {
@@ -167,15 +215,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
       title="Single Choice"
       selected={selected}
       onDelete={handleDelete}
-      customHandles={
-        <>
-          <Handle
-            type="source"
-            position={Position.Top}
-            className="react-flow__handle"
-          />
-        </>
-      }
+      handles={{ top: true, bottom: true }}
     >
       <div className="space-y-4">
         <div className="space-y-2">
@@ -190,51 +230,30 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
 
         <div className="space-y-2">
           <Label>Options</Label>
-          <div className="space-y-2">
-            {data.options?.map((option, index) => (
-              <div key={option.id} className="relative group">
-                <div className={cn(
-                  "flex items-center gap-2 rounded-md",
-                  selected ? "bg-zinc-100" : "bg-zinc-50",
-                  "transition-colors duration-200"
-                )}>
-                  <Input
-                    value={option.label}
-                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                    placeholder={`Option ${index + 1}`}
-                    className="h-9"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveOption(option.id)}
-                    className={cn(
-                      "h-8 w-8 p-0 opacity-0 group-hover:opacity-100",
-                      "transition-opacity duration-200"
-                    )}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={option.id}
-                    className={cn(
-                      "react-flow__handle opacity-0 group-hover:opacity-100",
-                      "transition-all duration-200"
-                    )}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          {data.options?.map((option, index) => (
+            <div key={option.id} className="flex items-center gap-2">
+              <Input
+                value={option.label}
+                onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                placeholder={`Option ${index + 1}`}
+                className="h-9"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveOption(option.id)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
           <Button
             variant="outline"
             size="sm"
             onClick={handleAddOption}
             className="w-full"
           >
-            <Plus className="h-4 w-4 mr-2" />
             Add Option
           </Button>
         </div>
@@ -242,9 +261,34 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
     </NodeWrapper>
   );
 });
-SingleChoiceNode.displayName = 'SingleChoiceNode';
 
 export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    console.log('MultipleChoiceNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('MultipleChoiceNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('MultipleChoiceNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('MultipleChoiceNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
+
   const { chartStore } = useStores() as any;
   const DEFAULT_QUESTION = "Select all that apply:";
 
@@ -268,31 +312,6 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
     data.options = data.options?.filter(opt => opt.id !== optionId) || [];
   }, [data]);
 
-  const handleSelectionLimitChange = useCallback((type: 'min' | 'max', value: string) => {
-    const numValue = parseInt(value) || 0;
-    const maxAllowed = data.options?.length || 0;
-    
-    if (type === 'min') {
-      data.minSelections = Math.min(numValue, maxAllowed);
-      // Ensure max is not less than min
-      if (data.maxSelections && data.maxSelections < data.minSelections) {
-        data.maxSelections = data.minSelections;
-      }
-    } else {
-      data.maxSelections = Math.min(numValue, maxAllowed);
-      // Ensure min is not more than max
-      if (data.minSelections && data.minSelections > data.maxSelections) {
-        data.minSelections = data.maxSelections;
-      }
-    }
-  }, [data]);
-
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
-
   // Initialize options if they don't exist
   useEffect(() => {
     if (!data.options) {
@@ -300,8 +319,6 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
         { id: nanoid(), label: 'Option 1', nextNodeId: null },
         { id: nanoid(), label: 'Option 2', nextNodeId: null }
       ];
-      data.minSelections = 1;
-      data.maxSelections = 2;
     }
   }, [data]);
 
@@ -310,20 +327,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
       title="Multiple Choice"
       selected={selected}
       onDelete={handleDelete}
-      customHandles={
-        <>
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="react-flow__handle"
-          />
-          <Handle
-            type="source"
-            position={Position.Bottom}
-            className="react-flow__handle"
-          />
-        </>
-      }
+      handles={{ top: true, bottom: true }}
     >
       <div className="space-y-4">
         <div className="space-y-2">
@@ -338,571 +342,424 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
 
         <div className="space-y-2">
           <Label>Options</Label>
-          <div className="space-y-2">
-            {data.options?.map((option, index) => (
-              <div key={option.id} className="relative group">
-                <div className={cn(
-                  "flex items-center gap-2 rounded-md",
-                  selected ? "bg-zinc-100" : "bg-zinc-50",
-                  "transition-colors duration-200"
-                )}>
-                  <Input
-                    value={option.label}
-                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                    placeholder={`Option ${index + 1}`}
-                    className="h-9"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveOption(option.id)}
-                    className={cn(
-                      "h-8 w-8 p-0 opacity-0 group-hover:opacity-100",
-                      "transition-opacity duration-200"
-                    )}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+          {data.options?.map((option, index) => (
+            <div key={option.id} className="flex items-center gap-2">
+              <Input
+                value={option.label}
+                onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                placeholder={`Option ${index + 1}`}
+                className="h-9"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveOption(option.id)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
           <Button
             variant="outline"
             size="sm"
             onClick={handleAddOption}
             className="w-full"
           >
-            <Plus className="h-4 w-4 mr-2" />
             Add Option
           </Button>
-        </div>
-
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <div className="space-y-2">
-              <Label>Min Selections</Label>
-              <Input
-                type="number"
-                min="0"
-                max={data.options?.length || 0}
-                value={data.minSelections || ''}
-                onChange={(e) => handleSelectionLimitChange('min', e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex-1">
-            <div className="space-y-2">
-              <Label>Max Selections</Label>
-              <Input
-                type="number"
-                min={data.minSelections || 0}
-                max={data.options?.length || 0}
-                value={data.maxSelections || ''}
-                onChange={(e) => handleSelectionLimitChange('max', e.target.value)}
-              />
-            </div>
-          </div>
         </div>
       </div>
     </NodeWrapper>
   );
 });
-MultipleChoiceNode.displayName = 'MultipleChoiceNode';
 
 export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
-  const { chartStore } = useStores() as any;
-  const DEFAULT_QUESTION = "Does your claim meet this requirement?";
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    console.log('YesNoNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('YesNoNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('YesNoNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('YesNoNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
 
   const handleQuestionChange = useCallback((value: string) => {
     data.question = value;
   }, [data]);
-
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
 
   return (
     <NodeWrapper
       title="Yes/No"
       selected={selected}
       onDelete={handleDelete}
-      customHandles={
-        <>
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="react-flow__handle"
-          />
-        </>
-      }
+      handles={{ top: true }}
     >
       <div className="space-y-4">
         <div className="space-y-2">
           <Label>Question</Label>
           <Input
-            value={data.question || DEFAULT_QUESTION}
+            value={data.question || ""}
             onChange={(e) => handleQuestionChange(e.target.value)}
             placeholder="Enter your question..."
             className="h-9"
           />
         </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { label: 'Yes', id: 'yes' },
-            { label: 'No', id: 'no' }
-          ].map((option) => (
-            <div key={option.id} className="relative group">
-              <div className={cn(
-                "p-3 text-center rounded-lg text-sm font-medium transition-all duration-200",
-                selected ? "bg-zinc-100 ring-1 ring-zinc-300" : "bg-zinc-50 ring-1 ring-zinc-200",
-                "hover:ring-2 hover:ring-zinc-950/50 hover:bg-white"
-              )}>
-                {option.label}
-                <Handle
-                  type="source"
-                  position={Position.Bottom}
-                  id={option.id}
-                  className={cn(
-                    "react-flow__handle opacity-0 group-hover:opacity-100",
-                    "transition-all duration-200"
-                  )}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </NodeWrapper>
   );
 });
-YesNoNode.displayName = 'YesNoNode';
 
 export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData>) => {
-  const { chartStore } = useStores() as any;
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    console.log('WeightNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('WeightNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('WeightNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('WeightNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
 
   const handleWeightChange = useCallback((value: string) => {
     const weight = parseFloat(value) || 1;
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      weight,
-    });
-  }, [chartStore, data, id]);
-
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this weight node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
+    data.weight = weight;
+  }, [data]);
 
   return (
     <NodeWrapper
       title="Weight"
       selected={selected}
       onDelete={handleDelete}
-      customHandles={
-        <>
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="react-flow__handle"
-          />
-          <Handle
-            type="source"
-            position={Position.Bottom}
-            className="react-flow__handle"
-          />
-        </>
-      }
+      handles={{ top: true, bottom: true }}
       headerClassName="bg-amber-50/50"
     >
-      <div className="space-y-4">
+      <div className="p-4 space-y-4">
         <div className="flex items-center gap-4">
-          <Scale className="h-5 w-5 text-amber-500" />
           <Input
             type="number"
-            value={data.weight}
+            value={data.weight || 0}
             onChange={(e) => handleWeightChange(e.target.value)}
-            step="0.1"
-            min="0"
+            placeholder="Enter weight..."
+            className="h-9"
           />
-        </div>
-
-        <div className="text-xs text-gray-500">
-          Score will be multiplied by this weight
         </div>
       </div>
     </NodeWrapper>
   );
 });
-WeightNode.displayName = 'WeightNode';
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
-  const { chartStore, variableStore } = useStores() as any;
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    console.log('FunctionNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('FunctionNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('FunctionNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      console.log('FunctionNode: Node deletion result:', currentInstance);
+      console.log('FunctionNode: Current nodes after deletion:', chartStore.getCurrentChartInstance()?.nodes);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('FunctionNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
+
   const [nodeData, setNodeData] = useState<FunctionNodeData>({
     instanceId: id,
     label: data?.label || "Function Node",
+    nodeType: 'functionNode',
     steps: data?.steps || [],
-    handles: data?.handles || ["default"]
+    handles: data?.handles || []
   });
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentStep, setCurrentStep] = useState<{
-    type: 'operation' | 'condition';
-    operation?: {
-      type: 'addition' | 'subtraction' | 'multiplication' | 'division';
-      targetVariable: string;
-      value: number;
+  const [showStepModal, setShowStepModal] = useState(false);
+
+  const handleAddStep = useCallback((step: FunctionNodeData['steps'][0]) => {
+    const newNodeData = {
+      ...nodeData,
+      steps: [...nodeData.steps, step],
+      handles: [...nodeData.handles, step.id]
     };
-    condition?: {
-      variable: string;
-      operator: '>' | '<' | '>=' | '<=' | '==' | '!=';
-      value: number;
-      trueHandle: string;
-      falseHandle: string;
+    setNodeData(newNodeData);
+    chartStore.updateNode(flowId, id, newNodeData);
+  }, [nodeData, flowId, id, chartStore]);
+
+  const handleRemoveStep = useCallback((stepId: string) => {
+    const newNodeData = {
+      ...nodeData,
+      steps: nodeData.steps.filter(step => step.id !== stepId),
+      handles: nodeData.handles.filter(handle => handle !== stepId)
     };
-  }>({ type: 'operation' });
+    setNodeData(newNodeData);
+    chartStore.updateNode(flowId, id, newNodeData);
+  }, [nodeData, flowId, id, chartStore]);
 
-  // Get available variables from the current instance
-  const variables = useMemo(() => {
-    const instance = chartStore.getCurrentChartInstance();
-    return instance?.variables || [];
-  }, [chartStore]);
-
-  useEffect(() => {
-    Object.assign(data, nodeData);
-  }, [data, nodeData]);
-
-  const addStep = useCallback(() => {
-    if (currentStep.type === 'operation' && currentStep.operation) {
-      setNodeData(prev => ({
-        ...prev,
-        steps: [...prev.steps, { id: nanoid(), ...currentStep }]
-      }));
-    } else if (currentStep.type === 'condition' && currentStep.condition) {
-      setNodeData(prev => ({
-        ...prev,
-        steps: [...prev.steps, { id: nanoid(), ...currentStep }],
-        handles: [...new Set([...prev.handles, currentStep.condition!.trueHandle, currentStep.condition!.falseHandle])]
-      }));
-    }
-    setCurrentStep({ type: 'operation' });
-  }, [currentStep]);
-
-  const removeStep = useCallback((stepId: string) => {
-    setNodeData(prev => ({
-      ...prev,
-      steps: prev.steps.filter(step => step.id !== stepId)
-    }));
-  }, []);
-
-  const renderStep = useCallback((step: typeof nodeData.steps[0], index: number) => {
-    return (
-      <motion.div
-        key={step.id}
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col space-y-2 p-3 bg-gray-50 rounded-lg"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600">Step {index + 1}:</span>
-            {step.type === 'operation' && step.operation && (
-              <span className="text-sm">
-                {step.operation.type} {step.operation.value} to {step.operation.targetVariable}
-              </span>
-            )}
-            {step.type === 'condition' && step.condition && (
-              <span className="text-sm">
-                if {step.condition.variable} {step.condition.operator} {step.condition.value}
-              </span>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => removeStep(step.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-        {step.type === 'condition' && step.condition && (
-          <div className="pl-4 space-y-1 text-sm text-gray-500">
-            <div>→ True: use {step.condition.trueHandle}</div>
-            <div>→ False: use {step.condition.falseHandle}</div>
-          </div>
-        )}
-      </motion.div>
-    );
-  }, [removeStep]);
+  const handleLabelChange = useCallback((newLabel: string) => {
+    const newNodeData = {
+      ...nodeData,
+      label: newLabel
+    };
+    setNodeData(newNodeData);
+    chartStore.updateNode(flowId, id, newNodeData);
+  }, [nodeData, flowId, id, chartStore]);
 
   return (
     <NodeWrapper
       title="Function"
       selected={selected}
-      onDelete={() => chartStore.removeNode(data.instanceId, id)}
-      customHandles={
-        <>
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="react-flow__handle"
-          />
-          {data.steps?.map((step, index) => (
-            <Handle
-              key={step.id}
-              type="source"
-              position={Position.Right}
-              id={step.id}
-              className="react-flow__handle"
-              style={{ top: `${25 + (index * 30)}%` }}
-            />
-          ))}
-        </>
-      }
-      headerClassName="bg-violet-50/50"
+      onDelete={handleDelete}
+      handles={{ top: true, bottom: true }}
     >
       <div className="p-4 space-y-4">
         <Input
           value={nodeData.label}
-          onChange={(e) => setNodeData(prev => ({ ...prev, label: e.target.value }))}
-          placeholder="Function Name"
+          onChange={(e) => handleLabelChange(e.target.value)}
+          placeholder="Enter function name..."
+          className="h-9"
         />
-
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg transition-colors"
-        >
-          <Settings className="h-4 w-4" />
-          Configure Steps
-        </button>
-
+        
         <div className="space-y-2">
-          {nodeData.handles.map((handleId) => (
-            <div
-              key={handleId}
-              className="relative flex items-center justify-between bg-gray-50 p-2 rounded-lg"
-            >
-              <div className="flex items-center gap-2">
+          {nodeData.steps.map((step, index) => (
+            <div key={step.id} className="flex items-center justify-between bg-gray-100 p-2 rounded">
+              <span>{step.type === 'operation' ? 'Operation' : 'Condition'} {index + 1}</span>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveStep(step.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
                 <Handle
                   type="source"
                   position={Position.Bottom}
-                  id={handleId}
-                  className="w-3 h-3 bg-violet-500 border-2 border-white transition-all duration-200 hover:bg-violet-600 hover:scale-110"
+                  id={step.id}
+                  style={{ bottom: -10 }}
                 />
-                <span className="text-sm text-gray-600">{handleId}</span>
               </div>
             </div>
           ))}
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => setShowStepModal(true)}
+        >
+          Add Step
+        </Button>
+
+        {showStepModal && (
+          <Dialog open={showStepModal} onOpenChange={setShowStepModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Function Step</DialogTitle>
+              </DialogHeader>
+              <Tabs defaultValue="operation">
+                <TabsList>
+                  <TabsTrigger value="operation">Operation</TabsTrigger>
+                  <TabsTrigger value="condition">Condition</TabsTrigger>
+                </TabsList>
+                <TabsContent value="operation">
+                  <OperationForm
+                    onSubmit={(data) => {
+                      handleAddStep({
+                        id: nanoid(),
+                        type: 'operation',
+                        operation: data
+                      });
+                      setShowStepModal(false);
+                    }}
+                  />
+                </TabsContent>
+                <TabsContent value="condition">
+                  <ConditionForm
+                    onSubmit={(data) => {
+                      handleAddStep({
+                        id: nanoid(),
+                        type: 'condition',
+                        condition: data
+                      });
+                      setShowStepModal(false);
+                    }}
+                  />
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
-
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Configure Function Steps</DialogTitle>
-            <DialogDescription>
-              Add operations and conditions that will execute in sequence
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {/* Add Step Section */}
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Button
-                  variant={currentStep.type === 'operation' ? 'default' : 'outline'}
-                  onClick={() => setCurrentStep({ type: 'operation' })}
-                >
-                  Operation
-                </Button>
-                <Button
-                  variant={currentStep.type === 'condition' ? 'default' : 'outline'}
-                  onClick={() => setCurrentStep({ type: 'condition' })}
-                >
-                  Condition
-                </Button>
-              </div>
-
-              {currentStep.type === 'operation' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Operation Type</Label>
-                    <Select
-                      value={currentStep.operation?.type}
-                      onValueChange={(value: any) => setCurrentStep(prev => ({
-                        ...prev,
-                        operation: { ...prev.operation, type: value } as any
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select operation" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="addition">Add</SelectItem>
-                        <SelectItem value="subtraction">Subtract</SelectItem>
-                        <SelectItem value="multiplication">Multiply</SelectItem>
-                        <SelectItem value="division">Divide</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Target Variable</Label>
-                    <Select
-                      value={currentStep.operation?.targetVariable}
-                      onValueChange={(value) => setCurrentStep(prev => ({
-                        ...prev,
-                        operation: { ...prev.operation, targetVariable: value } as any
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select variable" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {variables.map((variable: any) => (
-                          <SelectItem key={variable.name} value={variable.name}>
-                            {variable.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Value</Label>
-                    <Input
-                      type="number"
-                      value={currentStep.operation?.value || ''}
-                      onChange={(e) => setCurrentStep(prev => ({
-                        ...prev,
-                        operation: { ...prev.operation, value: parseFloat(e.target.value) } as any
-                      }))}
-                      placeholder="Enter value"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {currentStep.type === 'condition' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Variable</Label>
-                    <Select
-                      value={currentStep.condition?.variable}
-                      onValueChange={(value) => setCurrentStep(prev => ({
-                        ...prev,
-                        condition: { ...prev.condition, variable: value } as any
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select variable" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {variables.map((variable: any) => (
-                          <SelectItem key={variable.name} value={variable.name}>
-                            {variable.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Operator</Label>
-                    <Select
-                      value={currentStep.condition?.operator}
-                      onValueChange={(value: any) => setCurrentStep(prev => ({
-                        ...prev,
-                        condition: { ...prev.condition, operator: value } as any
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select operator" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value=">">Greater than</SelectItem>
-                        <SelectItem value="<">Less than</SelectItem>
-                        <SelectItem value=">=">Greater than or equal</SelectItem>
-                        <SelectItem value="<=">Less than or equal</SelectItem>
-                        <SelectItem value="==">Equal to</SelectItem>
-                        <SelectItem value="!=">Not equal to</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Value</Label>
-                    <Input
-                      type="number"
-                      value={currentStep.condition?.value || ''}
-                      onChange={(e) => setCurrentStep(prev => ({
-                        ...prev,
-                        condition: { ...prev.condition, value: parseFloat(e.target.value) } as any
-                      }))}
-                      placeholder="Enter value"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>True Handle</Label>
-                      <Input
-                        value={currentStep.condition?.trueHandle || ''}
-                        onChange={(e) => setCurrentStep(prev => ({
-                          ...prev,
-                          condition: { ...prev.condition, trueHandle: e.target.value } as any
-                        }))}
-                        placeholder="e.g., handle1"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>False Handle</Label>
-                      <Input
-                        value={currentStep.condition?.falseHandle || ''}
-                        onChange={(e) => setCurrentStep(prev => ({
-                          ...prev,
-                          condition: { ...prev.condition, falseHandle: e.target.value } as any
-                        }))}
-                        placeholder="e.g., handle2"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <Button
-                className="w-full"
-                onClick={addStep}
-                disabled={
-                  (currentStep.type === 'operation' && (!currentStep.operation?.type || !currentStep.operation?.targetVariable)) ||
-                  (currentStep.type === 'condition' && (!currentStep.condition?.variable || !currentStep.condition?.operator))
-                }
-              >
-                Add Step
-              </Button>
-            </div>
-
-            <Separator />
-
-            {/* Steps List */}
-            <div className="space-y-2">
-              <Label>Steps (executes in order)</Label>
-              <div className="space-y-2">
-                {nodeData.steps.map((step, index) => renderStep(step, index))}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </NodeWrapper>
   );
 });
 
 FunctionNode.displayName = 'FunctionNode';
+
+interface OperationFormProps {
+  onSubmit: (data: FunctionNodeData['steps'][0]['operation']) => void;
+}
+
+const OperationForm = ({ onSubmit }: OperationFormProps) => {
+  const [type, setType] = useState<'addition' | 'subtraction' | 'multiplication' | 'division'>('addition');
+  const [targetVariable, setTargetVariable] = useState('');
+  const [value, setValue] = useState<number>(0);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({ type, targetVariable, value });
+      }}
+      className="space-y-4"
+    >
+      <div className="space-y-2">
+        <Label>Operation Type</Label>
+        <Select value={type} onValueChange={(value: any) => setType(value)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="addition">Addition</SelectItem>
+            <SelectItem value="subtraction">Subtraction</SelectItem>
+            <SelectItem value="multiplication">Multiplication</SelectItem>
+            <SelectItem value="division">Division</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Target Variable</Label>
+        <Input
+          value={targetVariable}
+          onChange={(e) => setTargetVariable(e.target.value)}
+          placeholder="Enter variable name..."
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Value</Label>
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+        />
+      </div>
+
+      <Button type="submit" className="w-full">Add Operation</Button>
+    </form>
+  );
+};
+
+interface ConditionFormProps {
+  onSubmit: (data: FunctionNodeData['steps'][0]['condition']) => void;
+}
+
+const ConditionForm = ({ onSubmit }: ConditionFormProps) => {
+  const [variable, setVariable] = useState('');
+  const [operator, setOperator] = useState<'>' | '<' | '>=' | '<=' | '==' | '!='>('==');
+  const [value, setValue] = useState<number>(0);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({
+          variable,
+          operator,
+          value,
+          trueHandle: nanoid(),
+          falseHandle: nanoid()
+        });
+      }}
+      className="space-y-4"
+    >
+      <div className="space-y-2">
+        <Label>Variable</Label>
+        <Input
+          value={variable}
+          onChange={(e) => setVariable(e.target.value)}
+          placeholder="Enter variable name..."
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Operator</Label>
+        <Select value={operator} onValueChange={(value: any) => setOperator(value)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value=">">Greater than</SelectItem>
+            <SelectItem value="<">Less than</SelectItem>
+            <SelectItem value=">=">Greater than or equal</SelectItem>
+            <SelectItem value="<=">Less than or equal</SelectItem>
+            <SelectItem value="==">Equal</SelectItem>
+            <SelectItem value="!=">Not equal</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Value</Label>
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+        />
+      </div>
+
+      <Button type="submit" className="w-full">Add Condition</Button>
+    </form>
+  );
+};
 
 // Export the collection of node types
 export const NODE_TYPES = {
@@ -920,43 +777,43 @@ export const NODE_INFO = [
   {
     type: 'startNode',
     label: 'Start Node',
-    icon: Flag,
+    icon: 'Flag',
     description: 'Beginning of the flow'
   },
   {
     type: 'endNode',
     label: 'End Node',
-    icon: XCircle,
+    icon: 'XCircle',
     description: 'End of the flow or redirect'
   },
   {
     type: 'weight',
     label: 'Weight Node',
-    icon: Scale,
+    icon: 'Scale',
     description: 'Apply weight to scores'
   },
   {
     type: 'singleChoice',
     label: 'Single Choice',
-    icon: CircleDot,
+    icon: 'CircleDot',
     description: 'Single option selection'
   },
   {
     type: 'multipleChoice',
     label: 'Multiple Choice',
-    icon: List,
+    icon: 'List',
     description: 'Multiple option selection'
   },
   {
     type: 'yesNo',
     label: 'Yes/No Question',
-    icon: Check,
+    icon: 'Check',
     description: 'Binary choice question'
   },
   {
     type: 'function',
     label: 'Function Node',
-    icon: FunctionSquare,
+    icon: 'FunctionSquare',
     description: 'Variable operations and logic'
   }
 ];
