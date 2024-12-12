@@ -52,20 +52,17 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const handleDelete = useCallback(() => {
-    if (!flowId) {
-      console.error('NodeWrapper: No flowId found');
-      return;
-    }
-    
     try {
-      console.log('NodeWrapper: Deleting node', { flowId, id });
-      removeNode(flowId, id);
-      toast.success('Node deleted successfully');
+      if (id) {
+        removeNode(id);
+        toast.success('Node deleted successfully');
+      }
+      onDelete?.();
     } catch (error) {
-      console.error('NodeWrapper: Error deleting node:', error);
+      console.error('Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [flowId, id, removeNode]);
+  }, [id, removeNode, onDelete]);
 
   const confirmDelete = () => {
     handleDelete();

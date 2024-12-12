@@ -34,6 +34,7 @@ import '@/styles/flow-theme.css';
 import { useRootStore } from "@/stores/rootStore";
 import { nanoid } from "nanoid";
 import { useParams } from "next/navigation";
+import CustomEdge from "@/components/flow/CustomEdge";
 
 const nodeTypes = {
   startNode: StartNode,
@@ -44,6 +45,10 @@ const nodeTypes = {
   weightNode: WeightNode,
   functionNode: FunctionNode,
 } as const;
+
+const edgeTypes = {
+  default: CustomEdge,
+};
 
 function createNewNode(type: string, position: { x: number; y: number }, flowId: string) {
   const newNodeId = `${type}-${nanoid()}`;
@@ -132,7 +137,7 @@ export default function FlowEditor() {
   const projectId = params.projectId as string;
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
-  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, updateFlow, flows } = useRootStore();
+  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, updateFlow, flows, removeNode, removeEdge } = useRootStore();
   const flow = flows.find((flow) => flow.id === flowId);
 
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -231,24 +236,34 @@ export default function FlowEditor() {
     fetchFlow();
   }, [flowId, projectId, setFlows, setCurrentDashboardTab]);
 
-  const handleNodesChange = useCallback(
+  const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      setNodes((nds) => applyNodeChanges(changes, nds));
-      if (flowId && flow) {
-        updateNodes(flowId, changes);
-      }
+      const nextChanges = changes.map(change => {
+        if (change.type === 'remove') {
+          removeNode(change.id);
+          return null;
+        }
+        return change;
+      }).filter(Boolean) as NodeChange[];
+      
+      setNodes((nds) => applyNodeChanges(nextChanges, nds));
     },
-    [flowId, flow, updateNodes]
+    [removeNode]
   );
 
-  const handleEdgesChange = useCallback(
+  const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      setEdges((eds) => applyEdgeChanges(changes, eds));
-      if (flowId && flow) {
-        updateEdges(flowId, changes);
-      }
+      const nextChanges = changes.map(change => {
+        if (change.type === 'remove') {
+          removeEdge(change.id);
+          return null;
+        }
+        return change;
+      }).filter(Boolean) as EdgeChange[];
+      
+      setEdges((eds) => applyEdgeChanges(nextChanges, eds));
     },
-    [flowId, flow, updateEdges]
+    [removeEdge]
   );
 
   const handleConnect = useCallback(
@@ -275,9 +290,9 @@ export default function FlowEditor() {
       console.log('New node created:', newNode);
 
       // Update React Flow's state through the change handler
-      handleNodesChange([{ type: 'add', item: newNode }]);
+      onNodesChange([{ type: 'add', item: newNode }]);
     },
-    [flow, flowId, reactFlowInstance, handleNodesChange]
+    [flow, flowId, reactFlowInstance, onNodesChange]
   );
 
   const saveFlow = useCallback(async () => {
@@ -483,13 +498,14 @@ export default function FlowEditor() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
         onInit={setReactFlowInstance}
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         connectionMode={ConnectionMode.Loose}
         defaultEdgeOptions={{ type: 'smoothstep' }}
         deleteKeyCode={['Backspace', 'Delete']}
