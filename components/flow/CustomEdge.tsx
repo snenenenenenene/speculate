@@ -35,14 +35,22 @@ export default function CustomEdge({
   return (
     <>
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
-      <g
-        transform={`translate(${labelX - 10} ${labelY - 10})`}
-        className="opacity-0 hover:opacity-100 cursor-pointer transition-opacity"
-        onClick={handleEdgeClick}
+      {/* Delete button in the middle of the edge */}
+      <foreignObject
+        width={24}
+        height={24}
+        x={labelX - 12}
+        y={labelY - 12}
+        className="opacity-0 hover:opacity-100 transition-opacity duration-300"
+        requiredExtensions="http://www.w3.org/1999/xhtml"
       >
-        <circle r="12" fill="white" className="stroke-muted" />
-        <X className="w-4 h-4 text-muted-foreground" style={{ transform: 'translate(-8px, -8px)' }} />
-      </g>
+        <div
+          className="h-6 w-6 rounded-full bg-white border border-muted flex items-center justify-center cursor-pointer hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
+          onClick={handleEdgeClick}
+        >
+          <X className="h-4 w-4" />
+        </div>
+      </foreignObject>
     </>
   );
 }
