@@ -37,7 +37,7 @@ export default function ProjectPage({
   const [project, setProject] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [flows, setFlows] = useState<Flow[]>([]);
-  const { chartStore } = useStores();
+  const { FlowStore } = useStores();
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -46,19 +46,19 @@ export default function ProjectPage({
         const data = await response.json();
         setProject(data.project);
         
-        // Set current project in chartStore
-        chartStore.setCurrentProject(data.project);
+        // Set current project in FlowStore
+        FlowStore.setCurrentProject(data.project);
         
         // Fetch flows
         const flowsResponse = await fetch(`/api/projects/${projectId}/flows`);
         const flowsData = await flowsResponse.json();
         setFlows(flowsData.flows);
         
-        // Update chartStore with the fetched flows
+        // Update FlowStore with the fetched flows
         if (flowsData.flows && Array.isArray(flowsData.flows)) {
-          chartStore.setFlows(flowsData.flows);
+          FlowStore.setFlows(flowsData.flows);
           if (flowsData.flows.length > 0) {
-            chartStore.setCurrentDashboardTab(flowsData.flows[0].id);
+            FlowStore.setCurrentDashboardTab(flowsData.flows[0].id);
           }
         }
       } catch (error) {

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useParams } from 'next/navigation';
-import { useChartStore } from '@/stores/chartStore';
+import { useRootStore } from '@/stores/rootStore';
 import { toast } from 'sonner';
 
 export type NodeWrapperProps = {
@@ -46,7 +46,7 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
 
   const params = useParams();
   const flowId = params.flowId as string;
-  const { removeNode } = useChartStore();
+  const { removeNode } = useRootStore();
 
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -57,8 +57,14 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
       return;
     }
     
-    console.log('NodeWrapper: Deleting node', { flowId, id });
-    removeNode(flowId, id);
+    try {
+      console.log('NodeWrapper: Deleting node', { flowId, id });
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('NodeWrapper: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
   }, [flowId, id, removeNode]);
 
   const confirmDelete = () => {

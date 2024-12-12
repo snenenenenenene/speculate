@@ -13,7 +13,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Save } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import ReactFlow, {
   Background,
@@ -24,10 +24,14 @@ import ReactFlow, {
   applyNodeChanges,
   addEdge,
   ConnectionMode,
+  Connection,
+  EdgeChange,
+  NodeChange,
+  ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import '@/styles/flow-theme.css';
-import { useChartStore } from "@/stores/chartStore";
+import { useRootStore } from "@/stores/rootStore";
 import { nanoid } from "nanoid";
 import { useParams } from "next/navigation";
 
@@ -128,8 +132,8 @@ export default function FlowEditor() {
   const projectId = params.projectId as string;
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
-  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, updateFlow } = useChartStore();
-  const flow = useChartStore((state) => state.flows.find((flow) => flow.id === flowId));
+  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, updateFlow, flows } = useRootStore();
+  const flow = flows.find((flow) => flow.id === flowId);
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);

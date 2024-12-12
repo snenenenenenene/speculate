@@ -3,15 +3,15 @@
 // stores/rootStore.ts
 
 import { create } from "zustand";
-import createChartSlice from "./chartSlice";
+import createFlowSlice from "./flowSlice";
 import createCommitSlice from "./commitSlice";
 import createModalSlice from "./modalSlice";
 import createUtilitySlice from "./utilitySlice";
 import createVariableSlice from "./variableSlice";
 
-const useRootStore = create<any>((set, get) => ({
+export const useRootStore = create<any>((set, get) => ({
   // @ts-ignore
-  ...createChartSlice(set, get),
+  ...createFlowSlice(set, get),
   // @ts-ignore
   ...createCommitSlice(set, get),
   // @ts-ignore

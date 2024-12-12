@@ -1,22 +1,71 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // hooks/useStores.ts
 
-import { RootState } from "@/stores/types";
-import useRootStore from "../stores/rootStore";
+import { useRootStore } from '@/stores/rootStore';
 
-type Stores = {
-  [K in keyof RootState]: RootState;
-} & { rootStore: RootState };
+export const useStores = () => {
+  const {
+    // Flow Management
+    flows,
+    currentDashboardTab,
+    setFlows,
+    addFlow,
+    removeFlow,
+    updateFlow,
+    
+    // Node Management
+    removeNode,
+    updateNode,
+    addNode,
+    updateNodes,
+    
+    // Edge Management
+    addEdge,
+    updateEdges,
+    
+    // Dashboard Management
+    setCurrentDashboardTab,
+    addNewTab,
+    deleteTab,
+    updateFlowName,
+    setCurrentTabColor,
+    setOnePage,
+    
+    // Project Management
+    currentProject,
+    setCurrentProject,
+    
+    // Import/Export
+    importFlow,
+    exportFlow,
+    exportAllFlows,
+  } = useRootStore();
 
-export const useStores = (): Stores => {
-  const rootStore = useRootStore();
   return {
-    // @ts-ignore
-    chartStore: rootStore,
-    commitStore: rootStore,
-    variableStore: rootStore,
-    modalStore: rootStore,
-    utilityStore: rootStore,
-    rootStore,
+    flowStore: {
+      flows,
+      currentDashboardTab,
+      setFlows,
+      addFlow,
+      removeFlow,
+      updateFlow,
+      removeNode,
+      updateNode,
+      addNode,
+      updateNodes,
+      addEdge,
+      updateEdges,
+      setCurrentDashboardTab,
+      addNewTab,
+      deleteTab,
+      updateFlowName,
+      setCurrentTabColor,
+      setOnePage,
+      currentProject,
+      setCurrentProject,
+      importFlow,
+      exportFlow,
+      exportAllFlows,
+    }
   };
 };

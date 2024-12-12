@@ -6,7 +6,7 @@ import { Handle, Position } from 'reactflow';
 import { useParams } from 'next/navigation';
 import { nanoid } from 'nanoid';
 import { toast } from 'sonner';
-import { useStores } from '@/hooks/use-stores';
+import { useRootStore } from '@/stores/rootStore';
 import { NodeProps } from '@/types/nodes';
 import { 
   StartNodeData, 
@@ -49,7 +49,7 @@ import { InputType } from 'zlib';
 type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
 
 export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
 
@@ -59,20 +59,14 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('StartNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('StartNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   const handleAddVariable = useCallback(() => {
     const newVariable = { name: '', value: '' };
@@ -80,16 +74,16 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
       ...data,
       variables: [...(data.variables || []), newVariable]
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleRemoveVariable = useCallback((index: number) => {
     const newData = {
       ...data,
       variables: data.variables?.filter((_, i) => i !== index)
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
@@ -105,7 +99,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
           <Label>Welcome Message</Label>
           <Input
             value={data.message || ''}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, message: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, message: e.target.value })}
             placeholder="Enter welcome message..."
             className="h-9"
           />
@@ -131,7 +125,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
                 onChange={(e) => {
                   const newVariables = [...(data.variables || [])];
                   newVariables[index] = { ...variable, name: e.target.value };
-                  chartStore.updateNode(flowId, id, { ...data, variables: newVariables });
+                  updateNode(flowId, id, { ...data, variables: newVariables });
                 }}
                 placeholder="Variable name"
                 className="h-9"
@@ -141,7 +135,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
                 onChange={(e) => {
                   const newVariables = [...(data.variables || [])];
                   newVariables[index] = { ...variable, value: e.target.value };
-                  chartStore.updateNode(flowId, id, { ...data, variables: newVariables });
+                  updateNode(flowId, id, { ...data, variables: newVariables });
                 }}
                 placeholder="Initial value"
                 className="h-9"
@@ -163,7 +157,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
 });
 
 export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
 
@@ -173,20 +167,14 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('EndNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('EndNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   return (
     <NodeWrapper
@@ -202,7 +190,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
           <Label>End Type</Label>
           <Select
             value={data.endType || 'terminal'}
-            onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, endType: value as 'terminal' | 'redirect' })}
+            onValueChange={(value) => updateNode(flowId, id, { ...data, endType: value as 'terminal' | 'redirect' })}
           >
             <SelectTrigger className="h-9">
               <SelectValue placeholder="Select end type" />
@@ -218,7 +206,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
           <Label>Completion Message</Label>
           <Input
             value={data.message || ''}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, message: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, message: e.target.value })}
             placeholder="Enter completion message..."
             className="h-9"
           />
@@ -230,7 +218,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
               <Label>Redirect Flow</Label>
               <Select
                 value={data.redirectFlow}
-                onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, redirectFlow: value })}
+                onValueChange={(value) => updateNode(flowId, id, { ...data, redirectFlow: value })}
               >
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Select flow" />
@@ -251,7 +239,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
                   size="sm"
                   onClick={() => {
                     const newVariableMap = { ...data.variableMap, '': '' };
-                    chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    updateNode(flowId, id, { ...data, variableMap: newVariableMap });
                   }}
                   className="h-7 px-2"
                 >
@@ -268,7 +256,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
                       const value = newVariableMap[fromVar];
                       delete newVariableMap[fromVar];
                       newVariableMap[e.target.value] = value;
-                      chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                      updateNode(flowId, id, { ...data, variableMap: newVariableMap });
                     }}
                     placeholder="From variable"
                     className="h-9"
@@ -277,7 +265,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
                     value={toVar}
                     onChange={(e) => {
                       const newVariableMap = { ...data.variableMap, [fromVar]: e.target.value };
-                      chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                      updateNode(flowId, id, { ...data, variableMap: newVariableMap });
                     }}
                     placeholder="To variable"
                     className="h-9"
@@ -288,7 +276,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
                     onClick={() => {
                       const newVariableMap = { ...data.variableMap };
                       delete newVariableMap[fromVar];
-                      chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                      updateNode(flowId, id, { ...data, variableMap: newVariableMap });
                     }}
                     className="h-9 w-9 p-0"
                   >
@@ -305,7 +293,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
 });
 
 export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
   const DEFAULT_QUESTION = "Select one of the following options:";
@@ -317,20 +305,14 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('SingleChoiceNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('SingleChoiceNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   const handleAddOption = useCallback(() => {
     const newOption = { 
@@ -345,16 +327,16 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
       ...data,
       options: [...(data.options || []), newOption]
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
     const newData = {
       ...data,
       options: data.options?.filter(opt => opt.id !== optionId) || []
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
@@ -370,7 +352,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
           <Label>Question</Label>
           <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, question: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
             placeholder="Enter your question..."
             className="h-9"
           />
@@ -397,7 +379,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
                   onChange={(e) => {
                     const newOptions = [...data.options];
                     newOptions[index] = { ...option, label: e.target.value };
-                    chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                    updateNode(flowId, id, { ...data, options: newOptions });
                   }}
                   placeholder={`Option ${index + 1}`}
                   className="h-9"
@@ -421,7 +403,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
                     onChange={(e) => {
                       const newOptions = [...data.options];
                       newOptions[index] = { ...option, weight: Number(e.target.value) };
-                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                      updateNode(flowId, id, { ...data, options: newOptions });
                     }}
                     className="h-8"
                   />
@@ -433,7 +415,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
                     onChange={(e) => {
                       const newOptions = [...data.options];
                       newOptions[index] = { ...option, variableName: e.target.value };
-                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                      updateNode(flowId, id, { ...data, options: newOptions });
                     }}
                     className="h-8"
                   />
@@ -455,7 +437,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
 });
 
 export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
   const DEFAULT_QUESTION = "Select all that apply:";
@@ -466,20 +448,14 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('MultipleChoiceNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('MultipleChoiceNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   const handleAddOption = useCallback(() => {
     const newOption = { 
@@ -494,16 +470,16 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
       ...data,
       options: [...(data.options || []), newOption]
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
     const newData = {
       ...data,
       options: data.options?.filter(opt => opt.id !== optionId) || []
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
@@ -519,7 +495,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
           <Label>Question</Label>
           <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, question: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
             placeholder="Enter your question..."
             className="h-9"
           />
@@ -531,7 +507,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
             <Input
               type="number"
               value={data.minSelections || 0}
-              onChange={(e) => chartStore.updateNode(flowId, id, { ...data, minSelections: Number(e.target.value) })}
+              onChange={(e) => updateNode(flowId, id, { ...data, minSelections: Number(e.target.value) })}
               className="h-8"
             />
           </div>
@@ -540,7 +516,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
             <Input
               type="number"
               value={data.maxSelections || data.options?.length || 0}
-              onChange={(e) => chartStore.updateNode(flowId, id, { ...data, maxSelections: Number(e.target.value) })}
+              onChange={(e) => updateNode(flowId, id, { ...data, maxSelections: Number(e.target.value) })}
               className="h-8"
             />
           </div>
@@ -550,7 +526,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
           <Label className="text-xs">Score Calculation</Label>
           <Select
             value={data.scoreCalculation || 'sum'}
-            onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, scoreCalculation: value as 'sum' | 'average' | 'multiply' })}
+            onValueChange={(value) => updateNode(flowId, id, { ...data, scoreCalculation: value as 'sum' | 'average' | 'multiply' })}
           >
             <SelectTrigger className="h-8">
               <SelectValue placeholder="Select calculation method" />
@@ -584,7 +560,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
                   onChange={(e) => {
                     const newOptions = [...data.options];
                     newOptions[index] = { ...option, label: e.target.value };
-                    chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                    updateNode(flowId, id, { ...data, options: newOptions });
                   }}
                   placeholder={`Option ${index + 1}`}
                   className="h-9"
@@ -608,7 +584,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
                     onChange={(e) => {
                       const newOptions = [...data.options];
                       newOptions[index] = { ...option, weight: Number(e.target.value) };
-                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                      updateNode(flowId, id, { ...data, options: newOptions });
                     }}
                     className="h-8"
                   />
@@ -620,7 +596,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
                     onChange={(e) => {
                       const newOptions = [...data.options];
                       newOptions[index] = { ...option, variableName: e.target.value };
-                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                      updateNode(flowId, id, { ...data, options: newOptions });
                     }}
                     className="h-8"
                   />
@@ -641,7 +617,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
 });
 
 export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
   const DEFAULT_QUESTION = "Do you agree?";
@@ -653,20 +629,14 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('YesNoNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('YesNoNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   return (
     <NodeWrapper
@@ -682,7 +652,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
           <Label>Question</Label>
           <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, question: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
             placeholder="Enter your question..."
             className="h-9"
           />
@@ -696,7 +666,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
                 <Label className="text-xs">Label</Label>
                 <Input
                   value={data.yesLabel || 'Yes'}
-                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, yesLabel: e.target.value })}
+                  onChange={(e) => updateNode(flowId, id, { ...data, yesLabel: e.target.value })}
                   className="h-8"
                 />
               </div>
@@ -704,7 +674,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
                 <Label className="text-xs">Value</Label>
                 <Input
                   value={data.yesValue || '1'}
-                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, yesValue: e.target.value })}
+                  onChange={(e) => updateNode(flowId, id, { ...data, yesValue: e.target.value })}
                   className="h-8"
                 />
               </div>
@@ -724,7 +694,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
                 <Label className="text-xs">Label</Label>
                 <Input
                   value={data.noLabel || 'No'}
-                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, noLabel: e.target.value })}
+                  onChange={(e) => updateNode(flowId, id, { ...data, noLabel: e.target.value })}
                   className="h-8"
                 />
               </div>
@@ -732,7 +702,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
                 <Label className="text-xs">Value</Label>
                 <Input
                   value={data.noValue || '0'}
-                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, noValue: e.target.value })}
+                  onChange={(e) => updateNode(flowId, id, { ...data, noValue: e.target.value })}
                   className="h-8"
                 />
               </div>
@@ -751,7 +721,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
 });
 
 export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
 
@@ -761,20 +731,14 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('WeightNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('WeightNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   return (
     <NodeWrapper
@@ -791,7 +755,7 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
           <Input
             type="number"
             value={data.weight || 0}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, weight: Number(e.target.value) })}
+            onChange={(e) => updateNode(flowId, id, { ...data, weight: Number(e.target.value) })}
             placeholder="Enter weight value..."
             className="h-9"
           />
@@ -801,7 +765,7 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
           <Label>Operation</Label>
           <Select
             value={data.operation || 'multiply'}
-            onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, operation: value as 'multiply' | 'add' })}
+            onValueChange={(value) => updateNode(flowId, id, { ...data, operation: value as 'multiply' | 'add' })}
           >
             <SelectTrigger className="h-9">
               <SelectValue placeholder="Select operation" />
@@ -817,7 +781,7 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
           <Label>Target Variable</Label>
           <Input
             value={data.targetVariable || ''}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, targetVariable: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, targetVariable: e.target.value })}
             placeholder="Enter target variable name..."
             className="h-9"
           />
@@ -828,54 +792,24 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
 });
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
   const [showDialog, setShowDialog] = useState(false);
 
-  // Get the current flow and project to access variables
-  const flow = chartStore.getCurrentFlow();
-  const project = chartStore.getCurrentProject();
-  
-  // Get flow variables from content
-  let flowContent = {};
-  try {
-    if (flow?.content) {
-      flowContent = typeof flow.content === 'string' 
-        ? JSON.parse(flow.content) 
-        : flow.content;
-    }
-  } catch (err) {
-    console.error('Error parsing flow content:', err);
-  }
-  
-  const flowVariables = (flowContent as any)?.variables || [];
-  const projectVariables = project?.variables || [];
-  
-  const allVariables = useMemo(() => {
-    const localVars = flowVariables.filter(v => v.scope === 'local').map(v => v.name);
-    const globalVars = projectVariables.filter(v => v.scope === 'global').map(v => v.name);
-    return [...localVars, ...globalVars];
-  }, [flowVariables, projectVariables]);
-
   const handleDelete = useCallback(() => {
     if (!flowId) return;
-    chartStore.removeNode(flowId, id);
-  }, [chartStore, flowId, id]);
+    removeNode(id);
+  }, [removeNode, id]);
 
   const handleAddStep = useCallback((step: any) => {
     const newSteps = [...(data.steps || []), step];
-    chartStore.updateNode(flowId, id, { ...data, steps: newSteps });
-  }, [data, flowId, id, chartStore]);
+    updateNode(id, { ...data, steps: newSteps });
+  }, [data, updateNode, id]);
 
   const handleUpdateSteps = useCallback((newSteps: any[]) => {
-    chartStore.updateNode(flowId, id, { ...data, steps: newSteps });
-  }, [data, flowId, id, chartStore]);
-
-  // Calculate if any conditions are currently true
-  const hasActivePath = data.steps?.some(step => 
-    step.type === 'condition' && step.variable && step.value
-  );
+    updateNode(id, { ...data, steps: newSteps });
+  }, [data, updateNode, id]);
 
   return (
     <>
@@ -952,7 +886,9 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
           </div>
 
           {/* Status Indicator */}
-          {hasActivePath && (
+          {data.steps?.some(step => 
+            step.type === 'condition' && step.variable && step.value
+          ) && (
             <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           )}
         </div>
@@ -964,7 +900,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
         onAddStep={handleAddStep}
         steps={data.steps || []}
         onUpdateSteps={handleUpdateSteps}
-        variables={allVariables}
       />
     </>
   );
@@ -973,7 +908,7 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
 FunctionNode.displayName = 'FunctionNode';
 
 export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
 
@@ -983,20 +918,14 @@ export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>)
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('InputNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('InputNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   const handleInputTypeChange = useCallback((value: InputType) => {
     const newData = {
@@ -1006,13 +935,13 @@ export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>)
                  value === 'phone' ? [{ type: 'phone', message: 'Please enter a valid phone number' }] :
                  data.validation
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleValidationChange = useCallback((rules: ValidationRule[]) => {
     const newData = { ...data, validation: rules };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
@@ -1026,7 +955,7 @@ export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>)
           <Label>Label</Label>
           <Input
             value={data.label}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, label: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, label: e.target.value })}
             placeholder="Enter field label..."
             className="h-9"
           />
@@ -1054,7 +983,7 @@ export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>)
           <Label>Variable Name</Label>
           <Input
             value={data.variableName}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, variableName: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, variableName: e.target.value })}
             placeholder="Enter variable name..."
             className="h-9"
           />
@@ -1065,7 +994,7 @@ export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>)
             <Label>Placeholder</Label>
             <Input
               value={data.placeholder}
-              onChange={(e) => chartStore.updateNode(flowId, id, { ...data, placeholder: e.target.value })}
+              onChange={(e) => updateNode(flowId, id, { ...data, placeholder: e.target.value })}
               placeholder="Enter placeholder text..."
               className="h-9"
             />
@@ -1079,7 +1008,7 @@ export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>)
 InputNode.displayName = 'InputNode';
 
 export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData>) => {
-  const { chartStore } = useStores();
+  const { removeNode, updateNode } = useRootStore();
   const params = useParams();
   const flowId = params.flowId as string;
 
@@ -1089,20 +1018,14 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
       return;
     }
     
-    const currentInstance = chartStore.getCurrentChartInstance();
-    if (!currentInstance) {
-      console.error('MatrixNode: No current instance found');
-      return;
-    }
-    
     try {
-      chartStore.removeNode(flowId, id);
+      removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
       console.error('MatrixNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
-  }, [id, flowId, chartStore]);
+  }, [id, flowId]);
 
   const handleAddRow = useCallback(() => {
     const newRow = {
@@ -1114,8 +1037,8 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
       ...data,
       rows: [...data.rows, newRow]
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleAddColumn = useCallback(() => {
     const newColumn = {
@@ -1127,24 +1050,24 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
       ...data,
       columns: [...data.columns, newColumn]
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleRemoveRow = useCallback((rowId: string) => {
     const newData = {
       ...data,
       rows: data.rows.filter(row => row.id !== rowId)
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleRemoveColumn = useCallback((columnId: string) => {
     const newData = {
       ...data,
       columns: data.columns.filter(col => col.id !== columnId)
     };
-    chartStore.updateNode(flowId, id, newData);
-  }, [data, flowId, id, chartStore]);
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
@@ -1158,7 +1081,7 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
           <Label>Title</Label>
           <Input
             value={data.title}
-            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, title: e.target.value })}
+            onChange={(e) => updateNode(flowId, id, { ...data, title: e.target.value })}
             placeholder="Enter matrix title..."
             className="h-9"
           />
@@ -1169,7 +1092,7 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
           <Select 
             value={data.cellType} 
             onValueChange={(value: 'radio' | 'checkbox') => 
-              chartStore.updateNode(flowId, id, { ...data, cellType: value })
+              updateNode(flowId, id, { ...data, cellType: value })
             }
           >
             <SelectTrigger>
@@ -1200,7 +1123,7 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
                 onChange={(e) => {
                   const newRows = [...data.rows];
                   newRows[index] = { ...row, question: e.target.value };
-                  chartStore.updateNode(flowId, id, { ...data, rows: newRows });
+                  updateNode(flowId, id, { ...data, rows: newRows });
                 }}
                 placeholder={`Question ${index + 1}`}
                 className="h-9"
@@ -1210,7 +1133,7 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
                 onChange={(e) => {
                   const newRows = [...data.rows];
                   newRows[index] = { ...row, variableName: e.target.value };
-                  chartStore.updateNode(flowId, id, { ...data, rows: newRows });
+                  updateNode(flowId, id, { ...data, rows: newRows });
                 }}
                 placeholder="Variable name"
                 className="h-9 w-32"
@@ -1245,7 +1168,7 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
                 onChange={(e) => {
                   const newColumns = [...data.columns];
                   newColumns[index] = { ...column, label: e.target.value };
-                  chartStore.updateNode(flowId, id, { ...data, columns: newColumns });
+                  updateNode(flowId, id, { ...data, columns: newColumns });
                 }}
                 placeholder={`Option ${index + 1}`}
                 className="h-9"
@@ -1256,7 +1179,7 @@ export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData
                 onChange={(e) => {
                   const newColumns = [...data.columns];
                   newColumns[index] = { ...column, value: Number(e.target.value) };
-                  chartStore.updateNode(flowId, id, { ...data, columns: newColumns });
+                  updateNode(flowId, id, { ...data, columns: newColumns });
                 }}
                 placeholder="Value"
                 className="h-9 w-24"

@@ -25,8 +25,8 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const dragRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = React.useState(false);
-	const { chartStore } = useStores() as any;
-	const currentInstance = chartStore.getCurrentChartInstance();
+	const { flowStore } = useStores() as any;
+	const currentInstance = flowStore.getCurrentChartInstance();
 
 	const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -38,7 +38,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 		}
 
 		try {
-			await chartStore.importFlow(file);
+			await flowStore.importFlow(file);
 			onClose();
 		} catch (error) {
 			toast.error("Failed to import flow");
@@ -72,7 +72,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 		}
 
 		try {
-			await chartStore.importFlow(file);
+			await flowStore.importFlow(file);
 			onClose();
 		} catch (error) {
 			toast.error("Failed to import flow");
@@ -142,7 +142,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 							{currentInstance && (
 								<Button
 									variant="outline"
-									onClick={() => chartStore.exportFlow(currentInstance.id)}
+									onClick={() => flowStore.exportFlow(currentInstance.id)}
 									className="w-full justify-between h-auto py-3"
 								>
 									<div className="flex items-center gap-3">
@@ -158,7 +158,7 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({ isOpen, onClose }
 
 							<Button
 								variant="outline"
-								onClick={() => chartStore.exportAllFlows()}
+								onClick={() => flowStore.exportAllFlows()}
 								className="w-full justify-between h-auto py-3"
 							>
 								<div className="flex items-center gap-3">
