@@ -8,7 +8,7 @@ import { GitBranch, Users2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { useStores } from "@/stores/use-stores";
+import { useStores } from "@/hooks/use-stores";
 
 interface ProjectData {
   id: string;

@@ -6,7 +6,7 @@ import { Handle, Position } from 'reactflow';
 import { useParams } from 'next/navigation';
 import { nanoid } from 'nanoid';
 import { toast } from 'sonner';
-import { useStores } from '@/hooks/useStores';
+import { useStores } from '@/hooks/use-stores';
 import { NodeProps } from '@/types/nodes';
 import { 
   StartNodeData, 

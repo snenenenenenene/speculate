@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // lib/keyboard-shortcuts.ts
 
-import { useStores } from "@/hooks/useStores";
+import { useStores } from "@/hooks/use-stores";
 import { useCallback, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useReactFlow } from "reactflow";

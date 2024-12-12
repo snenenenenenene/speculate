@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useStores } from '@/hooks/useStores';
+import { useStores } from '@/hooks/use-stores';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
