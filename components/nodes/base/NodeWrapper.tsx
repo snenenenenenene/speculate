@@ -18,6 +18,8 @@ export type NodeWrapperProps = {
   children: React.ReactNode;
   headerClassName?: string;
   contentClassName?: string;
+  headerIcon?: React.ReactNode;
+  headerActions?: React.ReactNode;
   handles?: {
     top?: boolean;
     right?: boolean;
@@ -36,6 +38,8 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
     children,
     headerClassName,
     contentClassName,
+    headerIcon,
+    headerActions,
     handles = { top: true, bottom: true },
     customHandles
   } = props;
@@ -129,16 +133,12 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
             headerClassName
           )}>
             <div className="flex items-center gap-2">
-              <div className="cursor-move">
-                <GripVertical className="h-4 w-4 text-zinc-500" />
-              </div>
+              {headerIcon}
               <h4 className="font-medium leading-none nodrag">{title}</h4>
             </div>
-            {onDelete && (
-              <div className={cn(
-                "absolute right-2 top-2 opacity-0 group-hover:opacity-100",
-                "transition-opacity duration-200"
-              )}>
+            <div className="flex items-center space-x-1">
+              {headerActions}
+              {onDelete && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -147,8 +147,8 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </CardHeader>
           <CardContent className={cn(
             "pt-0 nodrag",

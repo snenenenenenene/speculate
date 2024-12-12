@@ -8,6 +8,7 @@ import { GitBranch, Users2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useStores } from "@/stores/use-stores";
 
 interface ProjectData {
   id: string;
@@ -36,6 +37,7 @@ export default function ProjectPage({
   const [project, setProject] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [flows, setFlows] = useState<Flow[]>([]);
+  const { chartStore } = useStores();
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -44,10 +46,21 @@ export default function ProjectPage({
         const data = await response.json();
         setProject(data.project);
         
+        // Set current project in chartStore
+        chartStore.setCurrentProject(data.project);
+        
         // Fetch flows
         const flowsResponse = await fetch(`/api/projects/${projectId}/flows`);
         const flowsData = await flowsResponse.json();
         setFlows(flowsData.flows);
+        
+        // Update chartStore with the fetched flows
+        if (flowsData.flows && Array.isArray(flowsData.flows)) {
+          chartStore.setFlows(flowsData.flows);
+          if (flowsData.flows.length > 0) {
+            chartStore.setCurrentDashboardTab(flowsData.flows[0].id);
+          }
+        }
       } catch (error) {
         console.error("Error fetching project:", error);
       } finally {

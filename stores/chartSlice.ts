@@ -18,6 +18,7 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
   flows: [],
   currentDashboardTab: "",
   tempGeneratedChart: null, // Temporary storage for AI-generated chart
+  currentProject: null,
 
   setCurrentDashboardTab: (tabId: string) =>
     set((state) => {
@@ -293,6 +294,16 @@ const createChartSlice: StateCreator<any> = (set, get) => ({
     console.log('ChartSlice: Found flow:', flow);
     return flow || null;
   },
+
+  getCurrentProject: () => {
+    const { currentProject } = get();
+    return currentProject || null;
+  },
+
+  setCurrentProject: (project: any) => {
+    set({ currentProject: project });
+  },
+
   addAIChart: (chartData: any) => {
     const newFlow: ChartInstance = {
       id: uuidv4(),

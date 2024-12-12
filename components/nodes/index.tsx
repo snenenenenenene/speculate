@@ -1,116 +1,173 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
-import { Handle, NodeProps, Position } from 'reactflow';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useState, useEffect, useMemo } from 'react';
+import { Handle, Position } from 'reactflow';
 import { useParams } from 'next/navigation';
-import { toast } from 'sonner';
 import { nanoid } from 'nanoid';
-import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useStores } from '@/hooks/useStores';
+import { NodeProps } from '@/types/nodes';
+import { 
+  StartNodeData, 
+  EndNodeData, 
+  SingleChoiceNodeData, 
+  MultipleChoiceNodeData,
+  YesNoNodeData,
+  WeightNodeData,
+  FunctionNodeData,
+  FunctionStep,
+  InputNodeData,
+  MatrixNodeData
+} from '@/types/nodes';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FunctionNodeData, MultipleChoiceNodeData, SingleChoiceNodeData, WeightNodeData, YesNoNodeData } from '@/types/nodes';
-import { useStores } from '@/hooks/useStores';
 import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { NodeWrapper } from './base/NodeWrapper';
+import { FunctionNodeDialog } from './function/FunctionNodeDialog';
+
+import { 
+  Trash2,
+  Input as InputIcon,
+  Text,
+  CheckSquare,
+  SplitSquareHorizontal,
+  Scale,
+  Settings2,
+  Wrench as FunctionSquare,
+  XCircle,
+  CircleDot,
+  Flag
+} from 'lucide-react';
+import { InputType } from 'zlib';
 
 type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
 
-interface NodeWrapperProps {
-  title: string;
-  children: React.ReactNode;
-  selected?: boolean;
-  onDelete?: () => void;
-  handles?: {
-    top?: boolean;
-    bottom?: boolean;
-  };
-  headerClassName?: string;
-}
-
-const NodeWrapper = memo(({ title, children, selected, onDelete, handles, headerClassName }: NodeWrapperProps) => {
-  return (
-    <Card className={`min-w-[300px] shadow-md ${selected ? 'ring-2 ring-blue-500' : ''}`}>
-      <div className={`flex items-center justify-between p-3 border-b ${headerClassName || ''}`}>
-        <span className="font-medium">{title}</span>
-        {onDelete && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="h-8 w-8 p-0"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-      {handles?.top && (
-        <Handle
-          type="target"
-          position={Position.Top}
-          style={{ top: -5 }}
-        />
-      )}
-      {children}
-      {handles?.bottom && (
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          style={{ bottom: -5 }}
-        />
-      )}
-    </Card>
-  );
-});
-
-NodeWrapper.displayName = 'NodeWrapper';
-
-export const StartNode = memo(({ id, data, selected }: NodeProps) => {
-  const { chartStore } = useStores() as any;
-
-  const handleDelete = useCallback((onSuccess: () => void, onError: (error: Error) => void) => {
-    console.log('StartNode: Attempting to delete node', { id, instanceId: data.instanceId });
-    try {
-      const result = chartStore.removeNode(data.instanceId, id);
-      console.log('StartNode: Node deletion result:', result);
-      console.log('StartNode: Current nodes after deletion:', chartStore.getCurrentChartInstance()?.nodes);
-      onSuccess();
-    } catch (error) {
-      console.error('StartNode: Error deleting node:', error);
-      onError(error instanceof Error ? error : new Error('Failed to delete node'));
-    }
-  }, [chartStore, data.instanceId, id]);
-
-  return (
-    <NodeWrapper
-      title="Start"
-      selected={selected}
-      onDelete={() => handleDelete(() => {}, () => {})}
-      handles={{ bottom: true }}
-    >
-      <div className="space-y-2">
-        <Label>Message</Label>
-        <Input
-          value={data.message || ""}
-          onChange={(e) => {}}
-          placeholder="Enter start message..."
-          className="h-9"
-        />
-      </div>
-    </NodeWrapper>
-  );
-});
-
-export const EndNode = memo(({ id, data, selected }: NodeProps) => {
+export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>) => {
   const { chartStore } = useStores();
   const params = useParams();
   const flowId = params.flowId as string;
 
   const handleDelete = useCallback(() => {
-    console.log('EndNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('StartNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('StartNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('StartNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
+
+  const handleAddVariable = useCallback(() => {
+    const newVariable = { name: '', value: '' };
+    const newData = {
+      ...data,
+      variables: [...(data.variables || []), newVariable]
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
+
+  const handleRemoveVariable = useCallback((index: number) => {
+    const newData = {
+      ...data,
+      variables: data.variables?.filter((_, i) => i !== index)
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
+
+  return (
+    <NodeWrapper
+      title="Start"
+      selected={selected}
+      onDelete={handleDelete}
+      handles={{ bottom: true }}
+      headerClassName="bg-blue-50 border-blue-100"
+      headerIcon={<Flag className="h-4 w-4 text-blue-500" />}
+    >
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Welcome Message</Label>
+          <Input
+            value={data.message || ''}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, message: e.target.value })}
+            placeholder="Enter welcome message..."
+            className="h-9"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Initial Variables</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddVariable}
+              className="h-7 px-2"
+            >
+              Add Variable
+            </Button>
+          </div>
+          
+          {data.variables?.map((variable, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                value={variable.name}
+                onChange={(e) => {
+                  const newVariables = [...(data.variables || [])];
+                  newVariables[index] = { ...variable, name: e.target.value };
+                  chartStore.updateNode(flowId, id, { ...data, variables: newVariables });
+                }}
+                placeholder="Variable name"
+                className="h-9"
+              />
+              <Input
+                value={variable.value}
+                onChange={(e) => {
+                  const newVariables = [...(data.variables || [])];
+                  newVariables[index] = { ...variable, value: e.target.value };
+                  chartStore.updateNode(flowId, id, { ...data, variables: newVariables });
+                }}
+                placeholder="Initial value"
+                className="h-9"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveVariable(index)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </NodeWrapper>
+  );
+});
+
+export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => {
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
     if (!flowId) {
       console.error('EndNode: No flow ID found');
       return;
@@ -126,7 +183,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps) => {
       chartStore.removeNode(flowId, id);
       toast.success('Node deleted successfully');
     } catch (error) {
-      console.error('Error deleting node:', error);
+      console.error('EndNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
   }, [id, flowId, chartStore]);
@@ -137,15 +194,111 @@ export const EndNode = memo(({ id, data, selected }: NodeProps) => {
       selected={selected}
       onDelete={handleDelete}
       handles={{ top: true }}
+      headerClassName="bg-red-50 border-red-100"
+      headerIcon={<XCircle className="h-4 w-4 text-red-500" />}
     >
-      <div className="space-y-2">
-        <Label>Message</Label>
-        <Input
-          value={data.message || ""}
-          onChange={(e) => {}}
-          placeholder="Enter end message..."
-          className="h-9"
-        />
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>End Type</Label>
+          <Select
+            value={data.endType || 'terminal'}
+            onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, endType: value as 'terminal' | 'redirect' })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select end type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="terminal">Terminal</SelectItem>
+              <SelectItem value="redirect">Redirect</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Completion Message</Label>
+          <Input
+            value={data.message || ''}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, message: e.target.value })}
+            placeholder="Enter completion message..."
+            className="h-9"
+          />
+        </div>
+
+        {data.endType === 'redirect' && (
+          <>
+            <div className="space-y-2">
+              <Label>Redirect Flow</Label>
+              <Select
+                value={data.redirectFlow}
+                onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, redirectFlow: value })}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select flow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flow1">Flow 1</SelectItem>
+                  <SelectItem value="flow2">Flow 2</SelectItem>
+                  <SelectItem value="flow3">Flow 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Variable Mapping</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newVariableMap = { ...data.variableMap, '': '' };
+                    chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                  }}
+                  className="h-7 px-2"
+                >
+                  Add Mapping
+                </Button>
+              </div>
+              
+              {data.variableMap && Object.entries(data.variableMap).map(([fromVar, toVar], index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    value={fromVar}
+                    onChange={(e) => {
+                      const newVariableMap = { ...data.variableMap };
+                      const value = newVariableMap[fromVar];
+                      delete newVariableMap[fromVar];
+                      newVariableMap[e.target.value] = value;
+                      chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    }}
+                    placeholder="From variable"
+                    className="h-9"
+                  />
+                  <Input
+                    value={toVar}
+                    onChange={(e) => {
+                      const newVariableMap = { ...data.variableMap, [fromVar]: e.target.value };
+                      chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    }}
+                    placeholder="To variable"
+                    className="h-9"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newVariableMap = { ...data.variableMap };
+                      delete newVariableMap[fromVar];
+                      chartStore.updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    }}
+                    className="h-9 w-9 p-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </NodeWrapper>
   );
@@ -155,6 +308,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
   const { chartStore } = useStores();
   const params = useParams();
   const flowId = params.flowId as string;
+  const DEFAULT_QUESTION = "Select one of the following options:";
 
   const handleDelete = useCallback(() => {
     console.log('SingleChoiceNode: Attempting to delete node', { id, instanceId: flowId });
@@ -178,84 +332,122 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
     }
   }, [id, flowId, chartStore]);
 
-  const DEFAULT_QUESTION = "Select one of the following options:";
-
-  const handleQuestionChange = useCallback((value: string) => {
-    data.question = value;
-  }, [data]);
-
-  const handleOptionChange = useCallback((optionId: string, value: string) => {
-    const option = data.options?.find(opt => opt.id === optionId);
-    if (option) {
-      option.label = value;
-    }
-  }, [data.options]);
-
   const handleAddOption = useCallback(() => {
-    const newOption = { id: nanoid(), label: '', nextNodeId: null };
-    data.options = [...(data.options || []), newOption];
-  }, [data]);
+    const newOption = { 
+      id: nanoid(), 
+      label: '', 
+      nextNodeId: null,
+      weight: 0,
+      variableName: '',
+      value: ''
+    };
+    const newData = {
+      ...data,
+      options: [...(data.options || []), newOption]
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
-    data.options = data.options?.filter(opt => opt.id !== optionId) || [];
-  }, [data]);
-
-  // Initialize options if they don't exist
-  useEffect(() => {
-    if (!data.options) {
-      data.options = [
-        { id: nanoid(), label: 'Option 1', nextNodeId: null },
-        { id: nanoid(), label: 'Option 2', nextNodeId: null }
-      ];
-    }
-  }, [data]);
+    const newData = {
+      ...data,
+      options: data.options?.filter(opt => opt.id !== optionId) || []
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
   return (
     <NodeWrapper
       title="Single Choice"
       selected={selected}
       onDelete={handleDelete}
-      handles={{ top: true, bottom: true }}
+      handles={{ top: true }}
+      headerClassName="bg-purple-50 border-purple-100"
+      headerIcon={<CircleDot className="h-4 w-4 text-purple-500" />}
     >
-      <div className="space-y-4">
+      <div className="p-4 space-y-4">
         <div className="space-y-2">
           <Label>Question</Label>
           <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => handleQuestionChange(e.target.value)}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, question: e.target.value })}
             placeholder="Enter your question..."
             className="h-9"
           />
         </div>
 
         <div className="space-y-2">
-          <Label>Options</Label>
+          <div className="flex items-center justify-between">
+            <Label>Options</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddOption}
+              className="h-7 px-2"
+            >
+              Add Option
+            </Button>
+          </div>
+          
           {data.options?.map((option, index) => (
-            <div key={option.id} className="flex items-center gap-2">
-              <Input
-                value={option.label}
-                onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                placeholder={`Option ${index + 1}`}
-                className="h-9"
+            <div key={option.id} className="relative space-y-2 p-3 bg-muted/30 rounded-md">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={option.label}
+                  onChange={(e) => {
+                    const newOptions = [...data.options];
+                    newOptions[index] = { ...option, label: e.target.value };
+                    chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                  }}
+                  placeholder={`Option ${index + 1}`}
+                  className="h-9"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemoveOption(option.id)}
+                  className="h-9 w-9 p-0"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Weight</Label>
+                  <Input
+                    type="number"
+                    value={option.weight || 0}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, weight: Number(e.target.value) };
+                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Variable Name</Label>
+                  <Input
+                    value={option.variableName || ''}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, variableName: e.target.value };
+                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+              </div>
+
+              <Handle
+                type="source"
+                position={Position.Right}
+                id={option.id}
+                className="w-3 h-3 border-2 !bg-background"
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveOption(option.id)}
-                className="h-9 w-9 p-0"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAddOption}
-            className="w-full"
-          >
-            Add Option
-          </Button>
         </div>
       </div>
     </NodeWrapper>
@@ -266,9 +458,9 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
   const { chartStore } = useStores();
   const params = useParams();
   const flowId = params.flowId as string;
+  const DEFAULT_QUESTION = "Select all that apply:";
 
   const handleDelete = useCallback(() => {
-    console.log('MultipleChoiceNode: Attempting to delete node', { id, instanceId: flowId });
     if (!flowId) {
       console.error('MultipleChoiceNode: No flow ID found');
       return;
@@ -289,38 +481,29 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
     }
   }, [id, flowId, chartStore]);
 
-  const { chartStore } = useStores() as any;
-  const DEFAULT_QUESTION = "Select all that apply:";
-
-  const handleQuestionChange = useCallback((value: string) => {
-    data.question = value;
-  }, [data]);
-
-  const handleOptionChange = useCallback((optionId: string, value: string) => {
-    const option = data.options?.find(opt => opt.id === optionId);
-    if (option) {
-      option.label = value;
-    }
-  }, [data.options]);
-
   const handleAddOption = useCallback(() => {
-    const newOption = { id: nanoid(), label: '', nextNodeId: null };
-    data.options = [...(data.options || []), newOption];
-  }, [data]);
+    const newOption = { 
+      id: nanoid(), 
+      label: '', 
+      nextNodeId: null,
+      weight: 0,
+      variableName: '',
+      value: ''
+    };
+    const newData = {
+      ...data,
+      options: [...(data.options || []), newOption]
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
-    data.options = data.options?.filter(opt => opt.id !== optionId) || [];
-  }, [data]);
-
-  // Initialize options if they don't exist
-  useEffect(() => {
-    if (!data.options) {
-      data.options = [
-        { id: nanoid(), label: 'Option 1', nextNodeId: null },
-        { id: nanoid(), label: 'Option 2', nextNodeId: null }
-      ];
-    }
-  }, [data]);
+    const newData = {
+      ...data,
+      options: data.options?.filter(opt => opt.id !== optionId) || []
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
   return (
     <NodeWrapper
@@ -328,48 +511,131 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
       selected={selected}
       onDelete={handleDelete}
       handles={{ top: true, bottom: true }}
+      headerClassName="bg-indigo-50 border-indigo-100"
+      headerIcon={<CheckSquare className="h-4 w-4 text-indigo-500" />}
     >
-      <div className="space-y-4">
+      <div className="p-4 space-y-4">
         <div className="space-y-2">
           <Label>Question</Label>
           <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => handleQuestionChange(e.target.value)}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, question: e.target.value })}
             placeholder="Enter your question..."
             className="h-9"
           />
         </div>
 
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Min Selections</Label>
+            <Input
+              type="number"
+              value={data.minSelections || 0}
+              onChange={(e) => chartStore.updateNode(flowId, id, { ...data, minSelections: Number(e.target.value) })}
+              className="h-8"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Max Selections</Label>
+            <Input
+              type="number"
+              value={data.maxSelections || data.options?.length || 0}
+              onChange={(e) => chartStore.updateNode(flowId, id, { ...data, maxSelections: Number(e.target.value) })}
+              className="h-8"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Score Calculation</Label>
+          <Select
+            value={data.scoreCalculation || 'sum'}
+            onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, scoreCalculation: value as 'sum' | 'average' | 'multiply' })}
+          >
+            <SelectTrigger className="h-8">
+              <SelectValue placeholder="Select calculation method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sum">Sum</SelectItem>
+              <SelectItem value="average">Average</SelectItem>
+              <SelectItem value="multiply">Multiply</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-2">
-          <Label>Options</Label>
+          <div className="flex items-center justify-between">
+            <Label>Options</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddOption}
+              className="h-7 px-2"
+            >
+              Add Option
+            </Button>
+          </div>
+          
           {data.options?.map((option, index) => (
-            <div key={option.id} className="flex items-center gap-2">
-              <Input
-                value={option.label}
-                onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                placeholder={`Option ${index + 1}`}
-                className="h-9"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveOption(option.id)}
-                className="h-9 w-9 p-0"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+            <div key={option.id} className="relative space-y-2 p-3 bg-muted/30 rounded-md">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={option.label}
+                  onChange={(e) => {
+                    const newOptions = [...data.options];
+                    newOptions[index] = { ...option, label: e.target.value };
+                    chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                  }}
+                  placeholder={`Option ${index + 1}`}
+                  className="h-9"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemoveOption(option.id)}
+                  className="h-9 w-9 p-0"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Weight</Label>
+                  <Input
+                    type="number"
+                    value={option.weight || 0}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, weight: Number(e.target.value) };
+                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Variable Name</Label>
+                  <Input
+                    value={option.variableName || ''}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, variableName: e.target.value };
+                      chartStore.updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+              </div>
             </div>
           ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAddOption}
-            className="w-full"
-          >
-            Add Option
-          </Button>
         </div>
       </div>
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="w-3 h-3 border-2 !bg-background"
+      />
     </NodeWrapper>
   );
 });
@@ -378,6 +644,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
   const { chartStore } = useStores();
   const params = useParams();
   const flowId = params.flowId as string;
+  const DEFAULT_QUESTION = "Do you agree?";
 
   const handleDelete = useCallback(() => {
     console.log('YesNoNode: Attempting to delete node', { id, instanceId: flowId });
@@ -401,26 +668,82 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
     }
   }, [id, flowId, chartStore]);
 
-  const handleQuestionChange = useCallback((value: string) => {
-    data.question = value;
-  }, [data]);
-
   return (
     <NodeWrapper
-      title="Yes/No"
+      title="Yes/No Question"
       selected={selected}
       onDelete={handleDelete}
       handles={{ top: true }}
+      headerClassName="bg-green-50 border-green-100"
+      headerIcon={<SplitSquareHorizontal className="h-4 w-4 text-green-500" />}
     >
-      <div className="space-y-4">
+      <div className="p-4 space-y-4">
         <div className="space-y-2">
           <Label>Question</Label>
           <Input
-            value={data.question || ""}
-            onChange={(e) => handleQuestionChange(e.target.value)}
+            value={data.question || DEFAULT_QUESTION}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, question: e.target.value })}
             placeholder="Enter your question..."
             className="h-9"
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2 relative">
+            <Label>Yes Option</Label>
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <div className="space-y-1">
+                <Label className="text-xs">Label</Label>
+                <Input
+                  value={data.yesLabel || 'Yes'}
+                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, yesLabel: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Value</Label>
+                <Input
+                  value={data.yesValue || '1'}
+                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, yesValue: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <Handle
+                type="source"
+                position={Position.Right}
+                id="yes"
+                className="w-3 h-3 border-2 !bg-background"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 relative">
+            <Label>No Option</Label>
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <div className="space-y-1">
+                <Label className="text-xs">Label</Label>
+                <Input
+                  value={data.noLabel || 'No'}
+                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, noLabel: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Value</Label>
+                <Input
+                  value={data.noValue || '0'}
+                  onChange={(e) => chartStore.updateNode(flowId, id, { ...data, noValue: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <Handle
+                type="source"
+                position={Position.Right}
+                id="no"
+                className="w-3 h-3 border-2 !bg-background"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </NodeWrapper>
@@ -433,7 +756,6 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
   const flowId = params.flowId as string;
 
   const handleDelete = useCallback(() => {
-    console.log('WeightNode: Attempting to delete node', { id, instanceId: flowId });
     if (!flowId) {
       console.error('WeightNode: No flow ID found');
       return;
@@ -454,26 +776,49 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
     }
   }, [id, flowId, chartStore]);
 
-  const handleWeightChange = useCallback((value: string) => {
-    const weight = parseFloat(value) || 1;
-    data.weight = weight;
-  }, [data]);
-
   return (
     <NodeWrapper
       title="Weight"
       selected={selected}
       onDelete={handleDelete}
       handles={{ top: true, bottom: true }}
-      headerClassName="bg-amber-50/50"
+      headerClassName="bg-amber-50 border-amber-100"
+      headerIcon={<Scale className="h-4 w-4 text-amber-500" />}
     >
       <div className="p-4 space-y-4">
-        <div className="flex items-center gap-4">
+        <div className="space-y-2">
+          <Label>Weight Value</Label>
           <Input
             type="number"
             value={data.weight || 0}
-            onChange={(e) => handleWeightChange(e.target.value)}
-            placeholder="Enter weight..."
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, weight: Number(e.target.value) })}
+            placeholder="Enter weight value..."
+            className="h-9"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Operation</Label>
+          <Select
+            value={data.operation || 'multiply'}
+            onValueChange={(value) => chartStore.updateNode(flowId, id, { ...data, operation: value as 'multiply' | 'add' })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select operation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="multiply">Multiply</SelectItem>
+              <SelectItem value="add">Add</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Target Variable</Label>
+          <Input
+            value={data.targetVariable || ''}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, targetVariable: e.target.value })}
+            placeholder="Enter target variable name..."
             className="h-9"
           />
         </div>
@@ -486,280 +831,453 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
   const { chartStore } = useStores();
   const params = useParams();
   const flowId = params.flowId as string;
+  const [showDialog, setShowDialog] = useState(false);
+
+  // Get the current flow and project to access variables
+  const flow = chartStore.getCurrentFlow();
+  const project = chartStore.getCurrentProject();
+  
+  // Get flow variables from content
+  let flowContent = {};
+  try {
+    if (flow?.content) {
+      flowContent = typeof flow.content === 'string' 
+        ? JSON.parse(flow.content) 
+        : flow.content;
+    }
+  } catch (err) {
+    console.error('Error parsing flow content:', err);
+  }
+  
+  const flowVariables = (flowContent as any)?.variables || [];
+  const projectVariables = project?.variables || [];
+  
+  const allVariables = useMemo(() => {
+    const localVars = flowVariables.filter(v => v.scope === 'local').map(v => v.name);
+    const globalVars = projectVariables.filter(v => v.scope === 'global').map(v => v.name);
+    return [...localVars, ...globalVars];
+  }, [flowVariables, projectVariables]);
 
   const handleDelete = useCallback(() => {
-    console.log('FunctionNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) return;
+    chartStore.removeNode(flowId, id);
+  }, [chartStore, flowId, id]);
+
+  const handleAddStep = useCallback((step: any) => {
+    const newSteps = [...(data.steps || []), step];
+    chartStore.updateNode(flowId, id, { ...data, steps: newSteps });
+  }, [data, flowId, id, chartStore]);
+
+  const handleUpdateSteps = useCallback((newSteps: any[]) => {
+    chartStore.updateNode(flowId, id, { ...data, steps: newSteps });
+  }, [data, flowId, id, chartStore]);
+
+  // Calculate if any conditions are currently true
+  const hasActivePath = data.steps?.some(step => 
+    step.type === 'condition' && step.variable && step.value
+  );
+
+  return (
+    <>
+      <NodeWrapper
+        id={id}
+        title="Function"
+        selected={selected}
+        onDelete={handleDelete}
+        handles={{ top: true }}
+        headerClassName="bg-blue-50/80 border-blue-100"
+        headerIcon={<FunctionSquare className="h-4 w-4 text-blue-500" />}
+        headerActions={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowDialog(true)}
+            className="h-6 w-6 hover:bg-blue-100/80"
+          >
+            <Settings2 className="h-4 w-4 text-blue-500" />
+          </Button>
+        }
+      >
+        <div className="p-4 relative min-h-[100px] flex">
+          {/* Left Side - Sequence Preview */}
+          <div className="flex-1 pr-4 border-r">
+            <div className="space-y-2">
+              {data.steps?.map((step, index) => (
+                <div key={index} className="flex items-center space-x-3 group">
+                  <div className="w-1 h-6 bg-blue-100 group-first:h-3 group-first:mt-3 group-last:h-3 -ml-4 mr-3" />
+                  <div className="flex-1">
+                    <div className="text-sm text-muted-foreground">
+                      {step.type === 'condition' ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                          <span>if {step.variable} {step.operator} {step.value}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-400" />
+                          <span>{step.operation} {step.value} to {step.targetVariable}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Empty State */}
+            {(!data.steps || data.steps.length === 0) && (
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                Click settings to add logic
+              </div>
+            )}
+          </div>
+
+          {/* Right Side - Handles */}
+          <div className="pl-4 w-24">
+            {data.steps?.map((step, index) => (
+              step.handle && (
+                <div key={`${index}-${step.handle}`} className="py-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{step.handle}</span>
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={`${index}-${step.handle}`}
+                      className="w-2 h-2 !right-0 !bg-blue-400"
+                    />
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+
+          {/* Status Indicator */}
+          {hasActivePath && (
+            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          )}
+        </div>
+      </NodeWrapper>
+
+      <FunctionNodeDialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        onAddStep={handleAddStep}
+        steps={data.steps || []}
+        onUpdateSteps={handleUpdateSteps}
+        variables={allVariables}
+      />
+    </>
+  );
+});
+
+FunctionNode.displayName = 'FunctionNode';
+
+export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>) => {
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
     if (!flowId) {
-      console.error('FunctionNode: No flow ID found');
+      console.error('InputNode: No flow ID found');
       return;
     }
     
     const currentInstance = chartStore.getCurrentChartInstance();
     if (!currentInstance) {
-      console.error('FunctionNode: No current instance found');
+      console.error('InputNode: No current instance found');
       return;
     }
     
     try {
       chartStore.removeNode(flowId, id);
-      console.log('FunctionNode: Node deletion result:', currentInstance);
-      console.log('FunctionNode: Current nodes after deletion:', chartStore.getCurrentChartInstance()?.nodes);
       toast.success('Node deleted successfully');
     } catch (error) {
-      console.error('FunctionNode: Error deleting node:', error);
+      console.error('InputNode: Error deleting node:', error);
       toast.error('Failed to delete node');
     }
   }, [id, flowId, chartStore]);
 
-  const [nodeData, setNodeData] = useState<FunctionNodeData>({
-    instanceId: id,
-    label: data?.label || "Function Node",
-    nodeType: 'functionNode',
-    steps: data?.steps || [],
-    handles: data?.handles || []
-  });
-
-  const [showStepModal, setShowStepModal] = useState(false);
-
-  const handleAddStep = useCallback((step: FunctionNodeData['steps'][0]) => {
-    const newNodeData = {
-      ...nodeData,
-      steps: [...nodeData.steps, step],
-      handles: [...nodeData.handles, step.id]
+  const handleInputTypeChange = useCallback((value: InputType) => {
+    const newData = {
+      ...data,
+      inputType: value,
+      validation: value === 'email' ? [{ type: 'email', message: 'Please enter a valid email' }] :
+                 value === 'phone' ? [{ type: 'phone', message: 'Please enter a valid phone number' }] :
+                 data.validation
     };
-    setNodeData(newNodeData);
-    chartStore.updateNode(flowId, id, newNodeData);
-  }, [nodeData, flowId, id, chartStore]);
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
-  const handleRemoveStep = useCallback((stepId: string) => {
-    const newNodeData = {
-      ...nodeData,
-      steps: nodeData.steps.filter(step => step.id !== stepId),
-      handles: nodeData.handles.filter(handle => handle !== stepId)
-    };
-    setNodeData(newNodeData);
-    chartStore.updateNode(flowId, id, newNodeData);
-  }, [nodeData, flowId, id, chartStore]);
-
-  const handleLabelChange = useCallback((newLabel: string) => {
-    const newNodeData = {
-      ...nodeData,
-      label: newLabel
-    };
-    setNodeData(newNodeData);
-    chartStore.updateNode(flowId, id, newNodeData);
-  }, [nodeData, flowId, id, chartStore]);
+  const handleValidationChange = useCallback((rules: ValidationRule[]) => {
+    const newData = { ...data, validation: rules };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
   return (
     <NodeWrapper
-      title="Function"
+      title="Input"
       selected={selected}
       onDelete={handleDelete}
       handles={{ top: true, bottom: true }}
     >
       <div className="p-4 space-y-4">
-        <Input
-          value={nodeData.label}
-          onChange={(e) => handleLabelChange(e.target.value)}
-          placeholder="Enter function name..."
-          className="h-9"
-        />
-        
         <div className="space-y-2">
-          {nodeData.steps.map((step, index) => (
-            <div key={step.id} className="flex items-center justify-between bg-gray-100 p-2 rounded">
-              <span>{step.type === 'operation' ? 'Operation' : 'Condition'} {index + 1}</span>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveStep(step.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <Handle
-                  type="source"
-                  position={Position.Bottom}
-                  id={step.id}
-                  style={{ bottom: -10 }}
-                />
-              </div>
-            </div>
-          ))}
+          <Label>Label</Label>
+          <Input
+            value={data.label}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, label: e.target.value })}
+            placeholder="Enter field label..."
+            className="h-9"
+          />
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => setShowStepModal(true)}
-        >
-          Add Step
-        </Button>
+        <div className="space-y-2">
+          <Label>Input Type</Label>
+          <Select value={data.inputType} onValueChange={handleInputTypeChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">Text</SelectItem>
+              <SelectItem value="textarea">Long Text</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="number">Number</SelectItem>
+              <SelectItem value="phone">Phone</SelectItem>
+              <SelectItem value="date">Date</SelectItem>
+              <SelectItem value="file">File Upload</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        {showStepModal && (
-          <Dialog open={showStepModal} onOpenChange={setShowStepModal}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Function Step</DialogTitle>
-              </DialogHeader>
-              <Tabs defaultValue="operation">
-                <TabsList>
-                  <TabsTrigger value="operation">Operation</TabsTrigger>
-                  <TabsTrigger value="condition">Condition</TabsTrigger>
-                </TabsList>
-                <TabsContent value="operation">
-                  <OperationForm
-                    onSubmit={(data) => {
-                      handleAddStep({
-                        id: nanoid(),
-                        type: 'operation',
-                        operation: data
-                      });
-                      setShowStepModal(false);
-                    }}
-                  />
-                </TabsContent>
-                <TabsContent value="condition">
-                  <ConditionForm
-                    onSubmit={(data) => {
-                      handleAddStep({
-                        id: nanoid(),
-                        type: 'condition',
-                        condition: data
-                      });
-                      setShowStepModal(false);
-                    }}
-                  />
-                </TabsContent>
-              </Tabs>
-            </DialogContent>
-          </Dialog>
+        <div className="space-y-2">
+          <Label>Variable Name</Label>
+          <Input
+            value={data.variableName}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, variableName: e.target.value })}
+            placeholder="Enter variable name..."
+            className="h-9"
+          />
+        </div>
+
+        {data.inputType !== 'file' && (
+          <div className="space-y-2">
+            <Label>Placeholder</Label>
+            <Input
+              value={data.placeholder}
+              onChange={(e) => chartStore.updateNode(flowId, id, { ...data, placeholder: e.target.value })}
+              placeholder="Enter placeholder text..."
+              className="h-9"
+            />
+          </div>
         )}
       </div>
     </NodeWrapper>
   );
 });
 
-FunctionNode.displayName = 'FunctionNode';
+InputNode.displayName = 'InputNode';
 
-interface OperationFormProps {
-  onSubmit: (data: FunctionNodeData['steps'][0]['operation']) => void;
-}
+export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData>) => {
+  const { chartStore } = useStores();
+  const params = useParams();
+  const flowId = params.flowId as string;
 
-const OperationForm = ({ onSubmit }: OperationFormProps) => {
-  const [type, setType] = useState<'addition' | 'subtraction' | 'multiplication' | 'division'>('addition');
-  const [targetVariable, setTargetVariable] = useState('');
-  const [value, setValue] = useState<number>(0);
+  const handleDelete = useCallback(() => {
+    if (!flowId) {
+      console.error('MatrixNode: No flow ID found');
+      return;
+    }
+    
+    const currentInstance = chartStore.getCurrentChartInstance();
+    if (!currentInstance) {
+      console.error('MatrixNode: No current instance found');
+      return;
+    }
+    
+    try {
+      chartStore.removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('MatrixNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId, chartStore]);
+
+  const handleAddRow = useCallback(() => {
+    const newRow = {
+      id: nanoid(),
+      question: '',
+      variableName: `row_${nanoid(6)}`
+    };
+    const newData = {
+      ...data,
+      rows: [...data.rows, newRow]
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
+
+  const handleAddColumn = useCallback(() => {
+    const newColumn = {
+      id: nanoid(),
+      label: '',
+      value: data.columns.length + 1
+    };
+    const newData = {
+      ...data,
+      columns: [...data.columns, newColumn]
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
+
+  const handleRemoveRow = useCallback((rowId: string) => {
+    const newData = {
+      ...data,
+      rows: data.rows.filter(row => row.id !== rowId)
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
+
+  const handleRemoveColumn = useCallback((columnId: string) => {
+    const newData = {
+      ...data,
+      columns: data.columns.filter(col => col.id !== columnId)
+    };
+    chartStore.updateNode(flowId, id, newData);
+  }, [data, flowId, id, chartStore]);
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit({ type, targetVariable, value });
-      }}
-      className="space-y-4"
+    <NodeWrapper
+      title="Matrix"
+      selected={selected}
+      onDelete={handleDelete}
+      handles={{ top: true, bottom: true }}
     >
-      <div className="space-y-2">
-        <Label>Operation Type</Label>
-        <Select value={type} onValueChange={(value: any) => setType(value)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="addition">Addition</SelectItem>
-            <SelectItem value="subtraction">Subtraction</SelectItem>
-            <SelectItem value="multiplication">Multiplication</SelectItem>
-            <SelectItem value="division">Division</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Title</Label>
+          <Input
+            value={data.title}
+            onChange={(e) => chartStore.updateNode(flowId, id, { ...data, title: e.target.value })}
+            placeholder="Enter matrix title..."
+            className="h-9"
+          />
+        </div>
 
-      <div className="space-y-2">
-        <Label>Target Variable</Label>
-        <Input
-          value={targetVariable}
-          onChange={(e) => setTargetVariable(e.target.value)}
-          placeholder="Enter variable name..."
-        />
-      </div>
+        <div className="space-y-2">
+          <Label>Cell Type</Label>
+          <Select 
+            value={data.cellType} 
+            onValueChange={(value: 'radio' | 'checkbox') => 
+              chartStore.updateNode(flowId, id, { ...data, cellType: value })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="radio">Single Choice (Radio)</SelectItem>
+              <SelectItem value="checkbox">Multiple Choice (Checkbox)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div className="space-y-2">
-        <Label>Value</Label>
-        <Input
-          type="number"
-          value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-        />
-      </div>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label>Rows (Questions)</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddRow}
+            >
+              Add Row
+            </Button>
+          </div>
+          {data.rows.map((row, index) => (
+            <div key={row.id} className="flex items-center gap-2">
+              <Input
+                value={row.question}
+                onChange={(e) => {
+                  const newRows = [...data.rows];
+                  newRows[index] = { ...row, question: e.target.value };
+                  chartStore.updateNode(flowId, id, { ...data, rows: newRows });
+                }}
+                placeholder={`Question ${index + 1}`}
+                className="h-9"
+              />
+              <Input
+                value={row.variableName}
+                onChange={(e) => {
+                  const newRows = [...data.rows];
+                  newRows[index] = { ...row, variableName: e.target.value };
+                  chartStore.updateNode(flowId, id, { ...data, rows: newRows });
+                }}
+                placeholder="Variable name"
+                className="h-9 w-32"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveRow(row.id)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
 
-      <Button type="submit" className="w-full">Add Operation</Button>
-    </form>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label>Columns (Scale)</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddColumn}
+            >
+              Add Column
+            </Button>
+          </div>
+          {data.columns.map((column, index) => (
+            <div key={column.id} className="flex items-center gap-2">
+              <Input
+                value={column.label}
+                onChange={(e) => {
+                  const newColumns = [...data.columns];
+                  newColumns[index] = { ...column, label: e.target.value };
+                  chartStore.updateNode(flowId, id, { ...data, columns: newColumns });
+                }}
+                placeholder={`Option ${index + 1}`}
+                className="h-9"
+              />
+              <Input
+                type="number"
+                value={column.value}
+                onChange={(e) => {
+                  const newColumns = [...data.columns];
+                  newColumns[index] = { ...column, value: Number(e.target.value) };
+                  chartStore.updateNode(flowId, id, { ...data, columns: newColumns });
+                }}
+                placeholder="Value"
+                className="h-9 w-24"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveColumn(column.id)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </NodeWrapper>
   );
-};
+});
 
-interface ConditionFormProps {
-  onSubmit: (data: FunctionNodeData['steps'][0]['condition']) => void;
-}
-
-const ConditionForm = ({ onSubmit }: ConditionFormProps) => {
-  const [variable, setVariable] = useState('');
-  const [operator, setOperator] = useState<'>' | '<' | '>=' | '<=' | '==' | '!='>('==');
-  const [value, setValue] = useState<number>(0);
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit({
-          variable,
-          operator,
-          value,
-          trueHandle: nanoid(),
-          falseHandle: nanoid()
-        });
-      }}
-      className="space-y-4"
-    >
-      <div className="space-y-2">
-        <Label>Variable</Label>
-        <Input
-          value={variable}
-          onChange={(e) => setVariable(e.target.value)}
-          placeholder="Enter variable name..."
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Operator</Label>
-        <Select value={operator} onValueChange={(value: any) => setOperator(value)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value=">">Greater than</SelectItem>
-            <SelectItem value="<">Less than</SelectItem>
-            <SelectItem value=">=">Greater than or equal</SelectItem>
-            <SelectItem value="<=">Less than or equal</SelectItem>
-            <SelectItem value="==">Equal</SelectItem>
-            <SelectItem value="!=">Not equal</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Value</Label>
-        <Input
-          type="number"
-          value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-        />
-      </div>
-
-      <Button type="submit" className="w-full">Add Condition</Button>
-    </form>
-  );
-};
+MatrixNode.displayName = 'MatrixNode';
 
 // Export the collection of node types
 export const NODE_TYPES = {
@@ -770,6 +1288,8 @@ export const NODE_TYPES = {
   yesNo: YesNoNode,
   weight: WeightNode,
   function: FunctionNode,
+  input: InputNode,
+  matrix: MatrixNode,
 };
 
 // Node registration information for the sidebar
@@ -815,6 +1335,18 @@ export const NODE_INFO = [
     label: 'Function Node',
     icon: 'FunctionSquare',
     description: 'Variable operations and logic'
+  },
+  {
+    type: 'input',
+    label: 'Input Node',
+    icon: 'Pencil',
+    description: 'User input field'
+  },
+  {
+    type: 'matrix',
+    label: 'Matrix Node',
+    icon: 'Grid',
+    description: 'Matrix question'
   }
 ];
 
