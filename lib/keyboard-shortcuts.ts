@@ -2,9 +2,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // lib/keyboard-shortcuts.ts
 
-import { useStores } from "@/hooks/useStores";
+import { useStores } from "@/hooks/use-stores";
 import { useCallback, useEffect } from "react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 import { useReactFlow } from "reactflow";
 
 export const SHORTCUTS = {
@@ -76,7 +76,7 @@ export function useKeyboardShortcuts(
   const { zoomIn, zoomOut, fitView, getNodes, setNodes, getSelectedNodes } =
     useReactFlow() as any;
 
-  const { chartStore, utilityStore } = useStores() as any;
+  const { flowStore } = useStores();
 
   const handleShortcut = useCallback(
     (e: KeyboardEvent) => {
@@ -126,10 +126,10 @@ export function useKeyboardShortcuts(
         case SHORTCUTS.DELETE_NODE: {
           const selectedNodes = getSelectedNodes();
           if (selectedNodes.length > 0) {
-            const currentInstance = chartStore.getCurrentChartInstance();
-            if (currentInstance) {
+            const currentFlow = flowStore.currentDashboardTab;
+            if (currentFlow) {
               selectedNodes.forEach((node) => {
-                chartStore.removeNode(currentInstance.id, node.id);
+                flowStore.removeNode(node.id);
               });
               toast.success(
                 `Deleted ${selectedNodes.length} node${
@@ -144,8 +144,8 @@ export function useKeyboardShortcuts(
         case SHORTCUTS.DUPLICATE_NODE: {
           const selectedNodes = getSelectedNodes();
           if (selectedNodes.length > 0) {
-            const currentInstance = chartStore.getCurrentChartInstance();
-            if (currentInstance) {
+            const currentFlow = flowStore.currentDashboardTab;
+            if (currentFlow) {
               selectedNodes.forEach((node) => {
                 const newNode = {
                   ...node,
@@ -156,7 +156,7 @@ export function useKeyboardShortcuts(
                   },
                   selected: true,
                 };
-                chartStore.addNode(currentInstance.id, newNode);
+                flowStore.addNode(newNode);
               });
               toast.success(
                 `Duplicated ${selectedNodes.length} node${
@@ -170,19 +170,16 @@ export function useKeyboardShortcuts(
 
         // Flow Management
         case SHORTCUTS.SAVE_FLOW:
-          const projectId = chartStore.currentProject?.id;
-          if (!projectId) {
-            toast.error("No project selected");
-            break;
+          if (flowStore.currentDashboardTab) {
+            flowStore.updateFlow(flowStore.currentDashboardTab)
+              .then(() => {
+                toast.success("Flow saved successfully");
+              })
+              .catch((error) => {
+                console.error("Error saving flow:", error);
+                toast.error("Failed to save flow");
+              });
           }
-          utilityStore
-            .saveToDb(chartStore.chartInstances, projectId)
-            .then(() => {
-              toast.success("Flow saved successfully");
-            })
-            .catch(() => {
-              toast.error("Failed to save flow");
-            });
           break;
 
         // View
@@ -196,16 +193,6 @@ export function useKeyboardShortcuts(
           if (selectedNodes.length > 0) {
             // Enable drag mode
             document.body.style.cursor = "move";
-            const handleMouseMove = (e: MouseEvent) => {
-              // Implement node dragging
-            };
-            const handleMouseUp = () => {
-              document.body.style.cursor = "default";
-              document.removeEventListener("mousemove", handleMouseMove);
-              document.removeEventListener("mouseup", handleMouseUp);
-            };
-            document.addEventListener("mousemove", handleMouseMove);
-            document.addEventListener("mouseup", handleMouseUp);
           }
           break;
         }
@@ -241,8 +228,7 @@ export function useKeyboardShortcuts(
       getNodes,
       setNodes,
       getSelectedNodes,
-      chartStore,
-      utilityStore,
+      flowStore,
       isSidebarOpen,
       setIsSidebarOpen,
     ]
@@ -271,7 +257,7 @@ function getKeyCombo(e: KeyboardEvent): string {
 // Hook to handle keyboard shortcuts for node creation based on number keys
 export function useNodeCreationShortcuts() {
   const { project } = useReactFlow();
-  const { chartStore } = useStores() as any;
+  const { flowStore } = useStores();
 
   const handleNodeCreation = useCallback(
     (e: KeyboardEvent) => {
@@ -283,8 +269,8 @@ export function useNodeCreationShortcuts() {
       }
 
       const key = e.key;
-      const currentInstance = chartStore.getCurrentChartInstance();
-      if (!currentInstance) return;
+      const currentFlow = flowStore.currentDashboardTab;
+      if (!currentFlow) return;
 
       // Get center of viewport
       const center = project({
@@ -294,7 +280,7 @@ export function useNodeCreationShortcuts() {
 
       switch (key) {
         case "1":
-          chartStore.addNode(currentInstance.id, {
+          flowStore.addNode({
             type: "startNode",
             position: center,
             id: `startNode-${Date.now()}`,
@@ -302,7 +288,7 @@ export function useNodeCreationShortcuts() {
           });
           break;
         case "2":
-          chartStore.addNode(currentInstance.id, {
+          flowStore.addNode({
             type: "endNode",
             position: center,
             id: `endNode-${Date.now()}`,
@@ -312,7 +298,7 @@ export function useNodeCreationShortcuts() {
         // Add other node types...
       }
     },
-    [project, chartStore]
+    [project, flowStore]
   );
 
   useEffect(() => {

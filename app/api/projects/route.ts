@@ -1,99 +1,92 @@
+// app/api/projects/route.ts
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { authOptions } from "../auth/[...nextauth]/options";
+import crypto from 'crypto';
 
-export async function POST(request: NextRequest) {
+// GET /api/projects - Get all projects for current user
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const body = await request.json();
-    const { name, description, color } = body;
-
-    // Create project with flow in a single transaction
-    const project = await prisma.project.create({
-      data: {
-        name,
-        description,
-        color,
-        userId: user.id,
-        flow: {
-          create: {
-            name: "Main Flow",
-            description: "Default project flow",
-            chartInstances: {
-              create: {
-                name: "Default Chart",
-                nodes: [],
-                edges: [],
-                color: color || "#3B82F6",
-              }
-            }
-          }
+    const projects = await prisma.project.findMany({
+      where: {
+        user: {
+          email: session.user.email
         }
       },
       include: {
-        flow: {
-          include: {
-            chartInstances: true
+        _count: {
+          select: {
+            charts: true
           }
         }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     });
 
-    return NextResponse.json(project);
+    return NextResponse.json({ projects });
   } catch (error) {
-    console.error("Failed to create project:", error);
+    console.error("Error fetching projects:", error);
     return NextResponse.json(
-      { error: "Failed to create project" },
+      { error: "Failed to fetch projects" },
       { status: 500 }
     );
   }
 }
 
-export async function GET() {
+// POST /api/projects - Create new project
+export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    const { name, description } = await req.json();
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!name?.trim()) {
+      return NextResponse.json(
+        { error: "Project name is required" },
+        { status: 400 }
+      );
     }
 
-    const projects = await prisma.project.findMany({
-      where: { userId: user.id },
-      include: {
-        flow: {
-          include: {
-            chartInstances: true
+    const apiKey = crypto.randomBytes(32).toString('hex');
+
+    const project = await prisma.project.create({
+      data: {
+        name,
+        description,
+        apiKey,
+        user: {
+          connect: {
+            email: session.user.email
           }
         }
       },
-      orderBy: { updatedAt: "desc" }
+      include: {
+        _count: {
+          select: {
+            charts: true
+          }
+        }
+      }
     });
 
-    return NextResponse.json(projects);
+    return NextResponse.json({ project });
   } catch (error) {
-    console.error("Failed to fetch projects:", error);
+    console.error("Error creating project:", error);
     return NextResponse.json(
-      { error: "Failed to fetch projects" },
+      { error: "Failed to create project" },
       { status: 500 }
     );
   }

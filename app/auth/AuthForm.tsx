@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
-import { LoadingSpinner } from "@/components/ui/base";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Check, ChevronRight, Sparkles } from "lucide-react";
@@ -33,14 +33,14 @@ export default function AuthPage() {
 
 	useEffect(() => {
 		if (status !== "loading" && session) {
-			router.push("/dashboard");
+			router.push("/projects");
 		}
 	}, [session, status, router]);
 
 	if (status === "loading") {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-base-50">
-				<LoadingSpinner className="h-6 w-6 text-primary-600" />
+				<Loader2 className="h-6 w-6 text-primary-600" />
 			</div>
 		);
 	}
@@ -139,7 +139,7 @@ export default function AuthPage() {
 									disabled={signInClicked}
 									onClick={() => {
 										setSignInClicked(true);
-										signIn("google", { callbackUrl: '/dashboard' });
+										signIn("google", { callbackUrl: '/projects' });
 									}}
 									className={cn(
 										"flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
@@ -151,7 +151,7 @@ export default function AuthPage() {
 									)}
 								>
 									{signInClicked ? (
-										<LoadingSpinner />
+										<Loader2 />
 									) : (
 										<>
 											<Image

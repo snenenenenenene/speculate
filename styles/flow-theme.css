@@ -1,0 +1,83 @@
+/* xyflow theme files */
+
+.react-flow {
+    /* Custom Variables */
+    --xy-theme-selected: #F57DBD;
+    --xy-theme-hover: #C5C5C5;
+    --xy-theme-edge-hover: black;
+    --xy-theme-color-focus: #E8E8E8;
+ 
+    /* Built-in Variables see https://reactflow.dev/learn/customization/theming */
+    --xy-node-border-default: 1px solid #EDEDED;
+  
+    --xy-node-boxshadow-default: 
+      0px 3.54px 4.55px 0px #00000005, 
+      0px 3.54px 4.55px 0px #0000000D, 
+      0px 0.51px 1.01px 0px #0000001A;
+  
+    --xy-node-border-radius-default: 8px;
+  
+    --xy-handle-background-color-default: #ffffff;
+    --xy-handle-border-color-default: #AAAAAA;
+  
+    --xy-edge-label-color-default: #505050;
+}
+ 
+.react-flow.dark { 
+    --xy-node-boxshadow-default: 
+    0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.05),
+    0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.13),
+    0px 0.51px 1.01px 0px rgba(255, 255, 255, 0.2);
+    --xy-theme-color-focus: #535353;
+}
+
+.react-flow__handle {
+    width: 12px !important;
+    height: 12px !important;
+    background-color: white;
+    border: 2px solid black;
+}
+
+.react-flow__handle.connectionindicator:hover {
+    pointer-events: all;
+    border-color: black;
+    background-color: white;
+}
+
+.react-flow__handle.connectionindicator:focus, 
+.react-flow__handle.connectingfrom,
+.react-flow__handle.connectingto {
+    border-color: black;
+}
+
+/* Node styling */
+.react-flow__node {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.react-flow__node:hover {
+    border-color: #cbd5e1;
+}
+
+.react-flow__node.selected {
+    border-color: black;
+}
+
+/* Edge styling */
+.react-flow__edge-path {
+    stroke: #94a3b8;
+    stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+    stroke: black;
+}
+
+/* Connection line */
+.react-flow__connection-path {
+    stroke: black;
+    stroke-width: 2;
+}

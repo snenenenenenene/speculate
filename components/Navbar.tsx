@@ -98,7 +98,7 @@ export default function Navbar() {
 					{session ? (
 						<div className="flex items-center gap-4">
 							<Link
-								href="/dashboard"
+								href="/projects"
 								className={cn(
 									"flex items-center gap-2 px-4 py-2 rounded-lg",
 									"bg-primary-50 text-primary-700",

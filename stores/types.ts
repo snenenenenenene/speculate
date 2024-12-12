@@ -167,3 +167,75 @@ export interface RootState extends
     getState: () => RootState;
     syncStores: () => Promise<void>;
 }
+
+export interface Commit {
+  id: string;
+  date: string;
+  message: string;
+  flows: ChartInstance[];
+}
+
+export interface CommitState {
+  localCommits: Commit[];
+  globalCommits: Commit[];
+  saveLocalCommit: (message: string) => void;
+  restoreToLocalCommit: (commit: Commit) => void;
+  saveGlobalCommit: (message: string) => void;
+  restoreToGlobalCommit: (commit: Commit) => void;
+  exportCommits: () => void;
+  importCommits: (commit: Commit) => void;
+}
+
+export interface VariableState {
+  variables: {
+    global: Variable[];
+    local: Variable[];
+  };
+  setVariables: (variables: VariableState["variables"]) => void;
+  addVariable: (scope: "global" | "local", variable: Variable) => void;
+  removeVariable: (scope: "global" | "local", index: number) => void;
+  updateVariable: (
+    scope: "global" | "local",
+    index: number,
+    updatedVariable: Variable
+  ) => void;
+}
+
+export interface ModalState {
+  modalContent: null;
+  isModalOpen: boolean;
+  openModal: (content: any) => void;
+  closeModal: () => void;
+}
+
+export interface UtilityState {
+  currentTab: string;
+  setCurrentTab: (tabId: string) => void;
+  showGrid: boolean;
+  toggleGrid: () => void;
+  saveToDb: (flows: ChartInstance[]) => Promise<void>;
+  loadSavedData: () => Promise<ChartInstance[] | null>;
+}
+
+export interface RootState
+  extends ChartState,
+    QuestionnaireState,
+    CommitState,
+    VariableState,
+    ModalState,
+    UtilityState {
+  // Add any additional root-level state or methods here
+}
+
+export type NodeChange = {
+  id: string;
+  type: string;
+  position?: { x: number; y: number };
+  data?: any;
+};
+
+export type EdgeChange = {
+  id: string;
+  source?: string;
+  target?: string;
+};

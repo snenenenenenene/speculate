@@ -1,53 +1,63 @@
+// app/api/projects/[projectId]/route.ts
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { authOptions } from "../../auth/[...nextauth]/options";
 
-export async function GET(
-  request: NextRequest,
-  context: { params: { projectId: string } }
-) {
+export async function GET(req: Request, { params }: { params: { projectId: string } }) {
   try {
-    // await the params
-    const { projectId } = await context.params;
-
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user with their email
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Get project with flows
-    const project = await prisma.project.findFirst({
+    const project = await prisma.project.findUnique({
       where: {
-        id: projectId,
-        userId: user.id, // Ensure user can only access their own projects
-      },
-      include: {
-        flows: {
-          orderBy: {
-            updatedAt: "desc",
-          },
-        },
-      },
+        id: params.projectId,
+        user: {
+          email: session.user.email
+        }
+      }
     });
 
     if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json(project);
+    console.log('API GET project - Full project data:', JSON.stringify(project, null, 2));
+
+    // Get flows for this project
+    const flows = await prisma.chartInstance.findMany({
+      where: {
+        projectId: params.projectId,
+        user: {
+          email: session.user.email
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        content: true
+      }
+    });
+
+    const response = { 
+      project: {
+        ...project,
+        globalVariables: project.variables || []
+      },
+      flows
+    };
+
+    console.log('API GET project - Full response:', JSON.stringify(response, null, 2));
+
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Failed to fetch project:", error);
+    console.error("Error fetching project:", error);
     return NextResponse.json(
       { error: "Failed to fetch project" },
       { status: 500 }
@@ -55,48 +65,49 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { projectId: string } }
-) {
+export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {
   try {
-    const { projectId } = await context.params;
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    const body = await req.json();
+    console.log('API PATCH project - Request body:', JSON.stringify(body, null, 2));
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const updateData: any = {
+      updatedAt: new Date()
+    };
+
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.variables !== undefined) {
+      updateData.variables = body.variables;
     }
 
-    const data = await request.json();
+    console.log('API PATCH project - Update data:', JSON.stringify(updateData, null, 2));
 
-    // Update project
     const project = await prisma.project.update({
       where: {
-        id: projectId,
+        id: params.projectId,
+        user: {
+          email: session.user.email
+        }
       },
-      data: {
-        name: data.name,
-        description: data.description,
-        color: data.color,
-        category: data.category,
-        tags: data.tags,
-      },
-      include: {
-        flows: true,
-      },
+      data: updateData
     });
 
-    return NextResponse.json(project);
+    console.log('API PATCH project - Updated project:', JSON.stringify(project, null, 2));
+
+    return NextResponse.json({ 
+      project: {
+        ...project,
+        globalVariables: project.variables || []
+      }
+    });
   } catch (error) {
-    console.error("Failed to update project:", error);
+    console.error("Error updating project:", error);
     return NextResponse.json(
       { error: "Failed to update project" },
       { status: 500 }
@@ -104,36 +115,44 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: { projectId: string } }
-) {
+export async function DELETE(req: Request, { params }: { params: { projectId: string } }) {
   try {
-    const { projectId } = await context.params;
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Delete project and all associated flows (cascade delete is set up in schema)
-    await prisma.project.delete({
+    // Delete associated charts first
+    await prisma.chartInstance.deleteMany({
       where: {
-        id: projectId,
-      },
+        projectId: params.projectId,
+        user: {
+          email: session.user.email
+        }
+      }
     });
+
+    // Then delete the project
+    const project = await prisma.project.deleteMany({
+      where: {
+        id: params.projectId,
+        user: {
+          email: session.user.email
+        }
+      }
+    });
+
+    if (project.count === 0) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete project:", error);
+    console.error("Error deleting project:", error);
     return NextResponse.json(
       { error: "Failed to delete project" },
       { status: 500 }

@@ -1,39 +1,89 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
-import { useStores } from '@/hooks/useStores';
-import { cn } from '@/lib/utils';
-import { FunctionNodeData, MultipleChoiceNodeData, SingleChoiceNodeData, WeightNodeData, YesNoNodeData } from '@/types/nodes';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  CircleDot,
-  CircleSlashed,
-  Flag,
-  FunctionSquare,
-  List,
-  Plus,
-  Scale,
-  Settings,
-  Square,
-  Trash2,
-  XCircle
-} from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Handle, NodeProps, Position } from 'reactflow';
-import { NodeWrapper } from './base/NodeWrapper';
-import { Modal } from './base/modal';
+import { memo, useCallback, useState, useEffect, useMemo } from 'react';
+import { Handle, Position } from 'reactflow';
+import { useParams } from 'next/navigation';
+import { nanoid } from 'nanoid';
+import { toast } from 'sonner';
+import { useRootStore } from '@/stores/rootStore';
+import { NodeProps } from '@/types/nodes';
+import { 
+  StartNodeData, 
+  EndNodeData, 
+  SingleChoiceNodeData, 
+  MultipleChoiceNodeData,
+  YesNoNodeData,
+  WeightNodeData,
+  FunctionNodeData,
+  FunctionStep,
+  InputNodeData,
+  MatrixNodeData
+} from '@/types/nodes';
 
-export const StartNode = memo(({ id, data, selected }: NodeProps) => {
-  const { chartStore } = useStores() as any;
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { NodeWrapper } from './base/NodeWrapper';
+import { FunctionNodeDialog } from './function/FunctionNodeDialog';
+
+import { 
+  Trash2,
+  Input as InputIcon,
+  Text,
+  CheckSquare,
+  SplitSquareHorizontal,
+  Scale,
+  Settings2,
+  Wrench as FunctionSquare,
+  XCircle,
+  CircleDot,
+  Flag
+} from 'lucide-react';
+import { InputType } from 'zlib';
+
+type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
+
+export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>) => {
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
 
   const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete the start node?')) {
-      chartStore.removeNode(data.instanceId, id);
+    if (!flowId) {
+      console.error('StartNode: No flow ID found');
+      return;
     }
-  }, [chartStore, data.instanceId, id]);
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('StartNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
+
+  const handleAddVariable = useCallback(() => {
+    const newVariable = { name: '', value: '' };
+    const newData = {
+      ...data,
+      variables: [...(data.variables || []), newVariable]
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  const handleRemoveVariable = useCallback((index: number) => {
+    const newData = {
+      ...data,
+      variables: data.variables?.filter((_, i) => i !== index)
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
@@ -41,1051 +91,1116 @@ export const StartNode = memo(({ id, data, selected }: NodeProps) => {
       selected={selected}
       onDelete={handleDelete}
       handles={{ bottom: true }}
-      headerClassName="bg-emerald-50/50"
+      headerClassName="bg-blue-50 border-blue-100"
+      headerIcon={<Flag className="h-4 w-4 text-blue-500" />}
     >
-      <div className="p-4 flex items-center justify-center">
-        <Flag className="h-8 w-8 text-emerald-500" />
-      </div>
-    </NodeWrapper>
-  );
-});
-StartNode.displayName = 'StartNode';
-
-export const EndNode = memo(({ id, data, selected }: NodeProps) => {
-  const { chartStore } = useStores() as any;
-  const chartInstances = chartStore.chartInstances;
-  const otherInstances = chartInstances.filter(
-    instance => instance.id !== data.instanceId
-  );
-
-  const [endType, setEndType] = useState(data.endType || 'end');
-  const [redirectTab, setRedirectTab] = useState(data.redirectTab || '');
-
-  useEffect(() => {
-    data.endType = endType;
-    data.redirectTab = redirectTab;
-  }, [endType, redirectTab, data]);
-
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
-
-  return (
-    <NodeWrapper
-      title={endType === 'redirect' ? 'Redirect Flow' : 'End Flow'}
-      selected={selected}
-      onDelete={handleDelete}
-      handles={{ top: true }}
-      headerClassName={cn(
-        "transition-colors duration-200",
-        endType === 'redirect' ? "bg-blue-50" : "bg-red-50"
-      )}
-    >
-      <div className="space-y-4">
-        {/* Label Input */}
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Label
-          </label>
-          <input
-            type="text"
-            value={data.label || 'End Node'}
-            onChange={(e) => data.label = e.target.value}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="End Node"
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Welcome Message</Label>
+          <Input
+            value={data.message || ''}
+            onChange={(e) => updateNode(flowId, id, { ...data, message: e.target.value })}
+            placeholder="Enter welcome message..."
+            className="h-9"
           />
         </div>
 
-        {/* End Type Selection */}
-        <div className="grid grid-cols-2 gap-2">
-          {/* End Flow Button */}
-          <motion.button
-            onClick={() => setEndType('end')}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-200",
-              endType === 'end'
-                ? "bg-red-50 border-2 border-red-200 shadow-sm"
-                : "border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-            )}
-          >
-            <Square className={cn(
-              "h-6 w-6 transition-colors",
-              endType === 'end' ? "text-red-500" : "text-gray-400"
-            )} />
-            <span className={cn(
-              "text-sm font-medium transition-colors",
-              endType === 'end' ? "text-red-700" : "text-gray-600"
-            )}>
-              End Flow
-            </span>
-            {endType === 'end' && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2"
-              >
-                <CheckCircle2 className="h-4 w-4 text-red-500" />
-              </motion.div>
-            )}
-          </motion.button>
-
-          {/* Redirect Button */}
-          <motion.button
-            onClick={() => setEndType('redirect')}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-200",
-              endType === 'redirect'
-                ? "bg-blue-50 border-2 border-blue-200 shadow-sm"
-                : "border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-            )}
-          >
-            <ArrowRight className={cn(
-              "h-6 w-6 transition-colors",
-              endType === 'redirect' ? "text-blue-500" : "text-gray-400"
-            )} />
-            <span className={cn(
-              "text-sm font-medium transition-colors",
-              endType === 'redirect' ? "text-blue-700" : "text-gray-600"
-            )}>
-              Redirect
-            </span>
-            {endType === 'redirect' && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2"
-              >
-                <CheckCircle2 className="h-4 w-4 text-blue-500" />
-              </motion.div>
-            )}
-          </motion.button>
-        </div>
-
-        {/* Redirect Selection */}
-        <AnimatePresence mode="wait">
-          {endType === 'redirect' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Initial Variables</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddVariable}
+              className="h-7 px-2"
             >
-              <div className="space-y-2 pt-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Redirect To
-                </label>
-                {otherInstances.length > 0 ? (
-                  <select
-                    value={redirectTab}
-                    onChange={(e) => setRedirectTab(e.target.value)}
-                    className={cn(
-                      "w-full px-3 py-2 text-sm rounded-lg transition-all duration-200",
-                      "border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      !redirectTab && "text-gray-500"
-                    )}
-                  >
-                    <option value="" disabled>
-                      Select a flow...
-                    </option>
-                    {otherInstances.map(instance => (
-                      <option key={instance.id} value={instance.id}>
-                        {instance.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-500">
-                    <CircleSlashed className="h-4 w-4" />
-                    <span>No other flows available</span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              Add Variable
+            </Button>
+          </div>
+          
+          {data.variables?.map((variable, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                value={variable.name}
+                onChange={(e) => {
+                  const newVariables = [...(data.variables || [])];
+                  newVariables[index] = { ...variable, name: e.target.value };
+                  updateNode(flowId, id, { ...data, variables: newVariables });
+                }}
+                placeholder="Variable name"
+                className="h-9"
+              />
+              <Input
+                value={variable.value}
+                onChange={(e) => {
+                  const newVariables = [...(data.variables || [])];
+                  newVariables[index] = { ...variable, value: e.target.value };
+                  updateNode(flowId, id, { ...data, variables: newVariables });
+                }}
+                placeholder="Initial value"
+                className="h-9"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveVariable(index)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
     </NodeWrapper>
   );
 });
-EndNode.displayName = 'EndNode';
 
-export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
-  const { chartStore } = useStores() as any;
-  const DEFAULT_QUESTION = "Select one of the following options:";
-
-  const handleQuestionChange = useCallback((value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      question: value || DEFAULT_QUESTION,
-    });
-  }, [chartStore, data, id]);
-
-  const handleOptionChange = useCallback((optionId: string, value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.map(opt =>
-        opt.id === optionId ? { ...opt, label: value } : opt
-      ),
-    });
-  }, [chartStore, data, id]);
-
-  const handleAddOption = useCallback(() => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: [
-        ...data.options,
-        { id: crypto.randomUUID(), label: '', nextNodeId: null }
-      ],
-    });
-  }, [chartStore, data, id]);
-
-  const handleRemoveOption = useCallback((optionId: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.filter(opt => opt.id !== optionId),
-    });
-  }, [chartStore, data, id]);
+export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => {
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
 
   const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
+    if (!flowId) {
+      console.error('EndNode: No flow ID found');
+      return;
     }
-  }, [chartStore, data.instanceId, id]);
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('EndNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
+
+  return (
+    <NodeWrapper
+      title="End"
+      selected={selected}
+      onDelete={handleDelete}
+      handles={{ top: true }}
+      headerClassName="bg-red-50 border-red-100"
+      headerIcon={<XCircle className="h-4 w-4 text-red-500" />}
+    >
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>End Type</Label>
+          <Select
+            value={data.endType || 'terminal'}
+            onValueChange={(value) => updateNode(flowId, id, { ...data, endType: value as 'terminal' | 'redirect' })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select end type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="terminal">Terminal</SelectItem>
+              <SelectItem value="redirect">Redirect</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Completion Message</Label>
+          <Input
+            value={data.message || ''}
+            onChange={(e) => updateNode(flowId, id, { ...data, message: e.target.value })}
+            placeholder="Enter completion message..."
+            className="h-9"
+          />
+        </div>
+
+        {data.endType === 'redirect' && (
+          <>
+            <div className="space-y-2">
+              <Label>Redirect Flow</Label>
+              <Select
+                value={data.redirectFlow}
+                onValueChange={(value) => updateNode(flowId, id, { ...data, redirectFlow: value })}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select flow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flow1">Flow 1</SelectItem>
+                  <SelectItem value="flow2">Flow 2</SelectItem>
+                  <SelectItem value="flow3">Flow 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Variable Mapping</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newVariableMap = { ...data.variableMap, '': '' };
+                    updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                  }}
+                  className="h-7 px-2"
+                >
+                  Add Mapping
+                </Button>
+              </div>
+              
+              {data.variableMap && Object.entries(data.variableMap).map(([fromVar, toVar], index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    value={fromVar}
+                    onChange={(e) => {
+                      const newVariableMap = { ...data.variableMap };
+                      const value = newVariableMap[fromVar];
+                      delete newVariableMap[fromVar];
+                      newVariableMap[e.target.value] = value;
+                      updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    }}
+                    placeholder="From variable"
+                    className="h-9"
+                  />
+                  <Input
+                    value={toVar}
+                    onChange={(e) => {
+                      const newVariableMap = { ...data.variableMap, [fromVar]: e.target.value };
+                      updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    }}
+                    placeholder="To variable"
+                    className="h-9"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newVariableMap = { ...data.variableMap };
+                      delete newVariableMap[fromVar];
+                      updateNode(flowId, id, { ...data, variableMap: newVariableMap });
+                    }}
+                    className="h-9 w-9 p-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </NodeWrapper>
+  );
+});
+
+export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
+  const DEFAULT_QUESTION = "Select one of the following options:";
+
+  const handleDelete = useCallback(() => {
+    console.log('SingleChoiceNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('SingleChoiceNode: No flow ID found');
+      return;
+    }
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('SingleChoiceNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
+
+  const handleAddOption = useCallback(() => {
+    const newOption = { 
+      id: nanoid(), 
+      label: '', 
+      nextNodeId: null,
+      weight: 0,
+      variableName: '',
+      value: ''
+    };
+    const newData = {
+      ...data,
+      options: [...(data.options || []), newOption]
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  const handleRemoveOption = useCallback((optionId: string) => {
+    const newData = {
+      ...data,
+      options: data.options?.filter(opt => opt.id !== optionId) || []
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
       title="Single Choice"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-purple-50/50"
+      handles={{ top: true }}
+      headerClassName="bg-purple-50 border-purple-100"
+      headerIcon={<CircleDot className="h-4 w-4 text-purple-500" />}
     >
-      <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-        />
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Question
-          </label>
-          <input
-            type="text"
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Question</Label>
+          <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => handleQuestionChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={DEFAULT_QUESTION}
+            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
+            placeholder="Enter your question..."
+            className="h-9"
           />
         </div>
 
         <div className="space-y-2">
-          {data.options.map((option, index) => (
-            <div key={option.id} className="relative group">
+          <div className="flex items-center justify-between">
+            <Label>Options</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddOption}
+              className="h-7 px-2"
+            >
+              Add Option
+            </Button>
+          </div>
+          
+          {data.options?.map((option, index) => (
+            <div key={option.id} className="relative space-y-2 p-3 bg-muted/30 rounded-md">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-xs font-medium text-gray-600">
-                  {index + 1}
-                </div>
-                <input
-                  type="text"
+                <Input
                   value={option.label}
-                  onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                  onChange={(e) => {
+                    const newOptions = [...data.options];
+                    newOptions[index] = { ...option, label: e.target.value };
+                    updateNode(flowId, id, { ...data, options: newOptions });
+                  }}
                   placeholder={`Option ${index + 1}`}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="h-9"
                 />
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => handleRemoveOption(option.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
+                  className="h-9 w-9 p-0"
                 >
-                  <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                </button>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Weight</Label>
+                  <Input
+                    type="number"
+                    value={option.weight || 0}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, weight: Number(e.target.value) };
+                      updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Variable Name</Label>
+                  <Input
+                    value={option.variableName || ''}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, variableName: e.target.value };
+                      updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+              </div>
+
               <Handle
                 type="source"
-                position={Position.Bottom}
-                id={`${option.id}-target`}
-                className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-                style={{
-                  left: `${((index + 1) / (data.options.length + 1)) * 100}%`,
-                }}
+                position={Position.Right}
+                id={option.id}
+                className="w-3 h-3 border-2 !bg-background"
               />
             </div>
           ))}
         </div>
-
-        <button
-          onClick={handleAddOption}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium text-gray-600 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Option
-        </button>
       </div>
     </NodeWrapper>
   );
 });
-SingleChoiceNode.displayName = 'SingleChoiceNode';
 
 export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
-  const { chartStore } = useStores() as any;
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
   const DEFAULT_QUESTION = "Select all that apply:";
 
-  const handleQuestionChange = useCallback((value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      question: value || DEFAULT_QUESTION,
-    });
-  }, [chartStore, data, id]);
-
-  const handleOptionChange = useCallback((optionId: string, value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      options: data.options.map(opt =>
-        opt.id === optionId ? { ...opt, label: value } : opt
-      ),
-    });
-  }, [chartStore, data, id]);
+  const handleDelete = useCallback(() => {
+    if (!flowId) {
+      console.error('MultipleChoiceNode: No flow ID found');
+      return;
+    }
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('MultipleChoiceNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
 
   const handleAddOption = useCallback(() => {
-    chartStore.updateNodeData(data.instanceId, id, {
+    const newOption = { 
+      id: nanoid(), 
+      label: '', 
+      nextNodeId: null,
+      weight: 0,
+      variableName: '',
+      value: ''
+    };
+    const newData = {
       ...data,
-      options: [
-        ...data.options,
-        { id: crypto.randomUUID(), label: '', nextNodeId: null }
-      ],
-    });
-  }, [chartStore, data, id]);
+      options: [...(data.options || []), newOption]
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   const handleRemoveOption = useCallback((optionId: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
+    const newData = {
       ...data,
-      options: data.options.filter(opt => opt.id !== optionId),
-    });
-  }, [chartStore, data.instanceId, id]);
-
-  const handleSelectionLimitChange = useCallback((type: 'min' | 'max', value: string) => {
-    const numValue = parseInt(value) || undefined;
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      [type === 'min' ? 'minSelections' : 'maxSelections']: numValue,
-    });
-  }, [chartStore, data, id]);
-
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
-    }
-  }, [chartStore, data.instanceId, id]);
+      options: data.options?.filter(opt => opt.id !== optionId) || []
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
       title="Multiple Choice"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-indigo-50/50"
+      handles={{ top: true, bottom: true }}
+      headerClassName="bg-indigo-50 border-indigo-100"
+      headerIcon={<CheckSquare className="h-4 w-4 text-indigo-500" />}
     >
-      <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-        />
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Question
-          </label>
-          <input
-            type="text"
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Question</Label>
+          <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => handleQuestionChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={DEFAULT_QUESTION}
+            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
+            placeholder="Enter your question..."
+            className="h-9"
           />
         </div>
 
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Min Selections
-            </label>
-            <input
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Min Selections</Label>
+            <Input
               type="number"
-              min="0"
-              max={data.options.length}
-              value={data.minSelections || ''}
-              onChange={(e) => handleSelectionLimitChange('min', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={data.minSelections || 0}
+              onChange={(e) => updateNode(flowId, id, { ...data, minSelections: Number(e.target.value) })}
+              className="h-8"
             />
           </div>
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Max Selections
-            </label>
-            <input
+          <div className="space-y-1">
+            <Label className="text-xs">Max Selections</Label>
+            <Input
               type="number"
-              min={data.minSelections || 0}
-              max={data.options.length}
-              value={data.maxSelections || ''}
-              onChange={(e) => handleSelectionLimitChange('max', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={data.maxSelections || data.options?.length || 0}
+              onChange={(e) => updateNode(flowId, id, { ...data, maxSelections: Number(e.target.value) })}
+              className="h-8"
             />
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Score Calculation</Label>
+          <Select
+            value={data.scoreCalculation || 'sum'}
+            onValueChange={(value) => updateNode(flowId, id, { ...data, scoreCalculation: value as 'sum' | 'average' | 'multiply' })}
+          >
+            <SelectTrigger className="h-8">
+              <SelectValue placeholder="Select calculation method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sum">Sum</SelectItem>
+              <SelectItem value="average">Average</SelectItem>
+              <SelectItem value="multiply">Multiply</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
-          {data.options.map((option, index) => (
-            <div key={option.id} className="relative group">
+          <div className="flex items-center justify-between">
+            <Label>Options</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddOption}
+              className="h-7 px-2"
+            >
+              Add Option
+            </Button>
+          </div>
+          
+          {data.options?.map((option, index) => (
+            <div key={option.id} className="relative space-y-2 p-3 bg-muted/30 rounded-md">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded text-xs font-medium text-gray-600">
-                  <Check className="h-4 w-4" />
-                </div>
-                <input
-                  type="text"
+                <Input
                   value={option.label}
-                  onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                  onChange={(e) => {
+                    const newOptions = [...data.options];
+                    newOptions[index] = { ...option, label: e.target.value };
+                    updateNode(flowId, id, { ...data, options: newOptions });
+                  }}
                   placeholder={`Option ${index + 1}`}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="h-9"
                 />
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => handleRemoveOption(option.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
+                  className="h-9 w-9 p-0"
                 >
-                  <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                </button>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
-              <Handle
-                type="source"
-                position={Position.Bottom}
-                id={`${option.id}-target`}
-                className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-                style={{
-                  left: `${((index + 1) / (data.options.length + 1)) * 100}%`,
-                }}
-              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Weight</Label>
+                  <Input
+                    type="number"
+                    value={option.weight || 0}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, weight: Number(e.target.value) };
+                      updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Variable Name</Label>
+                  <Input
+                    value={option.variableName || ''}
+                    onChange={(e) => {
+                      const newOptions = [...data.options];
+                      newOptions[index] = { ...option, variableName: e.target.value };
+                      updateNode(flowId, id, { ...data, options: newOptions });
+                    }}
+                    className="h-8"
+                  />
+                </div>
+              </div>
             </div>
           ))}
         </div>
-
-        <button
-          onClick={handleAddOption}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium text-gray-600 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Option
-        </button>
       </div>
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="w-3 h-3 border-2 !bg-background"
+      />
     </NodeWrapper>
   );
 });
-MultipleChoiceNode.displayName = 'MultipleChoiceNode';
 
 export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
-  const { chartStore } = useStores() as any;
-  const DEFAULT_QUESTION = "Does your claim meet this requirement?";
-
-  const handleQuestionChange = useCallback((value: string) => {
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      question: value || DEFAULT_QUESTION
-    });
-  }, [chartStore, data, id]);
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
+  const DEFAULT_QUESTION = "Do you agree?";
 
   const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
+    console.log('YesNoNode: Attempting to delete node', { id, instanceId: flowId });
+    if (!flowId) {
+      console.error('YesNoNode: No flow ID found');
+      return;
     }
-  }, [chartStore, data.instanceId, id]);
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('YesNoNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
 
   return (
     <NodeWrapper
       title="Yes/No Question"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-emerald-50/50"
+      handles={{ top: true }}
+      headerClassName="bg-green-50 border-green-100"
+      headerIcon={<SplitSquareHorizontal className="h-4 w-4 text-green-500" />}
     >
-      <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110"
-        />
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Question
-          </label>
-          <input
-            type="text"
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Question</Label>
+          <Input
             value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => handleQuestionChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={DEFAULT_QUESTION}
+            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
+            placeholder="Enter your question..."
+            className="h-9"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          {[
-            { label: 'Yes', id: 'yes', position: Position.Bottom },
-            { label: 'No', id: 'no', position: Position.Bottom }
-          ].map((option) => (
-            <div key={option.id} className="relative">
-              <div className={cn(
-                "p-2 text-center border rounded-lg bg-gray-50 text-sm font-medium transition-all duration-200",
-                selected ? "border-gray-300" : "border-gray-200",
-                "hover:border-blue-500 hover:bg-blue-50"
-              )}>
-                {option.label}
+          <div className="space-y-2 relative">
+            <Label>Yes Option</Label>
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <div className="space-y-1">
+                <Label className="text-xs">Label</Label>
+                <Input
+                  value={data.yesLabel || 'Yes'}
+                  onChange={(e) => updateNode(flowId, id, { ...data, yesLabel: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Value</Label>
+                <Input
+                  value={data.yesValue || '1'}
+                  onChange={(e) => updateNode(flowId, id, { ...data, yesValue: e.target.value })}
+                  className="h-8"
+                />
               </div>
               <Handle
                 type="source"
-                position={option.position}
-                id={option.id}
-                className={cn(
-                  "w-3 h-3 bg-blue-500 border-2 border-white transition-all duration-200 hover:bg-blue-600 hover:scale-110",
-                  option.id === 'yes' ? "left-[25%]" : "left-[75%]",
-                  "bottom-0 translate-y-1/2"
-                )}
+                position={Position.Right}
+                id="yes"
+                className="w-3 h-3 border-2 !bg-background"
               />
             </div>
-          ))}
+          </div>
+
+          <div className="space-y-2 relative">
+            <Label>No Option</Label>
+            <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+              <div className="space-y-1">
+                <Label className="text-xs">Label</Label>
+                <Input
+                  value={data.noLabel || 'No'}
+                  onChange={(e) => updateNode(flowId, id, { ...data, noLabel: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Value</Label>
+                <Input
+                  value={data.noValue || '0'}
+                  onChange={(e) => updateNode(flowId, id, { ...data, noValue: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <Handle
+                type="source"
+                position={Position.Right}
+                id="no"
+                className="w-3 h-3 border-2 !bg-background"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </NodeWrapper>
   );
 });
-YesNoNode.displayName = 'YesNoNode';
 
 export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData>) => {
-  const { chartStore } = useStores() as any;
-
-  const handleWeightChange = useCallback((value: string) => {
-    const weight = parseFloat(value) || 1;
-    chartStore.updateNodeData(data.instanceId, id, {
-      ...data,
-      weight,
-    });
-  }, [chartStore, data, id]);
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
 
   const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this weight node?')) {
-      chartStore.removeNode(data.instanceId, id);
+    if (!flowId) {
+      console.error('WeightNode: No flow ID found');
+      return;
     }
-  }, [chartStore, data.instanceId, id]);
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('WeightNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
 
   return (
     <NodeWrapper
       title="Weight"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-amber-50/50"
+      handles={{ top: true, bottom: true }}
+      headerClassName="bg-amber-50 border-amber-100"
+      headerIcon={<Scale className="h-4 w-4 text-amber-500" />}
     >
-      <div className="space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-amber-500 border-2 border-white transition-all duration-200 hover:bg-amber-600 hover:scale-110"
-        />
-
-        <div className="flex items-center gap-4">
-          <Scale className="h-5 w-5 text-amber-500" />
-          <input
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Weight Value</Label>
+          <Input
             type="number"
-            value={data.weight}
-            onChange={(e) => handleWeightChange(e.target.value)}
-            step="0.1"
-            min="0"
-            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+            value={data.weight || 0}
+            onChange={(e) => updateNode(flowId, id, { ...data, weight: Number(e.target.value) })}
+            placeholder="Enter weight value..."
+            className="h-9"
           />
         </div>
 
-        <div className="text-xs text-gray-500">
-          Score will be multiplied by this weight
+        <div className="space-y-2">
+          <Label>Operation</Label>
+          <Select
+            value={data.operation || 'multiply'}
+            onValueChange={(value) => updateNode(flowId, id, { ...data, operation: value as 'multiply' | 'add' })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select operation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="multiply">Multiply</SelectItem>
+              <SelectItem value="add">Add</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="w-3 h-3 bg-amber-500 border-2 border-white transition-all duration-200 hover:bg-amber-600 hover:scale-110"
-        />
+        <div className="space-y-2">
+          <Label>Target Variable</Label>
+          <Input
+            value={data.targetVariable || ''}
+            onChange={(e) => updateNode(flowId, id, { ...data, targetVariable: e.target.value })}
+            placeholder="Enter target variable name..."
+            className="h-9"
+          />
+        </div>
       </div>
     </NodeWrapper>
   );
 });
-WeightNode.displayName = 'WeightNode';
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
-  const { chartStore, variableStore, utilityStore } = useStores() as any;
-  const [nodeData, setNodeData] = useState({
-    label: data?.label || "Function Node",
-    variableScope: data?.variableScope || "local",
-    selectedVariable: data?.selectedVariable || "",
-    sequences: data?.sequences || [],
-    handles: data?.handles || ["default"]
-  });
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentOperation, setCurrentOperation] = useState("");
-  const [currentValue, setCurrentValue] = useState<number | string>("");
-  const [currentCondition, setCurrentCondition] = useState("");
-  const [currentConditionValue, setCurrentConditionValue] = useState<number | string>("");
-
-  const currentTab = utilityStore.currentTab;
-  const currentInstance = chartStore.getChartInstance(currentTab);
-
-  useEffect(() => {
-    Object.assign(data, nodeData);
-  }, [data, nodeData]);
-
-  const filteredVariables = useMemo(() => {
-    if (nodeData.variableScope === "global") {
-      return variableStore.variables.global || [];
-    } else {
-      return currentInstance?.variables || [];
-    }
-  }, [variableStore.variables, currentInstance, nodeData.variableScope]);
-
-  const updateNodeData = useCallback((updater: (prev: typeof nodeData) => typeof nodeData) => {
-    setNodeData((prevData) => {
-      const newData = updater(prevData);
-      return newData;
-    });
-  }, []);
-
-  const handleSelectVariable = (variableName: string) => {
-    updateNodeData((prev) => ({ ...prev, selectedVariable: variableName }));
-  };
-
-  const addOperation = (parentIndex: number | null = null) => {
-    if (currentOperation && currentValue !== "" && nodeData.selectedVariable) {
-      const newOperation = {
-        type: currentOperation,
-        value: Number(currentValue),
-        variable: nodeData.selectedVariable
-      };
-
-      updateNodeData((prev) => {
-        const newSequences = [...prev.sequences];
-        if (parentIndex !== null) {
-          if (!newSequences[parentIndex].children) {
-            newSequences[parentIndex].children = [];
-          }
-          newSequences[parentIndex].children.push(newOperation);
-        } else {
-          newSequences.push(newOperation);
-        }
-        return { ...prev, sequences: newSequences };
-      });
-
-      setCurrentOperation("");
-      setCurrentValue("");
-    }
-  };
-
-  const addRule = () => {
-    if (currentCondition && currentConditionValue !== "" && nodeData.selectedVariable) {
-      const newRule = {
-        type: "if",
-        condition: currentCondition,
-        value: Number(currentConditionValue),
-        variable: nodeData.selectedVariable,
-        handleId: "default",
-        children: []
-      };
-
-      updateNodeData((prev) => ({
-        ...prev,
-        sequences: [...prev.sequences, newRule],
-      }));
-
-      setCurrentCondition("");
-      setCurrentConditionValue("");
-    }
-  };
-
-  const addElse = (ifIndex: number) => {
-    updateNodeData((prev) => {
-      const newSequences = [...prev.sequences];
-      const ifBlock = newSequences[ifIndex];
-
-      if (ifBlock.children && !ifBlock.children.find((child) => child.type === "else")) {
-        ifBlock.children.push({
-          type: "else",
-          variable: nodeData.selectedVariable,
-          handleId: "default",
-          children: []
-        });
-      }
-
-      return { ...prev, sequences: newSequences };
-    });
-  };
-
-  const updateHandleForBlock = (parentIndex: number, handleId: string, blockType = "if") => {
-    updateNodeData((prev) => {
-      const newSequences = [...prev.sequences];
-      const block = newSequences[parentIndex].children?.find(
-        (child) => child.type === blockType
-      );
-
-      if (block) {
-        block.handleId = handleId;
-      } else {
-        newSequences[parentIndex].handleId = handleId;
-      }
-
-      return { ...prev, sequences: newSequences };
-    });
-  };
-
-  const addHandleToNode = () => {
-    const newHandleId = `handle-${nodeData.handles.length}`;
-    updateNodeData((prev) => ({
-      ...prev,
-      handles: [...prev.handles, newHandleId],
-    }));
-  };
-
-  const removeHandle = (handleId: string) => {
-    updateNodeData((prev) => ({
-      ...prev,
-      handles: prev.handles.filter((id) => id !== handleId),
-      sequences: prev.sequences.filter((seq) => seq.handleId !== handleId),
-    }));
-  };
-
-  const removeSequence = (index: number, parentIndex: number | null = null) => {
-    updateNodeData((prev) => {
-      const newSequences = [...prev.sequences];
-      if (parentIndex !== null) {
-        if (newSequences[parentIndex].children) {
-          newSequences[parentIndex].children = newSequences[parentIndex].children.filter(
-            (_, i) => i !== index
-          );
-        }
-      } else {
-        newSequences.splice(index, 1);
-      }
-      return { ...prev, sequences: newSequences };
-    });
-  };
-
-  const renderIndentedSequences = (sequences: any[], level = 0, parentIndex: number | null = null) => {
-    return sequences.map((seq, index) => {
-      const isIndented = seq.type !== "else" && level > 0;
-      const indentClass = isIndented ? "ml-8" : "";
-
-      return (
-        <motion.div
-          key={index}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className={`flex flex-col ${indentClass}`}
-        >
-          <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-            <span className="text-sm font-medium">
-              {seq.type === "if"
-                ? `If ${seq.variable} is ${seq.condition} ${seq.value}`
-                : seq.type === "else"
-                  ? `Else`
-                  : `${seq.type.charAt(0).toUpperCase() + seq.type.slice(1)} ${seq.value} to ${seq.variable}`}
-            </span>
-            <button
-              className="p-1 hover:bg-gray-200 rounded-md text-gray-500 hover:text-red-500 transition-colors"
-              onClick={() => removeSequence(index, parentIndex)}
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-
-          {(seq.type === "if" || seq.type === "else") && (
-            <div className="mt-2 space-y-2 pl-4">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-gray-600">Output Handle:</label>
-                <select
-                  className="flex-1 px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={seq.handleId}
-                  onChange={(e) => updateHandleForBlock(
-                    parentIndex !== null ? parentIndex : index,
-                    e.target.value,
-                    seq.type
-                  )}
-                >
-                  {nodeData.handles.map((handleId) => (
-                    <option key={handleId} value={handleId}>{handleId}</option>
-                  ))}
-                </select>
-              </div>
-
-              {(seq.type === "if" || seq.type === "else") && (
-                <>
-                  {renderIndentedSequences(
-                    seq.children,
-                    level + 1,
-                    parentIndex !== null ? parentIndex : index
-                  )}
-                  {seq.type === "if" && !seq.children.find(child => child.type === "else") && (
-                    <button
-                      className="mt-2 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
-                      onClick={() => addElse(parentIndex !== null ? parentIndex : index)}
-                    >
-                      + Add Else Condition
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </motion.div>
-      );
-    });
-  };
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
+  const [showDialog, setShowDialog] = useState(false);
 
   const handleDelete = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete this node?')) {
-      chartStore.removeNode(data.instanceId, id);
+    if (!flowId) return;
+    removeNode(id);
+  }, [removeNode, id]);
+
+  const handleAddStep = useCallback((step: any) => {
+    const newSteps = [...(data.steps || []), step];
+    updateNode(id, { ...data, steps: newSteps });
+  }, [data, updateNode, id]);
+
+  const handleUpdateSteps = useCallback((newSteps: any[]) => {
+    updateNode(id, { ...data, steps: newSteps });
+  }, [data, updateNode, id]);
+
+  return (
+    <>
+      <NodeWrapper
+        id={id}
+        title="Function"
+        selected={selected}
+        onDelete={handleDelete}
+        handles={{ top: true }}
+        headerClassName="bg-blue-50/80 border-blue-100"
+        headerIcon={<FunctionSquare className="h-4 w-4 text-blue-500" />}
+        headerActions={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowDialog(true)}
+            className="h-6 w-6 hover:bg-blue-100/80"
+          >
+            <Settings2 className="h-4 w-4 text-blue-500" />
+          </Button>
+        }
+      >
+        <div className="p-4 relative min-h-[100px] flex">
+          {/* Left Side - Sequence Preview */}
+          <div className="flex-1 pr-4 border-r">
+            <div className="space-y-2">
+              {data.steps?.map((step, index) => (
+                <div key={index} className="flex items-center space-x-3 group">
+                  <div className="w-1 h-6 bg-blue-100 group-first:h-3 group-first:mt-3 group-last:h-3 -ml-4 mr-3" />
+                  <div className="flex-1">
+                    <div className="text-sm text-muted-foreground">
+                      {step.type === 'condition' ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                          <span>if {step.variable} {step.operator} {step.value}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-400" />
+                          <span>{step.operation} {step.value} to {step.targetVariable}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Empty State */}
+            {(!data.steps || data.steps.length === 0) && (
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                Click settings to add logic
+              </div>
+            )}
+          </div>
+
+          {/* Right Side - Handles */}
+          <div className="pl-4 w-24">
+            {data.steps?.map((step, index) => (
+              step.handle && (
+                <div key={`${index}-${step.handle}`} className="py-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{step.handle}</span>
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={`${index}-${step.handle}`}
+                      className="w-2 h-2 !right-0 !bg-blue-400"
+                    />
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+
+          {/* Status Indicator */}
+          {data.steps?.some(step => 
+            step.type === 'condition' && step.variable && step.value
+          ) && (
+            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          )}
+        </div>
+      </NodeWrapper>
+
+      <FunctionNodeDialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        onAddStep={handleAddStep}
+        steps={data.steps || []}
+        onUpdateSteps={handleUpdateSteps}
+      />
+    </>
+  );
+});
+
+FunctionNode.displayName = 'FunctionNode';
+
+export const InputNode = memo(({ id, data, selected }: NodeProps<InputNodeData>) => {
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    if (!flowId) {
+      console.error('InputNode: No flow ID found');
+      return;
     }
-  }, [chartStore, data.instanceId, id]);
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('InputNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
+
+  const handleInputTypeChange = useCallback((value: InputType) => {
+    const newData = {
+      ...data,
+      inputType: value,
+      validation: value === 'email' ? [{ type: 'email', message: 'Please enter a valid email' }] :
+                 value === 'phone' ? [{ type: 'phone', message: 'Please enter a valid phone number' }] :
+                 data.validation
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  const handleValidationChange = useCallback((rules: ValidationRule[]) => {
+    const newData = { ...data, validation: rules };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
 
   return (
     <NodeWrapper
-      title="Function"
+      title="Input"
       selected={selected}
       onDelete={handleDelete}
-      headerClassName="bg-violet-50/50"
+      handles={{ top: true, bottom: true }}
     >
       <div className="p-4 space-y-4">
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-3 h-3 bg-violet-500 border-2 border-white transition-all duration-200 hover:bg-violet-600 hover:scale-110"
-        />
-
-        <input
-          type="text"
-          value={nodeData.label}
-          onChange={(e) => updateNodeData(prev => ({ ...prev, label: e.target.value }))}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-          placeholder="Function Name"
-        />
-
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg transition-colors"
-        >
-          <Settings className="h-4 w-4" />
-          Configure Function
-        </button>
+        <div className="space-y-2">
+          <Label>Label</Label>
+          <Input
+            value={data.label}
+            onChange={(e) => updateNode(flowId, id, { ...data, label: e.target.value })}
+            placeholder="Enter field label..."
+            className="h-9"
+          />
+        </div>
 
         <div className="space-y-2">
-          {nodeData.handles.map((handleId) => (
-            <div
-              key={handleId}
-              className="relative flex items-center justify-between bg-gray-50 p-2 rounded-lg group"
-            >
-              <div className="flex items-center gap-2">
-                <Handle
-                  type="source"
-                  position={Position.Bottom}
-                  id={handleId}
-                  className="w-3 h-3 bg-violet-500 border-2 border-white transition-all duration-200 hover:bg-violet-600 hover:scale-110"
-                />
-                <span className="text-sm text-gray-600">{handleId}</span>
-              </div>
+          <Label>Input Type</Label>
+          <Select value={data.inputType} onValueChange={handleInputTypeChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">Text</SelectItem>
+              <SelectItem value="textarea">Long Text</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="number">Number</SelectItem>
+              <SelectItem value="phone">Phone</SelectItem>
+              <SelectItem value="date">Date</SelectItem>
+              <SelectItem value="file">File Upload</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-              <div className="flex items-center gap-2">
-                {handleId !== 'default' && (
-                  <button
-                    onClick={() => removeHandle(handleId)}
-                    className="p-1 hover:bg-gray-200 rounded-md text-gray-500 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
+        <div className="space-y-2">
+          <Label>Variable Name</Label>
+          <Input
+            value={data.variableName}
+            onChange={(e) => updateNode(flowId, id, { ...data, variableName: e.target.value })}
+            placeholder="Enter variable name..."
+            className="h-9"
+          />
+        </div>
+
+        {data.inputType !== 'file' && (
+          <div className="space-y-2">
+            <Label>Placeholder</Label>
+            <Input
+              value={data.placeholder}
+              onChange={(e) => updateNode(flowId, id, { ...data, placeholder: e.target.value })}
+              placeholder="Enter placeholder text..."
+              className="h-9"
+            />
+          </div>
+        )}
+      </div>
+    </NodeWrapper>
+  );
+});
+
+InputNode.displayName = 'InputNode';
+
+export const MatrixNode = memo(({ id, data, selected }: NodeProps<MatrixNodeData>) => {
+  const { removeNode, updateNode } = useRootStore();
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    if (!flowId) {
+      console.error('MatrixNode: No flow ID found');
+      return;
+    }
+    
+    try {
+      removeNode(flowId, id);
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('MatrixNode: Error deleting node:', error);
+      toast.error('Failed to delete node');
+    }
+  }, [id, flowId]);
+
+  const handleAddRow = useCallback(() => {
+    const newRow = {
+      id: nanoid(),
+      question: '',
+      variableName: `row_${nanoid(6)}`
+    };
+    const newData = {
+      ...data,
+      rows: [...data.rows, newRow]
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  const handleAddColumn = useCallback(() => {
+    const newColumn = {
+      id: nanoid(),
+      label: '',
+      value: data.columns.length + 1
+    };
+    const newData = {
+      ...data,
+      columns: [...data.columns, newColumn]
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  const handleRemoveRow = useCallback((rowId: string) => {
+    const newData = {
+      ...data,
+      rows: data.rows.filter(row => row.id !== rowId)
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  const handleRemoveColumn = useCallback((columnId: string) => {
+    const newData = {
+      ...data,
+      columns: data.columns.filter(col => col.id !== columnId)
+    };
+    updateNode(flowId, id, newData);
+  }, [data, flowId, id]);
+
+  return (
+    <NodeWrapper
+      title="Matrix"
+      selected={selected}
+      onDelete={handleDelete}
+      handles={{ top: true, bottom: true }}
+    >
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label>Title</Label>
+          <Input
+            value={data.title}
+            onChange={(e) => updateNode(flowId, id, { ...data, title: e.target.value })}
+            placeholder="Enter matrix title..."
+            className="h-9"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Cell Type</Label>
+          <Select 
+            value={data.cellType} 
+            onValueChange={(value: 'radio' | 'checkbox') => 
+              updateNode(flowId, id, { ...data, cellType: value })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="radio">Single Choice (Radio)</SelectItem>
+              <SelectItem value="checkbox">Multiple Choice (Checkbox)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label>Rows (Questions)</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddRow}
+            >
+              Add Row
+            </Button>
+          </div>
+          {data.rows.map((row, index) => (
+            <div key={row.id} className="flex items-center gap-2">
+              <Input
+                value={row.question}
+                onChange={(e) => {
+                  const newRows = [...data.rows];
+                  newRows[index] = { ...row, question: e.target.value };
+                  updateNode(flowId, id, { ...data, rows: newRows });
+                }}
+                placeholder={`Question ${index + 1}`}
+                className="h-9"
+              />
+              <Input
+                value={row.variableName}
+                onChange={(e) => {
+                  const newRows = [...data.rows];
+                  newRows[index] = { ...row, variableName: e.target.value };
+                  updateNode(flowId, id, { ...data, rows: newRows });
+                }}
+                placeholder="Variable name"
+                className="h-9 w-32"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveRow(row.id)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label>Columns (Scale)</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddColumn}
+            >
+              Add Column
+            </Button>
+          </div>
+          {data.columns.map((column, index) => (
+            <div key={column.id} className="flex items-center gap-2">
+              <Input
+                value={column.label}
+                onChange={(e) => {
+                  const newColumns = [...data.columns];
+                  newColumns[index] = { ...column, label: e.target.value };
+                  updateNode(flowId, id, { ...data, columns: newColumns });
+                }}
+                placeholder={`Option ${index + 1}`}
+                className="h-9"
+              />
+              <Input
+                type="number"
+                value={column.value}
+                onChange={(e) => {
+                  const newColumns = [...data.columns];
+                  newColumns[index] = { ...column, value: Number(e.target.value) };
+                  updateNode(flowId, id, { ...data, columns: newColumns });
+                }}
+                placeholder="Value"
+                className="h-9 w-24"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleRemoveColumn(column.id)}
+                className="h-9 w-9 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Function Configuration Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <div className="p-6 space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-            <h3 className="text-lg font-bold text-gray-900">Configure Function</h3>
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded-md"
-            >
-              <XCircle className="h-5 w-5 text-gray-500" />
-            </button>
-          </div>
-
-          {/* Scope Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Variable Scope</label>
-            <div className="flex gap-2">
-              <button
-                className={cn(
-                  "flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-                  nodeData.variableScope === "local"
-                    ? "bg-blue-50 text-blue-700 border-2 border-blue-200"
-                    : "bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100"
-                )}
-                onClick={() => updateNodeData(prev => ({ ...prev, variableScope: "local" }))}
-              >
-                Local
-              </button>
-              <button
-                className={cn(
-                  "flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-                  nodeData.variableScope === "global"
-                    ? "bg-purple-50 text-purple-700 border-2 border-purple-200"
-                    : "bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100"
-                )}
-                onClick={() => updateNodeData(prev => ({ ...prev, variableScope: "global" }))}
-              >
-                Global
-              </button>
-            </div>
-          </div>
-
-          {/* Variable Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Select {nodeData.variableScope.charAt(0).toUpperCase() + nodeData.variableScope.slice(1)} Variable
-            </label>
-            <select
-              value={nodeData.selectedVariable}
-              onChange={(e) => handleSelectVariable(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a variable</option>
-              {filteredVariables.map((variable: any, index: number) => (
-                <option key={index} value={variable.name}>
-                  {variable.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Operations Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-700">Operations</h4>
-              <div className="flex items-center gap-2">
-                <select
-                  value={currentOperation}
-                  onChange={(e) => setCurrentOperation(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Operation</option>
-                  <option value="addition">Add</option>
-                  <option value="subtraction">Subtract</option>
-                  <option value="multiplication">Multiply</option>
-                  <option value="division">Divide</option>
-                </select>
-                <input
-                  type="number"
-                  value={currentValue}
-                  onChange={(e) => setCurrentValue(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Value"
-                />
-                <button
-                  onClick={() => addOperation()}
-                  className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-
-            {/* Conditional Rules */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-700">Conditional Rules</h4>
-              <div className="flex items-center gap-2">
-                <select
-                  value={currentCondition}
-                  onChange={(e) => setCurrentCondition(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Condition</option>
-                  <option value=">">Greater than</option>
-                  <option value="<">Less than</option>
-                  <option value="==">Equal to</option>
-                </select>
-                <input
-                  type="number"
-                  value={currentConditionValue}
-                  onChange={(e) => setCurrentConditionValue(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Value"
-                />
-                <button
-                  onClick={addRule}
-                  className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                >
-                  Add Rule
-                </button>
-              </div>
-            </div>
-
-            {/* Handles Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-700">Handles</h4>
-                <button
-                  onClick={addHandleToNode}
-                  className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                >
-                  Add Handle
-                </button>
-              </div>
-              <div className="space-y-2">
-                {nodeData.handles.map((handleId) => (
-                  <div key={handleId} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg group">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full border-2 border-white bg-violet-500" />
-                      <span className="text-sm text-gray-600">{handleId}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {handleId !== 'default' && (
-                        <button
-                          onClick={() => removeHandle(handleId)}
-                          className="p-1 hover:bg-gray-200 rounded-md text-gray-500 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Sequences */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-700">Sequences</h4>
-              <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
-                {renderIndentedSequences(nodeData.sequences)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </Modal>
     </NodeWrapper>
   );
 });
-FunctionNode.displayName = 'FunctionNode';
+
+MatrixNode.displayName = 'MatrixNode';
 
 // Export the nodeTypes mapping
 export const nodeTypes = {
@@ -1094,8 +1209,10 @@ export const nodeTypes = {
   singleChoice: SingleChoiceNode,
   multipleChoice: MultipleChoiceNode,
   yesNo: YesNoNode,
-  weightNode: WeightNode,
-  functionNode: FunctionNode,
+  weight: WeightNode,
+  function: FunctionNode,
+  input: InputNode,
+  matrix: MatrixNode,
 };
 
 // Node registration information for the sidebar
@@ -1103,44 +1220,56 @@ export const NODE_INFO = [
   {
     type: 'startNode',
     label: 'Start Node',
-    icon: Flag,
+    icon: 'Flag',
     description: 'Beginning of the flow'
   },
   {
     type: 'endNode',
     label: 'End Node',
-    icon: XCircle,
+    icon: 'XCircle',
     description: 'End of the flow or redirect'
   },
   {
     type: 'weight',
     label: 'Weight Node',
-    icon: Scale,
+    icon: 'Scale',
     description: 'Apply weight to scores'
   },
   {
     type: 'singleChoice',
     label: 'Single Choice',
-    icon: CircleDot,
+    icon: 'CircleDot',
     description: 'Single option selection'
   },
   {
     type: 'multipleChoice',
     label: 'Multiple Choice',
-    icon: List,
+    icon: 'List',
     description: 'Multiple option selection'
   },
   {
     type: 'yesNo',
     label: 'Yes/No Question',
-    icon: Check,
+    icon: 'Check',
     description: 'Binary choice question'
   },
   {
     type: 'function',
     label: 'Function Node',
-    icon: FunctionSquare,
+    icon: 'FunctionSquare',
     description: 'Variable operations and logic'
+  },
+  {
+    type: 'input',
+    label: 'Input Node',
+    icon: 'Pencil',
+    description: 'User input field'
+  },
+  {
+    type: 'matrix',
+    label: 'Matrix Node',
+    icon: 'Grid',
+    description: 'Matrix question'
   }
 ];
 

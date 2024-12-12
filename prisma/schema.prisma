@@ -40,11 +40,11 @@ model Session {
 }
 
 model User {
-  id            String     @id @default(cuid())
+  id            String          @id @default(cuid())
   name          String?
-  role          UserRole  @default(USER)
-  credits       Int       @default(0)
-  email         String?   @unique
+  role          UserRole        @default(USER)
+  credits       Int             @default(0)
+  email         String?         @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
@@ -52,6 +52,8 @@ model User {
   projects      Project[]
   flows         Flow[]
   payments      Payment[]
+  projects      Project[]        // Added projects relation
+  charts        ChartInstance[]  // Modified to allow multiple charts
 
   @@index([email])
   @@index([role])
@@ -71,65 +73,44 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// New Project model
 model Project {
-  id          String     @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   description String?
-  color       String     @default("#3B82F6")
-  apiEnabled  Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  apiKey      String?         @unique
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  variables   Json[]          @default([])  // Added for global variables
+  
   userId      String
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  flow        Flow?      @relation("ProjectFlow")
-  apiUsage    APIUsage[]
-
-  @@index([userId])
-}
-
-model Flow {
-  id             String          @id @default(cuid())
-  name           String
-  description    String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  projectId      String          @unique
-  project        Project         @relation("ProjectFlow", fields: [projectId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chartInstances ChartInstance[]
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  charts      ChartInstance[]
 
   @@index([userId])
 }
 
 model ChartInstance {
-  id                String   @id @default(cuid())
-  name              String
-  nodes             Json     @default("[]")
-  edges             Json     @default("[]")
-  color             String   @default("#3B82F6")
-  onePageMode       Boolean  @default(false)
-  publishedVersions Json     @default("[]")
-  variables         Json     @default("[]")
-  flowId            String
-  flow              Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id          String    @id @default(cuid())
+  content     String    @db.Text
+  name        String    @default("New Chart")
+  color       String    @default("#80B500")
+  onePageMode Boolean   @default(false)
+  isPublished Boolean   @default(false)
+  version     Int       @default(1)
+  variables   Json[]    @default([])  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@index([flowId])
-}
-
-model APIUsage {
-  id         String   @id @default(cuid())
-  projectId  String
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  endpoint   String
-  statusCode Int
-  duration   Int
-  createdAt  DateTime @default(now())
-
+  @@index([userId])
   @@index([projectId])
-  @@index([createdAt])
+  @@index([isPublished])
 }
 
 model Payment {

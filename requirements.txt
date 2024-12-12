@@ -1,0 +1,3 @@
+add an end to end test that runs through the entire project saving and loading and adding stuff.
+
+implement the actual monetization

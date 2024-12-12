@@ -1,19 +1,17 @@
 import { create } from "zustand";
-import createChartSlice from "./chartSlice";
+import createFlowSlice from "./flowSlice";
 import createCommitSlice from "./commitSlice";
 import createModalSlice from "./modalSlice";
-import createProjectSlice from "./projectSlice";
 import createUtilitySlice from "./utilitySlice";
 import createVariableSlice from "./variableSlice";
 import { RootState } from "./types";
 
-const useRootStore = create((set, get) => {
-  // First create utility store as it's needed by other stores
+export const useRootStore = create<RootState>((set, get) => {
+  // Create utility store first since other stores might need it
   const utilityStore = createUtilitySlice(set, get);
 
-  // Create other stores with access to utility store
-  const chartStore = createChartSlice(set, () => ({ ...get(), utilityStore }));
-  const projectStore = createProjectSlice(set, () => ({ ...get(), utilityStore }));
+  // Create other stores
+  const flowStore = createFlowSlice(set, get);
   const commitStore = createCommitSlice(set, get);
   const variableStore = createVariableSlice(set, get);
   const modalStore = createModalSlice(set, get);
@@ -21,19 +19,17 @@ const useRootStore = create((set, get) => {
   return {
     // Store slices
     ...utilityStore,
-    ...chartStore,
-    ...projectStore,
+    ...flowStore,
     ...commitStore,
     ...variableStore,
     ...modalStore,
 
-    // Store references
+    // Store references for direct access if needed
     utilityStore,
-    chartStore,
-    projectStore,
+    flowStore,
     commitStore,
     variableStore,
-    modalStore
+    modalStore,
   };
 });
 
