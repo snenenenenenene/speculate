@@ -1,57 +1,41 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
-import { memo, useCallback, useState, useEffect, useMemo } from 'react';
-import { Handle, Position, useReactFlow } from 'reactflow';
-import { useParams } from 'next/navigation';
-import { nanoid } from 'nanoid';
-import { toast } from 'sonner';
 import { useRootStore } from '@/stores/rootStore';
-import { NodeProps } from '@/types/nodes';
-import { 
-  StartNodeData, 
-  EndNodeData, 
-  SingleChoiceNodeData, 
-  MultipleChoiceNodeData,
-  YesNoNodeData,
-  WeightNodeData,
-  FunctionNodeData,
-  FunctionStep,
-  InputNodeData,
-  MatrixNodeData
+import {
+  EndNodeData, FunctionNodeData, InputNodeData,
+  MatrixNodeData, MultipleChoiceNodeData, NodeProps, SingleChoiceNodeData, StartNodeData, WeightNodeData, YesNoNodeData
 } from '@/types/nodes';
+import { nanoid } from 'nanoid';
+import { useParams } from 'next/navigation';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { Handle, Position, useReactFlow } from 'reactflow';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { NodeWrapper } from './base/NodeWrapper';
-import { FunctionNodeDialog } from './function/FunctionNodeDialog';
-import { Editor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import { useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { NodeWrapper } from './base/NodeWrapper';
+import { FunctionNodeDialog } from './function/FunctionNodeDialog';
 
-import { 
-  Trash2,
-  Input as InputIcon,
-  Text,
-  CheckSquare,
-  SplitSquareHorizontal,
-  Scale,
-  Settings2,
-  Wrench as FunctionSquare,
-  XCircle,
+import { cn } from '@/lib/utils';
+import {
   CircleDot,
   Flag,
-  List
+  Wrench as FunctionSquare,
+  List,
+  Scale,
+  Settings2,
+  SplitSquareHorizontal,
+  Trash2,
+  XCircle
 } from 'lucide-react';
 import { InputType } from 'zlib';
 import { MultipleChoiceDialog } from './function/MultipleChoiceNodeDialog';
-import { cn } from '@/lib/utils';
 
 type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
 
@@ -642,6 +626,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
       <NodeWrapper
         title="Multiple Choice"
         selected={selected}
+        id={id}
         onDelete={handleDelete}
         headerClassName="bg-indigo-50/80 border-indigo-100"
         headerIcon={<List className="h-4 w-4 text-indigo-500" />}
@@ -655,24 +640,82 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
             <Settings2 className="h-4 w-4 text-indigo-500" />
           </Button>
         }
+        handles={{ 
+          top: true,    // Single input
+          right: false,
+          bottom: true, // Single output
+          left: false 
+        }}
       >
         <div className="p-4">
-          <NodePreview />
+          <div className="space-y-4">
+            {data.metadata?.image?.position === 'top' && data.metadata.image.url && (
+              <img 
+                src={data.metadata.image.url} 
+                alt={data.metadata.image.alt}
+                className="w-full rounded-lg object-cover" 
+              />
+            )}
+  
+            <div 
+              className="prose prose-sm"
+              dangerouslySetInnerHTML={{ __html: data.question }}
+            />
+  
+            {data.description && (
+              <p className="text-sm text-muted-foreground">{data.description}</p>
+            )}
+  
+            <div className={cn(
+              "grid gap-2",
+              data.style?.layout === 'grid' 
+                ? `grid-cols-${data.style.columns || 2}` 
+                : 'grid-cols-1'
+            )}>
+              {data.options.map((option) => (
+                <div 
+                  key={option.id}
+                  className={cn(
+                    "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
+                    currentSelection.includes(option.id) && 
+                      "border-primary-500 bg-primary-50/50"
+                  )}
+                  onClick={() => {
+                    const newSelection = data.maxSelections === 1 
+                      ? [option.id]  // Single selection mode
+                      : currentSelection.includes(option.id)
+                        ? currentSelection.filter(id => id !== option.id)  // Remove selection
+                        : [...currentSelection, option.id];  // Add selection
+                    handleSelectionChange(newSelection);
+                  }}
+                >
+                  {option.metadata?.image?.url && data.style?.showImages && (
+                    <img 
+                      src={option.metadata.image.url} 
+                      alt={option.metadata.image.alt}
+                      className="w-12 h-12 rounded object-cover" 
+                    />
+                  )}
+                  <span className={cn(
+                    "text-sm",
+                    currentSelection.includes(option.id) && "text-primary-600 font-medium"
+                  )}>
+                    {option.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+  
+            {(data.minSelections || data.maxSelections) && (
+              <p className="text-xs text-muted-foreground">
+                {data.minSelections && `Min: ${data.minSelections} `}
+                {data.maxSelections && `Max: ${data.maxSelections}`} selections
+              </p>
+            )}
+          </div>
         </div>
-
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="w-2 h-2 !border-2 !bg-white"
-        />
-
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="w-2 h-2 !border-2 !bg-white"
-        />
       </NodeWrapper>
-
+  
       <MultipleChoiceDialog 
         open={showDialog}
         onOpenChange={setShowDialog}
@@ -1012,11 +1055,14 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
               </div>
             )}
             {block.type === 'return' && (
-              <div className={cn(
-                "font-medium",
-                block.handle === activeHandle && "text-primary-600"
-              )}>
-                return to {block.handle}
+              <div className="flex items-center justify-between">
+                <span>return to {block.handle}</span>
+                <div 
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    block.handle === activeHandle ? "bg-primary-500" : "bg-gray-200"
+                  )}
+                />
               </div>
             )}
           </div>
@@ -1042,6 +1088,7 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
       <NodeWrapper
         title="Function"
         selected={selected}
+        id={id}
         onDelete={handleDelete}
         headerClassName="bg-blue-50/80 border-blue-100"
         headerIcon={<FunctionSquare className="h-4 w-4 text-blue-500" />}
@@ -1055,31 +1102,53 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
             <Settings2 className="h-4 w-4 text-blue-500" />
           </Button>
         }
-      >
-        <div className="p-4 relative min-h-[100px]">
-          {renderSequencePreview(data.blocks || [])}
-          
-          <Handle
-            type="target"
-            position={Position.Top}
-            className="w-2 h-2 !border-2 !bg-white"
-          />
-
-          {handles.map((handle) => (
+        // Try with just handles prop first, move to customHandles if needed
+        handles={{ 
+          top: true,         // Input handle
+          right: false,
+          bottom: false,
+          left: false 
+        }}
+        customHandles={
+          <>
+            {/* Make sure input handle is visible */}
             <Handle
-              key={handle}
-              type="source"
-              position={Position.Bottom}
-              id={handle}
-              className={cn(
-                "w-2 h-2 !border-2",
-                handle === activeHandle ? "!bg-primary-500" : "!bg-white"
-              )}
+              type="target"
+              position={Position.Top}
+              className="w-2 h-2 !border-2 !bg-white"
             />
-          ))}
+            {/* Return handles */}
+            {handles.map((handle, index) => (
+              <Handle
+                key={handle}
+                type="source"
+                position={Position.Right}
+                id={handle}
+                className={cn(
+                  "w-2 h-2 !border-2",
+                  handle === activeHandle ? "!bg-primary-500" : "!bg-white"
+                )}
+                style={{
+                  top: `${(index * 40) + 40}px`,
+                  right: '-10px'
+                }}
+              />
+            ))}
+          </>
+        }
+      >
+        {/* Rest remains the same */}
+        <div className="p-4 relative min-h-[100px]">
+          {data.blocks && data.blocks.length > 0 ? (
+            renderSequencePreview(data.blocks || [])
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              Click settings to add function logic
+            </div>
+          )}
         </div>
       </NodeWrapper>
-
+  
       <FunctionNodeDialog
         open={showDialog}
         onOpenChange={setShowDialog}
