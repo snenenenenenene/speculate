@@ -30,6 +30,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NodeWrapper } from './base/NodeWrapper';
 import { FunctionNodeDialog } from './function/FunctionNodeDialog';
+import { Editor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
+import { useEditor } from '@tiptap/react';
 
 import { 
   Trash2,
@@ -42,9 +46,12 @@ import {
   Wrench as FunctionSquare,
   XCircle,
   CircleDot,
-  Flag
+  Flag,
+  List
 } from 'lucide-react';
 import { InputType } from 'zlib';
+import { MultipleChoiceDialog } from './function/MultipleChoiceNodeDialog';
+import { cn } from '@/lib/utils';
 
 type OperationType = 'addition' | 'subtraction' | 'multiplication' | 'division';
 
@@ -436,185 +443,203 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
   );
 });
 
+interface Option {
+  id: string;
+  label: string;
+  value: string;
+  metadata?: {
+    image?: {
+      url: string;
+      alt: string;
+    };
+  };
+}
+
+interface MultipleChoiceNodeData {
+  question: string;
+  description?: string;
+  options: Option[];
+  minSelections?: number;
+  maxSelections?: number;
+  style?: {
+    layout: 'grid' | 'list';
+    columns?: number;
+    showImages?: boolean;
+  };
+  metadata?: {
+    image?: {
+      url: string;
+      alt: string;
+      position: 'top' | 'bottom' | 'background';
+    };
+  };
+}
+
 export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
   const { removeNode, updateNode } = useRootStore();
+  const [showDialog, setShowDialog] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
-  const DEFAULT_QUESTION = "Select all that apply:";
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      })
+    ],
+    content: data.question || '',
+    onUpdate: ({ editor }) => {
+      const content = editor.getHTML();
+      handleUpdateNode({ question: content });
+    }
+  });
 
   const handleDelete = useCallback(() => {
-    if (!flowId) {
-      console.error('MultipleChoiceNode: No flow ID found');
-      return;
-    }
-    
-    try {
-      removeNode(flowId, id);
-      toast.success('Node deleted successfully');
-    } catch (error) {
-      console.error('MultipleChoiceNode: Error deleting node:', error);
-      toast.error('Failed to delete node');
-    }
-  }, [id, flowId]);
+    if (!flowId) return;
+    removeNode(flowId, id);
+    toast.success('Node deleted');
+  }, [removeNode, id, flowId]);
 
-  const handleAddOption = useCallback(() => {
-    const newOption = { 
-      id: nanoid(), 
-      label: '', 
-      nextNodeId: null,
-      weight: 0,
-      variableName: '',
-      value: ''
-    };
+  const handleUpdateNode = useCallback((updates: Partial<MultipleChoiceNodeData>) => {
     const newData = {
       ...data,
-      options: [...(data.options || []), newOption]
+      ...updates,
     };
     updateNode(flowId, id, newData);
-  }, [data, flowId, id]);
+  }, [data, updateNode, flowId, id]);
 
-  const handleRemoveOption = useCallback((optionId: string) => {
-    const newData = {
-      ...data,
-      options: data.options?.filter(opt => opt.id !== optionId) || []
+  const handleImageUpload = useCallback(async (file: File, type: 'question' | 'option', optionId?: string) => {
+    // In a real implementation, you'd upload to your storage service
+    // For now, we'll use base64
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      if (type === 'question') {
+        handleUpdateNode({
+          metadata: {
+            ...data.metadata,
+            image: {
+              url: base64,
+              alt: file.name,
+              position: 'top'
+            }
+          }
+        });
+      } else if (type === 'option' && optionId) {
+        const newOptions = data.options.map(opt => 
+          opt.id === optionId ? {
+            ...opt,
+            metadata: {
+              ...opt.metadata,
+              image: {
+                url: base64,
+                alt: file.name
+              }
+            }
+          } : opt
+        );
+        handleUpdateNode({ options: newOptions });
+      }
     };
-    updateNode(flowId, id, newData);
-  }, [data, flowId, id]);
+    reader.readAsDataURL(file);
+  }, [data, handleUpdateNode]);
+
+  // Preview component for the node display
+  const NodePreview = () => (
+    <div className="space-y-4">
+      {data.metadata?.image?.position === 'top' && data.metadata.image.url && (
+        <img 
+          src={data.metadata.image.url} 
+          alt={data.metadata.image.alt}
+          className="w-full rounded-lg" 
+        />
+      )}
+
+      <div 
+        className="prose prose-sm"
+        dangerouslySetInnerHTML={{ __html: data.question }}
+      />
+
+      {data.description && (
+        <p className="text-sm text-muted-foreground">{data.description}</p>
+      )}
+
+      <div className={cn(
+        "grid gap-2",
+        data.style?.layout === 'grid' ? `grid-cols-${data.style.columns || 2}` : 'grid-cols-1'
+      )}>
+        {data.options.map((option) => (
+          <div 
+            key={option.id}
+            className="border rounded-lg p-2 flex items-center gap-2"
+          >
+            {option.metadata?.image?.url && data.style?.showImages && (
+              <img 
+                src={option.metadata.image.url} 
+                alt={option.metadata.image.alt}
+                className="w-12 h-12 rounded object-cover" 
+              />
+            )}
+            <span className="text-sm">{option.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <NodeWrapper
-      title="Multiple Choice"
-      selected={selected}
-      onDelete={handleDelete}
-      handles={{ top: true, bottom: true }}
-      headerClassName="bg-indigo-50 border-indigo-100"
-      headerIcon={<CheckSquare className="h-4 w-4 text-indigo-500" />}
-    >
-      <div className="p-4 space-y-4">
-        <div className="space-y-2">
-          <Label>Question</Label>
-          <Input
-            value={data.question || DEFAULT_QUESTION}
-            onChange={(e) => updateNode(flowId, id, { ...data, question: e.target.value })}
-            placeholder="Enter your question..."
-            className="h-9"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Min Selections</Label>
-            <Input
-              type="number"
-              value={data.minSelections || 0}
-              onChange={(e) => updateNode(flowId, id, { ...data, minSelections: Number(e.target.value) })}
-              className="h-8"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Max Selections</Label>
-            <Input
-              type="number"
-              value={data.maxSelections || data.options?.length || 0}
-              onChange={(e) => updateNode(flowId, id, { ...data, maxSelections: Number(e.target.value) })}
-              className="h-8"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Score Calculation</Label>
-          <Select
-            value={data.scoreCalculation || 'sum'}
-            onValueChange={(value) => updateNode(flowId, id, { ...data, scoreCalculation: value as 'sum' | 'average' | 'multiply' })}
+    <>
+      <NodeWrapper
+        title="Multiple Choice"
+        selected={selected}
+        onDelete={handleDelete}
+        headerClassName="bg-indigo-50/80 border-indigo-100"
+        headerIcon={<List className="h-4 w-4 text-indigo-500" />}
+        headerActions={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowDialog(true)}
+            className="h-6 w-6 hover:bg-indigo-100/80"
           >
-            <SelectTrigger className="h-8">
-              <SelectValue placeholder="Select calculation method" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sum">Sum</SelectItem>
-              <SelectItem value="average">Average</SelectItem>
-              <SelectItem value="multiply">Multiply</SelectItem>
-            </SelectContent>
-          </Select>
+            <Settings2 className="h-4 w-4 text-indigo-500" />
+          </Button>
+        }
+      >
+        <div className="p-4">
+          <NodePreview />
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label>Options</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddOption}
-              className="h-7 px-2"
-            >
-              Add Option
-            </Button>
-          </div>
-          
-          {data.options?.map((option, index) => (
-            <div key={option.id} className="relative space-y-2 p-3 bg-muted/30 rounded-md">
-              <div className="flex items-center gap-2">
-                <Input
-                  value={option.label}
-                  onChange={(e) => {
-                    const newOptions = [...data.options];
-                    newOptions[index] = { ...option, label: e.target.value };
-                    updateNode(flowId, id, { ...data, options: newOptions });
-                  }}
-                  placeholder={`Option ${index + 1}`}
-                  className="h-9"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveOption(option.id)}
-                  className="h-9 w-9 p-0"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+        {/* Input Handle */}
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="w-2 h-2 !border-2 !bg-white"
+        />
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Weight</Label>
-                  <Input
-                    type="number"
-                    value={option.weight || 0}
-                    onChange={(e) => {
-                      const newOptions = [...data.options];
-                      newOptions[index] = { ...option, weight: Number(e.target.value) };
-                      updateNode(flowId, id, { ...data, options: newOptions });
-                    }}
-                    className="h-8"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Variable Name</Label>
-                  <Input
-                    value={option.variableName || ''}
-                    onChange={(e) => {
-                      const newOptions = [...data.options];
-                      newOptions[index] = { ...option, variableName: e.target.value };
-                      updateNode(flowId, id, { ...data, options: newOptions });
-                    }}
-                    className="h-8"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+        {/* Output Handle */}
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="w-2 h-2 !border-2 !bg-white"
+        />
+      </NodeWrapper>
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="w-3 h-3 border-2 !bg-background"
+      <MultipleChoiceDialog 
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        data={data}
+        onUpdate={handleUpdateNode}
+        editor={editor}
+        onImageUpload={handleImageUpload}
       />
-    </NodeWrapper>
+    </>
   );
 });
+
+MultipleChoiceNode.displayName = 'MultipleChoiceNode';
 
 export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
   const { removeNode, updateNode } = useRootStore();
@@ -791,30 +816,165 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
   );
 });
 
+
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
   const { removeNode, updateNode } = useRootStore();
+  const [showDialog, setShowDialog] = useState(false);
+  const [variables, setVariables] = useState<{ name: string; value: string; scope: 'local' | 'global' }[]>([]);
   const params = useParams();
   const flowId = params.flowId as string;
-  const [showDialog, setShowDialog] = useState(false);
+  const projectId = params.projectId as string;
+
+  // Get all unique handles from the blocks
+  const getUniqueHandles = (blocks: any[]): string[] => {
+    const handles = new Set<string>();
+    
+    const findHandles = (block: any) => {
+      if (block.type === 'return' && block.handle) {
+        handles.add(block.handle);
+      }
+      if (block.blocks) {
+        block.blocks.forEach(findHandles);
+      }
+    };
+
+    blocks.forEach(findHandles);
+    return Array.from(handles);
+  };
+
+  // Validate that all paths end with return
+  const validateReturns = (blocks: any[]): boolean => {
+    const checkBlocksForReturn = (blocks: any[]): boolean => {
+      if (!blocks || blocks.length === 0) return false;
+
+      for (const block of blocks) {
+        // If it's a return block, this path is valid
+        if (block.type === 'return') return true;
+        
+        // If it's an if block, both if and else paths must have returns
+        if (block.type === 'if') {
+          const hasIfReturn = block.blocks ? checkBlocksForReturn(block.blocks) : false;
+          // Look for else block
+          const elseBlock = block.blocks?.find(b => b.type === 'else');
+          const hasElseReturn = elseBlock?.blocks ? checkBlocksForReturn(elseBlock.blocks) : false;
+          
+          if (!hasIfReturn || !hasElseReturn) return false;
+        }
+        
+        // If it's an else block, check its contents
+        if (block.type === 'else' && block.blocks) {
+          if (!checkBlocksForReturn(block.blocks)) return false;
+        }
+        
+        // For operation blocks, continue checking
+        if (block.type === 'operation' && block.blocks) {
+          if (checkBlocksForReturn(block.blocks)) return true;
+        }
+      }
+      
+      // Check if the last block in the sequence is a return
+      return blocks[blocks.length - 1]?.type === 'return';
+    };
+
+    return checkBlocksForReturn(blocks);
+  };
+
+  // Fetch variables
+  useEffect(() => {
+    const fetchVariables = async () => {
+      try {
+        const [projectResponse, flowResponse] = await Promise.all([
+          fetch(`/api/projects/${projectId}`),
+          fetch(`/api/projects/${projectId}/flows/${flowId}`)
+        ]);
+
+        const projectData = await projectResponse.json();
+        const flowData = await flowResponse.json();
+        
+        const globalVars = (projectData.project?.variables || []).map((v: any) => ({
+          ...v,
+          scope: 'global' as const
+        }));
+
+        let localVars: any[] = [];
+        if (flowData.flow?.content) {
+          try {
+            const content = JSON.parse(flowData.flow.content);
+            localVars = (content.variables || []).map((v: any) => ({
+              ...v,
+              scope: 'local' as const
+            }));
+          } catch (err) {
+            console.error('Error parsing flow content:', err);
+          }
+        }
+
+        setVariables([...globalVars, ...localVars]);
+      } catch (error) {
+        console.error('Error fetching variables:', error);
+        toast.error('Failed to load variables');
+      }
+    };
+
+    fetchVariables();
+  }, [projectId, flowId]);
 
   const handleDelete = useCallback(() => {
     if (!flowId) return;
-    removeNode(id);
-  }, [removeNode, id]);
+    removeNode(flowId, id);
+    toast.success('Node deleted');
+  }, [removeNode, id, flowId]);
 
-  const handleAddStep = useCallback((step: any) => {
-    const newSteps = [...(data.steps || []), step];
-    updateNode(id, { ...data, steps: newSteps });
-  }, [data, updateNode, id]);
+  const handleUpdateLogic = useCallback((blocks: any[]) => {
+    // Validate returns before updating
+    if (!validateReturns(blocks)) {
+      toast.error('All paths must end with a return statement');
+      return;
+    }
 
-  const handleUpdateSteps = useCallback((newSteps: any[]) => {
-    updateNode(id, { ...data, steps: newSteps });
-  }, [data, updateNode, id]);
+    const newData = {
+      ...data,
+      blocks: blocks,
+    };
+    updateNode(flowId, id, newData);
+    toast.success('Function logic updated');
+    setShowDialog(false);
+  }, [data, updateNode, flowId, id]);
+
+  // Get all handles for rendering
+  const handles = data.blocks ? getUniqueHandles(data.blocks) : [];
+
+  // Render sequence preview
+  const renderSequencePreview = (blocks: any[], depth = 0) => {
+    return blocks.map((block, index) => {
+      const indent = depth * 12;
+      return (
+        <div key={block.id} style={{ marginLeft: `${indent}px` }}>
+          <div className="text-sm text-muted-foreground">
+            {block.type === 'if' && (
+              <div>
+                if {block.condition?.variable} {block.condition?.operator} {block.condition?.value}
+              </div>
+            )}
+            {block.type === 'else' && <div>else</div>}
+            {block.type === 'operation' && (
+              <div>
+                {block.operation?.type} {block.operation?.value} to {block.operation?.targetVariable}
+              </div>
+            )}
+            {block.type === 'return' && (
+              <div>return to {block.handle}</div>
+            )}
+          </div>
+          {block.blocks && renderSequencePreview(block.blocks, depth + 1)}
+        </div>
+      );
+    });
+  };
 
   return (
     <>
       <NodeWrapper
-        id={id}
         title="Function"
         selected={selected}
         onDelete={handleDelete}
@@ -832,74 +992,47 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
           </Button>
         }
       >
-        <div className="p-4 relative min-h-[100px] flex">
-          {/* Left Side - Sequence Preview */}
-          <div className="flex-1 pr-4 border-r">
-            <div className="space-y-2">
-              {data.steps?.map((step, index) => (
-                <div key={index} className="flex items-center space-x-3 group">
-                  <div className="w-1 h-6 bg-blue-100 group-first:h-3 group-first:mt-3 group-last:h-3 -ml-4 mr-3" />
-                  <div className="flex-1">
-                    <div className="text-sm text-muted-foreground">
-                      {step.type === 'condition' ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                          <span>if {step.variable} {step.operator} {step.value}</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-400" />
-                          <span>{step.operation} {step.value} to {step.targetVariable}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+        <div className="p-4 relative min-h-[100px]">
+          <div className="flex gap-8">
+            {/* Left side - Sequence preview */}
+            <div className="flex-1">
+              {data.blocks && data.blocks.length > 0 ? (
+                <div className="space-y-2 text-sm">
+                  {renderSequencePreview(data.blocks)}
                 </div>
-              ))}
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                  Click settings to add function logic
+                </div>
+              )}
             </div>
-
-            {/* Empty State */}
-            {(!data.steps || data.steps.length === 0) && (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                Click settings to add logic
-              </div>
-            )}
-          </div>
-
-          {/* Right Side - Handles */}
-          <div className="pl-4 w-24">
-            {data.steps?.map((step, index) => (
-              step.handle && (
-                <div key={`${index}-${step.handle}`} className="py-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{step.handle}</span>
+            
+            {/* Right side - Handles */}
+            {handles.length > 0 && (
+              <div className="w-24 flex flex-col gap-2 justify-start">
+                {handles.map((handle, index) => (
+                  <div key={handle} className="relative">
+                    <div className="text-xs text-muted-foreground mb-1">{handle}</div>
                     <Handle
                       type="source"
                       position={Position.Right}
-                      id={`${index}-${step.handle}`}
-                      className="w-2 h-2 !right-0 !bg-blue-400"
+                      id={handle}
+                      className="w-3 h-3 !right-0"
                     />
                   </div>
-                </div>
-              )
-            ))}
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Status Indicator */}
-          {data.steps?.some(step => 
-            step.type === 'condition' && step.variable && step.value
-          ) && (
-            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          )}
         </div>
       </NodeWrapper>
 
       <FunctionNodeDialog
         open={showDialog}
         onOpenChange={setShowDialog}
-        onAddStep={handleAddStep}
-        steps={data.steps || []}
-        onUpdateSteps={handleUpdateSteps}
+        onUpdateLogic={handleUpdateLogic}
+        variables={variables}
+        blocks={data.blocks || []}
       />
     </>
   );
