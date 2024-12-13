@@ -9,11 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Settings, ChevronDown } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Settings } from "lucide-react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -25,8 +25,15 @@ export function Navbar() {
         <div className="flex items-center space-x-4">
           <Link
             href="/"
-            className="text-xl font-bold text-black dark:text-white"
+            className="text-xl flex font-bold text-black dark:text-white"
           >
+            		<div className="w-8 h-8 relative transition-transform duration-300 group-hover:scale-110">
+						<img
+							src="/logo.png"
+							alt="Speculate Logo"
+							className="object-cover w-full h-full"
+						/>
+					</div>
             Speculate
           </Link>
         </div>

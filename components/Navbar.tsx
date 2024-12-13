@@ -65,7 +65,7 @@ export default function Navbar() {
 				>
 					<div className="w-8 h-8 relative transition-transform duration-300 group-hover:scale-110">
 						<img
-							src="/assets/images/logo.png"
+							src="/logo.png"
 							alt="Speculate Logo"
 							className="object-cover w-full h-full"
 						/>

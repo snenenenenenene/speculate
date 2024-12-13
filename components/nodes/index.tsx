@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/nodes/index.tsx
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useReactFlow } from 'reactflow';
 import { useParams } from 'next/navigation';
 import { nanoid } from 'nanoid';
 import { toast } from 'sonner';
@@ -476,10 +476,11 @@ interface MultipleChoiceNodeData {
 }
 
 export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
-  const { removeNode, updateNode } = useRootStore();
+  const { removeNode, updateNode, selections, setSelection } = useRootStore();
   const [showDialog, setShowDialog] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
+  const currentSelection = selections[id]?.optionIds || [];
 
   const editor = useEditor({
     extensions: [
@@ -509,6 +510,27 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
     };
     updateNode(flowId, id, newData);
   }, [data, updateNode, flowId, id]);
+
+  const handleSelectionChange = useCallback((optionIds: string[]) => {
+    // Validate selection limits
+    if (data.maxSelections && optionIds.length > data.maxSelections) {
+      toast.error(`Maximum ${data.maxSelections} selections allowed`);
+      return;
+    }
+    if (data.minSelections && optionIds.length < data.minSelections) {
+      toast.error(`Minimum ${data.minSelections} selections required`);
+      return;
+    }
+
+    // Update local state and store
+    setSelection(id, {
+      optionIds,
+      timestamp: Date.now()
+    });
+
+    // Update node data with selections
+    handleUpdateNode({ selections: { optionIds, timestamp: Date.now() } });
+  }, [id, data.maxSelections, data.minSelections, setSelection, handleUpdateNode]);
 
   const handleImageUpload = useCallback(async (file: File, type: 'question' | 'option', optionId?: string) => {
     // In a real implementation, you'd upload to your storage service
@@ -553,7 +575,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
         <img 
           src={data.metadata.image.url} 
           alt={data.metadata.image.alt}
-          className="w-full rounded-lg" 
+          className="w-full rounded-lg object-cover" 
         />
       )}
 
@@ -568,12 +590,26 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
 
       <div className={cn(
         "grid gap-2",
-        data.style?.layout === 'grid' ? `grid-cols-${data.style.columns || 2}` : 'grid-cols-1'
+        data.style?.layout === 'grid' 
+          ? `grid-cols-${data.style.columns || 2}` 
+          : 'grid-cols-1'
       )}>
         {data.options.map((option) => (
           <div 
             key={option.id}
-            className="border rounded-lg p-2 flex items-center gap-2"
+            className={cn(
+              "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
+              currentSelection.includes(option.id) && 
+                "border-primary-500 bg-primary-50/50"
+            )}
+            onClick={() => {
+              const newSelection = data.maxSelections === 1 
+                ? [option.id]  // Single selection mode
+                : currentSelection.includes(option.id)
+                  ? currentSelection.filter(id => id !== option.id)  // Remove selection
+                  : [...currentSelection, option.id];  // Add selection
+              handleSelectionChange(newSelection);
+            }}
           >
             {option.metadata?.image?.url && data.style?.showImages && (
               <img 
@@ -582,10 +618,22 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
                 className="w-12 h-12 rounded object-cover" 
               />
             )}
-            <span className="text-sm">{option.label}</span>
+            <span className={cn(
+              "text-sm",
+              currentSelection.includes(option.id) && "text-primary-600 font-medium"
+            )}>
+              {option.label}
+            </span>
           </div>
         ))}
       </div>
+
+      {(data.minSelections || data.maxSelections) && (
+        <p className="text-xs text-muted-foreground">
+          {data.minSelections && `Min: ${data.minSelections} `}
+          {data.maxSelections && `Max: ${data.maxSelections}`} selections
+        </p>
+      )}
     </div>
   );
 
@@ -612,14 +660,12 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
           <NodePreview />
         </div>
 
-        {/* Input Handle */}
         <Handle
           type="target"
           position={Position.Top}
           className="w-2 h-2 !border-2 !bg-white"
         />
 
-        {/* Output Handle */}
         <Handle
           type="source"
           position={Position.Bottom}
@@ -818,18 +864,78 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
 
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
-  const { removeNode, updateNode } = useRootStore();
+  const { removeNode, updateNode, selections, variables } = useRootStore();
   const [showDialog, setShowDialog] = useState(false);
-  const [variables, setVariables] = useState<{ name: string; value: string; scope: 'local' | 'global' }[]>([]);
   const params = useParams();
   const flowId = params.flowId as string;
-  const projectId = params.projectId as string;
+  const reactFlowInstance = useReactFlow();
 
-  // Get all unique handles from the blocks
-  const getUniqueHandles = (blocks: any[]): string[] => {
+  // 1. Get source node first
+  const getSourceNode = useCallback(() => {
+    const edges = reactFlowInstance.getEdges().filter(e => e.target === id);
+    if (edges.length > 0) {
+      const sourceNode = reactFlowInstance.getNode(edges[0].source);
+      if (sourceNode?.type === 'multipleChoice') {
+        return sourceNode;
+      }
+    }
+    return null;
+  }, [id, reactFlowInstance]);
+
+  const sourceNode = getSourceNode();
+  const selection = sourceNode ? selections[sourceNode.id] : undefined;
+
+  // 2. Basic handlers
+  const handleDelete = useCallback(() => {
+    if (!flowId) return;
+    removeNode(flowId, id);
+    toast.success('Node deleted');
+  }, [removeNode, id, flowId]);
+
+  // 3. Condition evaluation
+  const evaluateCondition = useCallback((condition: FunctionBlock['condition']) => {
+    if (!condition) return false;
+
+    // Handle variable conditions
+    if (condition.type === 'variable') {
+      const variableValue = variables[condition.variable || ''];
+      if (variableValue === undefined) return false;
+
+      switch (condition.operator) {
+        case '>=': return variableValue >= condition.value;
+        case '<=': return variableValue <= condition.value;
+        case '==': return variableValue === condition.value;
+        case '!=': return variableValue !== condition.value;
+        case '>': return variableValue > condition.value;
+        case '<': return variableValue < condition.value;
+        default: return false;
+      }
+    }
+
+    // Handle selection conditions
+    if (condition.type === 'selection' && selection) {
+      const selectedIds = selection.optionIds;
+
+      switch (condition.operator) {
+        case 'allSelected':
+          return condition.selectedOptions?.every(opt => selectedIds.includes(opt)) ?? false;
+        case 'anySelected':
+          return condition.selectedOptions?.some(opt => selectedIds.includes(opt)) ?? false;
+        case 'noneSelected':
+          return condition.selectedOptions?.every(opt => !selectedIds.includes(opt)) ?? false;
+        default:
+          return false;
+      }
+    }
+
+    return false;
+  }, [variables, selection]);
+
+  // 4. Handle finding
+  const getUniqueHandles = useCallback((blocks: FunctionBlock[]): string[] => {
     const handles = new Set<string>();
     
-    const findHandles = (block: any) => {
+    const findHandles = (block: FunctionBlock) => {
       if (block.type === 'return' && block.handle) {
         handles.add(block.handle);
       }
@@ -840,137 +946,96 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
 
     blocks.forEach(findHandles);
     return Array.from(handles);
-  };
+  }, []);
 
-  // Validate that all paths end with return
-  const validateReturns = (blocks: any[]): boolean => {
-    const checkBlocksForReturn = (blocks: any[]): boolean => {
-      if (!blocks || blocks.length === 0) return false;
+  const handles = useMemo(() => getUniqueHandles(data.blocks || []), [data.blocks, getUniqueHandles]);
 
+  const getActiveHandle = useCallback(() => {
+    const evaluateBlocks = (blocks: FunctionBlock[]): string | null => {
       for (const block of blocks) {
-        // If it's a return block, this path is valid
-        if (block.type === 'return') return true;
-        
-        // If it's an if block, both if and else paths must have returns
         if (block.type === 'if') {
-          const hasIfReturn = block.blocks ? checkBlocksForReturn(block.blocks) : false;
-          // Look for else block
-          const elseBlock = block.blocks?.find(b => b.type === 'else');
-          const hasElseReturn = elseBlock?.blocks ? checkBlocksForReturn(elseBlock.blocks) : false;
-          
-          if (!hasIfReturn || !hasElseReturn) return false;
-        }
-        
-        // If it's an else block, check its contents
-        if (block.type === 'else' && block.blocks) {
-          if (!checkBlocksForReturn(block.blocks)) return false;
-        }
-        
-        // For operation blocks, continue checking
-        if (block.type === 'operation' && block.blocks) {
-          if (checkBlocksForReturn(block.blocks)) return true;
-        }
-      }
-      
-      // Check if the last block in the sequence is a return
-      return blocks[blocks.length - 1]?.type === 'return';
-    };
-
-    return checkBlocksForReturn(blocks);
-  };
-
-  // Fetch variables
-  useEffect(() => {
-    const fetchVariables = async () => {
-      try {
-        const [projectResponse, flowResponse] = await Promise.all([
-          fetch(`/api/projects/${projectId}`),
-          fetch(`/api/projects/${projectId}/flows/${flowId}`)
-        ]);
-
-        const projectData = await projectResponse.json();
-        const flowData = await flowResponse.json();
-        
-        const globalVars = (projectData.project?.variables || []).map((v: any) => ({
-          ...v,
-          scope: 'global' as const
-        }));
-
-        let localVars: any[] = [];
-        if (flowData.flow?.content) {
-          try {
-            const content = JSON.parse(flowData.flow.content);
-            localVars = (content.variables || []).map((v: any) => ({
-              ...v,
-              scope: 'local' as const
-            }));
-          } catch (err) {
-            console.error('Error parsing flow content:', err);
+          if (evaluateCondition(block.condition)) {
+            if (block.blocks) {
+              const nestedHandle = evaluateBlocks(block.blocks);
+              if (nestedHandle) return nestedHandle;
+            }
+          } else {
+            const elseBlock = block.blocks?.find(b => b.type === 'else');
+            if (elseBlock?.blocks) {
+              const elseHandle = evaluateBlocks(elseBlock.blocks);
+              if (elseHandle) return elseHandle;
+            }
           }
+        } else if (block.type === 'return' && block.handle) {
+          return block.handle;
         }
-
-        setVariables([...globalVars, ...localVars]);
-      } catch (error) {
-        console.error('Error fetching variables:', error);
-        toast.error('Failed to load variables');
       }
+      return null;
     };
 
-    fetchVariables();
-  }, [projectId, flowId]);
+    return evaluateBlocks(data.blocks || []);
+  }, [data.blocks, evaluateCondition]);
 
-  const handleDelete = useCallback(() => {
-    if (!flowId) return;
-    removeNode(flowId, id);
-    toast.success('Node deleted');
-  }, [removeNode, id, flowId]);
+  const activeHandle = getActiveHandle();
 
-  const handleUpdateLogic = useCallback((blocks: any[]) => {
-    // Validate returns before updating
-    if (!validateReturns(blocks)) {
-      toast.error('All paths must end with a return statement');
-      return;
-    }
-
-    const newData = {
-      ...data,
-      blocks: blocks,
-    };
-    updateNode(flowId, id, newData);
-    toast.success('Function logic updated');
-    setShowDialog(false);
-  }, [data, updateNode, flowId, id]);
-
-  // Get all handles for rendering
-  const handles = data.blocks ? getUniqueHandles(data.blocks) : [];
-
-  // Render sequence preview
-  const renderSequencePreview = (blocks: any[], depth = 0) => {
-    return blocks.map((block, index) => {
+  // 5. Preview rendering
+  const renderSequencePreview = useCallback((blocks: FunctionBlock[], depth = 0) => {
+    return blocks.map((block) => {
       const indent = depth * 12;
       return (
         <div key={block.id} style={{ marginLeft: `${indent}px` }}>
-          <div className="text-sm text-muted-foreground">
+          <div className={cn(
+            "text-sm",
+            evaluateCondition(block.condition) ? "text-primary-600" : "text-muted-foreground"
+          )}>
             {block.type === 'if' && (
               <div>
-                if {block.condition?.variable} {block.condition?.operator} {block.condition?.value}
+                {block.condition?.type === 'variable' ? (
+                  <>if {block.condition.variable} {block.condition.operator} {block.condition.value}</>
+                ) : block.condition?.type === 'selection' ? (
+                  <>
+                    if {block.condition.operator === 'allSelected' ? 'all of' : 
+                        block.condition.operator === 'anySelected' ? 'any of' : 
+                        'none of'} (
+                    {block.condition.selectedOptions?.map(optId => {
+                      const option = sourceNode?.data.options.find(o => o.id === optId);
+                      return option?.label || optId;
+                    }).join(', ')}) selected
+                  </>
+                ) : null}
               </div>
             )}
             {block.type === 'else' && <div>else</div>}
-            {block.type === 'operation' && (
+            {block.type === 'operation' && block.operation && (
               <div>
-                {block.operation?.type} {block.operation?.value} to {block.operation?.targetVariable}
+                {block.operation.type} {block.operation.value} to {block.operation.targetVariable}
               </div>
             )}
             {block.type === 'return' && (
-              <div>return to {block.handle}</div>
+              <div className={cn(
+                "font-medium",
+                block.handle === activeHandle && "text-primary-600"
+              )}>
+                return to {block.handle}
+              </div>
             )}
           </div>
           {block.blocks && renderSequencePreview(block.blocks, depth + 1)}
         </div>
       );
     });
-  };
+  }, [evaluateCondition, sourceNode, activeHandle]);
+
+  // Effect for source node updates
+  useEffect(() => {
+    if (sourceNode && sourceNode.id !== data.sourceNodeId) {
+      updateNode(flowId, id, {
+        ...data,
+        sourceNodeId: sourceNode.id,
+        sourceNodeType: sourceNode.type
+      });
+    }
+  }, [sourceNode, data, updateNode, flowId, id]);
 
   return (
     <>
@@ -978,7 +1043,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
         title="Function"
         selected={selected}
         onDelete={handleDelete}
-        handles={{ top: true }}
         headerClassName="bg-blue-50/80 border-blue-100"
         headerIcon={<FunctionSquare className="h-4 w-4 text-blue-500" />}
         headerActions={
@@ -993,50 +1057,43 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
         }
       >
         <div className="p-4 relative min-h-[100px]">
-          <div className="flex gap-8">
-            {/* Left side - Sequence preview */}
-            <div className="flex-1">
-              {data.blocks && data.blocks.length > 0 ? (
-                <div className="space-y-2 text-sm">
-                  {renderSequencePreview(data.blocks)}
-                </div>
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                  Click settings to add function logic
-                </div>
+          {renderSequencePreview(data.blocks || [])}
+          
+          <Handle
+            type="target"
+            position={Position.Top}
+            className="w-2 h-2 !border-2 !bg-white"
+          />
+
+          {handles.map((handle) => (
+            <Handle
+              key={handle}
+              type="source"
+              position={Position.Bottom}
+              id={handle}
+              className={cn(
+                "w-2 h-2 !border-2",
+                handle === activeHandle ? "!bg-primary-500" : "!bg-white"
               )}
-            </div>
-            
-            {/* Right side - Handles */}
-            {handles.length > 0 && (
-              <div className="w-24 flex flex-col gap-2 justify-start">
-                {handles.map((handle, index) => (
-                  <div key={handle} className="relative">
-                    <div className="text-xs text-muted-foreground mb-1">{handle}</div>
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={handle}
-                      className="w-3 h-3 !right-0"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            />
+          ))}
         </div>
       </NodeWrapper>
 
       <FunctionNodeDialog
         open={showDialog}
         onOpenChange={setShowDialog}
-        onUpdateLogic={handleUpdateLogic}
+        onUpdateLogic={(blocks) => {
+          updateNode(flowId, id, { ...data, blocks });
+        }}
+        sourceNode={sourceNode}
         variables={variables}
         blocks={data.blocks || []}
       />
     </>
   );
 });
+
 
 FunctionNode.displayName = 'FunctionNode';
 

@@ -78,6 +78,18 @@ export interface ProjectState {
   setCurrentProject: (project: Project | null) => void;
 }
 
+export interface MultipleChoiceSelection {
+  optionIds: string[];
+  timestamp: number;
+}
+
+export interface SelectionState {
+  selections: Record<string, MultipleChoiceSelection>;
+  setSelection: (nodeId: string, selection: MultipleChoiceSelection) => void;
+  clearSelection: (nodeId: string) => void;
+  clearAllSelections: () => void;
+}
+
 export interface CommitState {
   localCommits: Commit[];
   globalCommits: Commit[];
@@ -140,6 +152,7 @@ export interface ValidationResult {
 
 // Combined RootState type
 export interface RootState extends
+SelectionState,
   ChartState,
   ProjectState,
   CommitState,

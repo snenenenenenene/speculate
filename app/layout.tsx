@@ -5,12 +5,16 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 import { NavbarWrapper } from "@/components/layout/navbar-wrapper";
 import { ClientProviders } from "@/components/client-providers";
+import { Metadata } from "next";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Speculate",
   description: "Flow-based editor for speculative execution",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
