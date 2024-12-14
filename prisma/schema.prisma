@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -47,13 +46,16 @@ model User {
   email         String?         @unique
   emailVerified DateTime?
   image         String?
+  
   accounts      Account[]
   sessions      Session[]
-  projects      Project[]
-  flows         Flow[]
+  projects      Project[]       // Owner of projects
+  collaborations ProjectCollaborator[] // Projects user collaborates on
+  charts        ChartInstance[]
   payments      Payment[]
-  projects      Project[]        // Added projects relation
-  charts        ChartInstance[]  // Modified to allow multiple charts
+  auditLogs     AuditLog[]     // Actions performed by user
+  versions      Version[]       // Versions created by user
+  invitations   ProjectInvitation[] // Invitations received
 
   @@index([email])
   @@index([role])
@@ -73,7 +75,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// New Project model
 model Project {
   id          String          @id @default(cuid())
   name        String
@@ -81,46 +82,172 @@ model Project {
   apiKey      String?         @unique
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  variables   Json[]          @default([])  // Added for global variables
+  variables   Json[]          @default([])
   
-  userId      String
+  userId      String          // Owner
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   charts      ChartInstance[]
+  collaborators ProjectCollaborator[]
+  invitations ProjectInvitation[]
+  auditLogs   AuditLog[]
+  domains     AllowedDomain[]
 
   @@index([userId])
 }
 
-model ChartInstance {
-  id          String    @id @default(cuid())
-  content     String    @db.Text
-  name        String    @default("New Chart")
-  color       String    @default("#80B500")
-  onePageMode Boolean   @default(false)
-  isPublished Boolean   @default(false)
-  version     Int       @default(1)
-  variables   Json[]    @default([])  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model ProjectCollaborator {
+  id        String      @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectRole @default(VIEWER)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
   
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+enum ProjectRole {
+  OWNER    // Full access + billing
+  ADMIN    // Full access
+  EDITOR   // Can edit flows
+  VIEWER   // Read-only access
+}
+
+model ProjectInvitation {
+  id        String      @id @default(cuid())
+  email     String
+  projectId String
+  role      ProjectRole @default(VIEWER)
+  token     String      @unique
+  expires   DateTime
+  accepted  Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User?       @relation(fields: [userId], references: [id])
+  userId    String?     // Null until accepted
+
+  @@index([projectId])
+  @@index([email])
+}
+
+model AllowedDomain {
+  id        String   @id @default(cuid())
+  domain    String
+  projectId String
+  createdAt DateTime @default(now())
+  
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, domain])
+  @@index([projectId])
+}
+
+model ChartInstance {
+  id             String    @id @default(cuid())
+  content        String    @db.Text
+  name           String    @default("New Chart")
+  color          String    @default("#80B500")
+  onePageMode    Boolean   @default(false)
+  isPublished    Boolean   @default(false)
+  version        Int       @default(1)
+  variables      Json[]    @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  publishedAt    DateTime?
+  
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  versions       Version[] // Version history
+  
   @@index([userId])
   @@index([projectId])
   @@index([isPublished])
 }
 
+model Version {
+  id          String    @id @default(cuid())
+  version     Int
+  name        String?   // Version name/tag
+  content     Json      // Flow state at this version
+  metadata    Json      // Changelog, notes, etc
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  
+  flowId      String
+  flow        ChartInstance @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  
+  createdBy   String
+  user        User      @relation(fields: [createdBy], references: [id])
+
+  @@unique([flowId, version])
+  @@index([flowId])
+  @@index([createdBy])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  action      AuditAction
+  entityType  String      // "project", "flow", "collaborator", etc.
+  entityId    String      // ID of the affected entity
+  userId      String      // Who made the change
+  projectId   String      // Associated project
+  metadata    Json        // Additional context
+  snapshot    Json?       // State before/after
+  ipAddress   String?     // IP address of request
+  userAgent   String?     // Browser/client info
+  
+  user        User        @relation(fields: [userId], references: [id])
+  project     Project     @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  DELETED
+  PUBLISHED
+  UNPUBLISHED
+  ROLE_CHANGED
+  COLLABORATOR_ADDED
+  COLLABORATOR_REMOVED
+  VARIABLE_ADDED
+  VARIABLE_UPDATED
+  VARIABLE_REMOVED
+  API_KEY_GENERATED
+  API_KEY_REVOKED
+  VERSION_CREATED
+  INVITATION_SENT
+  INVITATION_ACCEPTED
+  INVITATION_REJECTED
+}
+
 model Payment {
-  id        String        @id @default(cuid())
-  amount    Int
-  currency  String       @default("USD")
-  status    PaymentStatus @default(PENDING)
-  createdAt DateTime     @default(now())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  amount        Int
+  currency      String        @default("USD")
+  status        PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  stripeSessionId String?     @unique
+  creditAmount  Int?
+  
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
