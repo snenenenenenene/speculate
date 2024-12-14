@@ -80,4 +80,19 @@
 .react-flow__connection-path {
     stroke: black;
     stroke-width: 2;
+    
 }
+
+
+.edges-remove-button {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  
+  .react-flow__edge:hover .edges-remove-button {
+    opacity: 1;
+  }
+  
+  .edges-remove-button:hover {
+    cursor: pointer;
+  }

@@ -1,4 +1,5 @@
-// FunctionNodeDialog.tsx
+"use client";
+
 import {
   Accordion,
   AccordionContent,
@@ -31,11 +32,46 @@ import {
   ListChecks,
   Plus,
   Undo2,
-  Variable,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+
+interface FunctionBlock {
+  id: string;
+  type: 'if' | 'else' | 'operation' | 'return';
+  condition?: {
+    type: 'variable' | 'selection';
+    variable?: string;
+    operator?: string;
+    value?: string;
+    selectedOptions?: string[];
+  };
+  operation?: {
+    type: string;
+    value: string;
+    targetVariable: string;
+  };
+  handle?: string;
+  blocks?: FunctionBlock[];
+}
+
+interface Node {
+  type: string;
+  data: {
+    options: Array<{
+      id: string;
+      label: string;
+    }>;
+  };
+}
+
+interface MultipleChoiceNodeData {
+  options: Array<{
+    id: string;
+    label: string;
+  }>;
+}
 
 interface FunctionNodeDialogProps {
   open: boolean;
@@ -60,7 +96,7 @@ export function FunctionNodeDialog({
   const [handles, setHandles] = useState<string[]>([]);
   const [newHandle, setNewHandle] = useState('');
   const [history, setHistory] = useState<FunctionBlock[][]>([]);
-  
+
   const [newBlock, setNewBlock] = useState<Partial<FunctionBlock>>({
     type: 'if',
     condition: {
@@ -71,7 +107,6 @@ export function FunctionNodeDialog({
     }
   });
 
-  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setBlockSequence(blocks);
@@ -89,7 +124,6 @@ export function FunctionNodeDialog({
     }
   }, [open, blocks]);
 
-  // Handle undoing changes
   const handleUndo = () => {
     if (history.length > 1) {
       const newHistory = [...history];
@@ -100,7 +134,6 @@ export function FunctionNodeDialog({
     }
   };
 
-  // Save state to history
   const saveToHistory = useCallback((newBlocks: FunctionBlock[]) => {
     setHistory(prev => [...prev, newBlocks]);
   }, []);
@@ -213,7 +246,7 @@ export function FunctionNodeDialog({
                   {block.condition.type === 'variable' ? (
                     <div className="flex items-center gap-2 text-sm">
                       <Badge variant="outline" className="bg-blue-50">
-                        {block.condition.variable}
+                        {block.condition.variable} ({variables[block.condition.variable]})
                       </Badge>
                       <span>{block.condition.operator}</span>
                       <Badge variant="outline" className="bg-blue-50">
@@ -253,7 +286,7 @@ export function FunctionNodeDialog({
                     </Badge>
                     <span>to</span>
                     <Badge variant="outline" className="bg-green-50">
-                      {block.operation.targetVariable}
+                      {block.operation.targetVariable} ({variables[block.operation.targetVariable]})
                     </Badge>
                   </div>
                 </div>
@@ -302,7 +335,7 @@ export function FunctionNodeDialog({
         )}
       </div>
     );
-  }, [removeBlock, sourceNode?.data.options]);
+  }, [removeBlock, sourceNode?.data.options, variables]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -390,7 +423,7 @@ export function FunctionNodeDialog({
                             onClick={() => setHandles(prev => prev.filter(h => h !== handle))}
                           >
                             <X className="h-4 w-4" />
-                          </Button>
+                            </Button>
                         </Card>
                       ))}
                     </div>
@@ -405,412 +438,398 @@ export function FunctionNodeDialog({
               {/* Left Panel - Block Builder */}
               <Card className="col-span-2 p-4 space-y-4 overflow-y-auto">
                 <Accordion type="single" collapsible defaultValue="blockType">
-                  <AccordionItem
-                  value="blockType">
-                  <AccordionTrigger>Block Type</AccordionTrigger>
-                  <AccordionContent>
-                    <Select
-                      value={newBlock.type}
-                      onValueChange={(value: FunctionBlock['type']) => {
-                        const updatedBlock: Partial<FunctionBlock> = { type: value };
-                        
-                        if (value === 'if') {
-                          updatedBlock.condition = sourceNode?.type === 'multipleChoice'
-                            ? {
-                                type: 'selection',
-                                operator: 'allSelected',
-                                selectedOptions: []
-                              }
-                            : {
-                                type: 'variable',
-                                variable: '',
-                                operator: '>=',
-                                value: ''
-                              };
-                        } else if (value === 'operation') {
-                          updatedBlock.operation = {
-                            type: 'add',
-                            value: '',
-                            targetVariable: ''
-                          };
-                        } else if (value === 'return') {
-                          updatedBlock.handle = '';
-                        }
-
-                        setNewBlock(updatedBlock);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select block type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="if">
-                          <div className="flex items-center gap-2">
-                            <GitBranch className="h-4 w-4" />
-                            If Condition
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="else">
-                          <div className="flex items-center gap-2">
-                            <CornerRightDown className="h-4 w-4" />
-                            Else Block
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="operation">
-                          <div className="flex items-center gap-2">
-                            <ArrowRight className="h-4 w-4" />
-                            Operation
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="return">
-                          <div className="flex items-center gap-2">
-                            <ChevronRight className="h-4 w-4" />
-                            Return
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </AccordionContent>
-                </AccordionItem>
-
-                {newBlock.type === 'if' && (
-                  <AccordionItem value="condition">
-                    <AccordionTrigger>Condition Settings</AccordionTrigger>
-                    <AccordionContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Condition Type</Label>
-                        <Select
-                          value={newBlock.condition?.type || 'variable'}
-                          onValueChange={(value: 'variable' | 'selection') => {
-                            const condition = value === 'variable'
+                  <AccordionItem value="blockType">
+                    <AccordionTrigger>Block Type</AccordionTrigger>
+                    <AccordionContent>
+                      <Select
+                        value={newBlock.type}
+                        onValueChange={(value: FunctionBlock['type']) => {
+                          const updatedBlock: Partial<FunctionBlock> = { type: value };
+                          
+                          if (value === 'if') {
+                            updatedBlock.condition = sourceNode?.type === 'multipleChoice'
                               ? {
-                                  type: 'variable' as const,
+                                  type: 'selection',
+                                  operator: 'allSelected',
+                                  selectedOptions: []
+                                }
+                              : {
+                                  type: 'variable',
                                   variable: '',
                                   operator: '>=',
                                   value: ''
-                                }
-                              : {
-                                  type: 'selection' as const,
-                                  operator: 'allSelected',
-                                  selectedOptions: []
                                 };
-                            setNewBlock(prev => ({
-                              ...prev,
-                              condition
-                            }));
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select condition type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="variable">
-                              <div className="flex items-center gap-2">
-                                <Variable className="h-4 w-4" />
-                                Variable Condition
-                              </div>
-                            </SelectItem>
-                            {sourceNode?.type === 'multipleChoice' && (
-                              <SelectItem value="selection">
-                                <div className="flex items-center gap-2">
-                                  <ListChecks className="h-4 w-4" />
-                                  Selection Condition
-                                </div>
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          } else if (value === 'operation') {
+                            updatedBlock.operation = {
+                              type: 'add',
+                              value: '',
+                              targetVariable: ''
+                            };
+                          } else if (value === 'return') {
+                            updatedBlock.handle = '';
+                          }
 
-                      {newBlock.condition?.type === 'variable' ? (
-                        <div className="space-y-4">
-                          <div>
-                            <Label>Variable</Label>
-                            <Select
-                              value={newBlock.condition.variable}
-                              onValueChange={(value) => setNewBlock(prev => ({
-                                ...prev,
-                                condition: {
-                                  ...prev.condition,
-                                  variable: value
-                                }
-                              }))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select variable" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.keys(variables).map(varName => (
-                                  <SelectItem key={varName} value={varName}>
-                                    <div className="flex items-center justify-between w-full">
-                                      <span>{varName}</span>
-                                      <Badge variant="outline" className="ml-2">
-                                        {typeof variables[varName]}
-                                      </Badge>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div>
-                            <Label>Operator</Label>
-                            <Select
-                              value={newBlock.condition.operator}
-                              onValueChange={(value: any) => setNewBlock(prev => ({
-                                ...prev,
-                                condition: {
-                                  ...prev.condition,
-                                  operator: value
-                                }
-                              }))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value=">=">Greater than or equal (≥)</SelectItem>
-                                <SelectItem value="<=">Less than or equal (≤)</SelectItem>
-                                <SelectItem value="==">Equal (=)</SelectItem>
-                                <SelectItem value="!=">Not equal (≠)</SelectItem>
-                                <SelectItem value=">">Greater than (&gt;)</SelectItem>
-                                <SelectItem value="<">Less than (&lt;)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div>
-                            <Label>Value</Label>
-                            <Input
-                              value={newBlock.condition.value}
-                              onChange={(e) => setNewBlock(prev => ({
-                                ...prev,
-                                condition: {
-                                  ...prev.condition,
-                                  value: e.target.value
-                                }
-                              }))}
-                              placeholder="Enter comparison value"
-                            />
-                          </div>
-                        </div>
-                      ) : newBlock.condition?.type === 'selection' && sourceNode?.type === 'multipleChoice' ? (
-                        <div className="space-y-4">
-                          <div>
-                            <Label>Selection Operator</Label>
-                            <Select
-                              value={newBlock.condition.operator}
-                              onValueChange={(value: any) => setNewBlock(prev => ({
-                                ...prev,
-                                condition: {
-                                  ...prev.condition,
-                                  operator: value
-                                }
-                              }))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="allSelected">All Selected</SelectItem>
-                                <SelectItem value="anySelected">Any Selected</SelectItem>
-                                <SelectItem value="noneSelected">None Selected</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Options</Label>
-                            <Card className="p-2">
-                              <ScrollArea className="h-[200px]">
-                                {(sourceNode.data as MultipleChoiceNodeData).options.map(option => (
-                                  <div key={option.id} className="flex items-center gap-2 p-2 hover:bg-secondary/20 rounded">
-                                    <Checkbox
-                                      checked={newBlock.condition?.selectedOptions?.includes(option.id)}
-                                      onCheckedChange={(checked) => {
-                                        setNewBlock(prev => ({
-                                          ...prev,
-                                          condition: {
-                                            ...prev.condition,
-                                            selectedOptions: checked
-                                              ? [...(prev.condition?.selectedOptions || []), option.id]
-                                              : prev.condition?.selectedOptions?.filter(id => id !== option.id) || []
-                                          }
-                                        }));
-                                      }}
-                                    />
-                                    <span className="text-sm">{option.label}</span>
-                                  </div>
-                                ))}
-                              </ScrollArea>
-                            </Card>
-                          </div>
-                        </div>
-                      ) : null}
+                          setNewBlock(updatedBlock);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select block type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="if">
+                            <div className="flex items-center gap-2">
+                              <GitBranch className="h-4 w-4" />
+                              If Condition
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="else">
+                            <div className="flex items-center gap-2">
+                              <CornerRightDown className="h-4 w-4" />
+                              Else Block
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="operation">
+                            <div className="flex items-center gap-2">
+                              <ArrowRight className="h-4 w-4" />
+                              Operation
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="return">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className="h-4 w-4" />
+                              Return
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </AccordionContent>
                   </AccordionItem>
-                )}
 
-                {newBlock.type === 'operation' && (
-                  <AccordionItem value="operation">
-                    <AccordionTrigger>Operation Settings</AccordionTrigger>
-                    <AccordionContent className="space-y-4">
-                      <div>
-                        <Label>Operation Type</Label>
-                        <Select
-                          value={newBlock.operation?.type || 'add'}
-                          onValueChange={(value: any) => setNewBlock(prev => ({
-                            ...prev,
-                            operation: {
-                              ...prev.operation,
-                              type: value
-                            }
-                          }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="add">Add</SelectItem>
-                            <SelectItem value="subtract">Subtract</SelectItem>
-                            <SelectItem value="multiply">Multiply</SelectItem>
-                            <SelectItem value="divide">Divide</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label>Value</Label>
-                        <Input
-                          value={newBlock.operation?.value || ''}
-                          onChange={(e) => setNewBlock(prev => ({
-                            ...prev,
-                            operation: {
-                              ...prev.operation,
-                              value: e.target.value
-                            }
-                          }))}
-                          placeholder="Enter operation value"
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Target Variable</Label>
-                        <Select
-                          value={newBlock.operation?.targetVariable || ''}
-                          onValueChange={(value) => setNewBlock(prev => ({
-                            ...prev,
-                            operation: {
-                              ...prev.operation,
-                              targetVariable: value
-                            }
-                          }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select target variable" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.keys(variables).map(varName => (
-                              <SelectItem key={varName} value={varName}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span>{varName}</span>
-                                  <Badge variant="outline" className="ml-2">
-                                    {typeof variables[varName]}
-                                  </Badge>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-
-                {newBlock.type === 'return' && (
-                  <AccordionItem value="return">
-                    <AccordionTrigger>Return Settings</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-2">
-                        <Label>Return Handle</Label>
-                        <Select
-                          value={newBlock.handle || ''}
-                          onValueChange={(value) => setNewBlock(prev => ({
-                            ...prev,
-                            handle: value
-                          }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select handle" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {handles.map((handle) => (
-                              <SelectItem key={handle} value={handle}>
-                                {handle}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-              </Accordion>
-
-              <Separator />
-
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => addBlock(selectedBlockId || undefined)}
-                  className="flex-1"
-                  disabled={
-                    (newBlock.type === 'if' && (!newBlock.condition?.variable && !newBlock.condition?.selectedOptions?.length)) ||
-                    (newBlock.type === 'operation' && (!newBlock.operation?.value || !newBlock.operation?.targetVariable)) ||
-                    (newBlock.type === 'return' && !newBlock.handle)
-                  }
-                >
-                  Add {selectedBlockId ? 'Nested ' : ''}Block
-                </Button>
-
-                {selectedBlockId && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedBlockId(null)}
-                  >
-                    Cancel Nesting
-                  </Button>
-                )}
-              </div>
-            </Card>
-
-            {/* Right Panel - Sequence View */}
-            <Card className="col-span-3 p-4">
-              <ScrollArea className="h-[550px] pr-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-lg font-semibold">Logic Sequence</Label>
-                  </div>
-
-                  <div className="space-y-1">
-                    {blockSequence.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg">
-                        <GitBranch className="h-8 w-8 text-muted-foreground mb-2" />
-                        <p className="text-sm text-muted-foreground text-center">
-                          Start building your sequence by adding blocks from the left panel
-                        </p>
-                      </div>
-                    ) : (
-                      blockSequence.map(block => renderBlock(block))
-                    )}
-                  </div>
-                </div>
-              </ScrollArea>
-            </Card>
+                  {newBlock.type === 'if' && (
+                    <AccordionItem value="condition">
+                      <AccordionTrigger>Condition Settings</AccordionTrigger>
+                      <AccordionContent className="space-y-4">
+                        {newBlock.condition?.type === 'variable' ? (
+                          <div className="space-y-4">
+                           {/* Replace the Variable select in Condition Settings with this */}
+<div>
+  <Label>Variable</Label>
+  <Select
+    value={newBlock.condition?.variable}
+    onValueChange={(value) => setNewBlock(prev => ({
+      ...prev,
+      condition: {
+        ...prev.condition,
+        variable: value
+      }
+    }))}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select variable" />
+    </SelectTrigger>
+    <SelectContent>
+      {Object.keys(variables).map(varName => (
+        <SelectItem key={varName} value={varName}>
+          <div className="flex items-center justify-between w-full">
+            <span>{varName}</span>
+            <Badge variant="outline" className="ml-2">
+              {typeof variables[varName]}
+            </Badge>
           </div>
-        </TabsContent>
-      </Tabs>
-    </DialogContent>
-  </Dialog>
-);
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+
+{/* And replace the Target Variable select in Operation Settings with this */}
+<div>
+  <Label>Target Variable</Label>
+  <Select
+    value={newBlock.operation?.targetVariable || ''}
+    onValueChange={(value) => setNewBlock(prev => ({
+      ...prev,
+      operation: {
+        ...prev.operation,
+        targetVariable: value
+      }
+    }))}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select target variable" />
+    </SelectTrigger>
+    <SelectContent>
+      {Object.keys(variables).map(varName => (
+        <SelectItem key={varName} value={varName}>
+          <div className="flex items-center justify-between w-full">
+            <span>{varName}</span>
+            <Badge variant="outline" className="ml-2">
+              {typeof variables[varName]}
+            </Badge>
+          </div>
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+
+                            <div>
+                              <Label>Operator</Label>
+                              <Select
+                                value={newBlock.condition.operator}
+                                onValueChange={(value: any) => setNewBlock(prev => ({
+                                  ...prev,
+                                  condition: {
+                                    ...prev.condition,
+                                    operator: value
+                                  }
+                                }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value=">=">Greater than or equal (≥)</SelectItem>
+                                  <SelectItem value="<=">Less than or equal (≤)</SelectItem>
+                                  <SelectItem value="==">Equal (=)</SelectItem>
+                                  <SelectItem value="!=">Not equal (≠)</SelectItem>
+                                  <SelectItem value=">">Greater than (&gt;)</SelectItem>
+                                  <SelectItem value="<">Less than (&lt;)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label>Value</Label>
+                              <Input
+                                value={newBlock.condition.value}
+                                onChange={(e) => setNewBlock(prev => ({
+                                  ...prev,
+                                  condition: {
+                                    ...prev.condition,
+                                    value: e.target.value
+                                  }
+                                }))}
+                                placeholder="Enter comparison value"
+                              />
+                            </div>
+                          </div>
+                        ) : newBlock.condition?.type === 'selection' && sourceNode?.type === 'multipleChoice' ? (
+                          <div className="space-y-4">
+                            <div>
+                              <Label>Selection Operator</Label>
+                              <Select
+                                value={newBlock.condition.operator}
+                                onValueChange={(value: any) => setNewBlock(prev => ({
+                                  ...prev,
+                                  condition: {
+                                    ...prev.condition,
+                                    operator: value
+                                  }
+                                }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="allSelected">All Selected</SelectItem>
+                                  <SelectItem value="anySelected">Any Selected</SelectItem>
+                                  <SelectItem value="noneSelected">None Selected</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Options</Label>
+                              <Card className="p-2">
+                                <ScrollArea className="h-[200px]">
+                                  {(sourceNode.data as MultipleChoiceNodeData).options.map(option => (
+                                    <div key={option.id} className="flex items-center gap-2 p-2 hover:bg-secondary/20 rounded">
+                                      <Checkbox
+                                        checked={newBlock.condition?.selectedOptions?.includes(option.id)}
+                                        onCheckedChange={(checked) => {
+                                          setNewBlock(prev => ({
+                                            ...prev,
+                                            condition: {
+                                              ...prev.condition,
+                                              selectedOptions: checked
+                                                ? [...(prev.condition?.selectedOptions || []), option.id]
+                                                : prev.condition?.selectedOptions?.filter(id => id !== option.id) || []
+                                            }
+                                          }));
+                                        }}
+                                      />
+                                      <span className="text-sm">{option.label}</span>
+                                    </div>
+                                  ))}
+                                </ScrollArea>
+                              </Card>
+                            </div>
+                          </div>
+                        ) : null}
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {newBlock.type === 'operation' && (
+                    <AccordionItem value="operation">
+                      <AccordionTrigger>Operation Settings</AccordionTrigger>
+                      <AccordionContent className="space-y-4">
+                        <div>
+                          <Label>Operation Type</Label>
+                          <Select
+                            value={newBlock.operation?.type || 'add'}
+                            onValueChange={(value: any) => setNewBlock(prev => ({
+                              ...prev,
+                              operation: {
+                                ...prev.operation,
+                                type: value
+                              }
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="add">Add</SelectItem>
+                              <SelectItem value="subtract">Subtract</SelectItem>
+                              <SelectItem value="multiply">Multiply</SelectItem>
+                              <SelectItem value="divide">Divide</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label>Value</Label>
+                          <Input
+                            value={newBlock.operation?.value || ''}
+                            onChange={(e) => setNewBlock(prev => ({
+                              ...prev,
+                              operation: {
+                                ...prev.operation,
+                                value: e.target.value
+                              }
+                            }))}
+                            placeholder="Enter operation value"
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Target Variable</Label>
+                          <Select
+                            value={newBlock.operation?.targetVariable || ''}
+                            onValueChange={(value) => setNewBlock(prev => ({
+                              ...prev,
+                              operation: {
+                                ...prev.operation,
+                                targetVariable: value
+                              }
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select target variable" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(variables).map(([varName, value]) => (
+                                <SelectItem key={varName} value={varName}>
+                                  <div className="flex items-center justify-between w-full">
+                                    <span>{varName}</span>
+                                    <Badge variant="outline" className="ml-2">
+                                      {value}
+                                    </Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {newBlock.type === 'return' && (
+                    <AccordionItem value="return">
+                      <AccordionTrigger>Return Settings</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2">
+                          <Label>Return Handle</Label>
+                          <Select
+                            value={newBlock.handle || ''}
+                            onValueChange={(value) => setNewBlock(prev => ({
+                              ...prev,
+                              handle: value
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select handle" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {handles.map((handle) => (
+                                <SelectItem key={handle} value={handle}>
+                                  {handle}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+                </Accordion>
+
+                <Separator />
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => addBlock(selectedBlockId || undefined)}
+                    className="flex-1"
+                    disabled={
+                      (newBlock.type === 'if' && (!newBlock.condition?.variable && !newBlock.condition?.selectedOptions?.length)) ||
+                      (newBlock.type === 'operation' && (!newBlock.operation?.value || !newBlock.operation?.targetVariable)) ||
+                      (newBlock.type === 'return' && !newBlock.handle)
+                    }
+                  >
+                    Add {selectedBlockId ? 'Nested ' : ''}Block
+                  </Button>
+
+                  {selectedBlockId && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedBlockId(null)}
+                    >
+                      Cancel Nesting
+                    </Button>
+                  )}
+                </div>
+              </Card>
+
+              {/* Right Panel - Sequence View */}
+              <Card className="col-span-3 p-4">
+                <ScrollArea className="h-[550px] pr-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-lg font-semibold">Logic Sequence</Label>
+                    </div>
+
+                    <div className="space-y-1">
+                      {blockSequence.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg">
+                          <GitBranch className="h-8 w-8 text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground text-center">
+                            Start building your sequence by adding blocks from the left panel
+                          </p>
+                        </div>
+                      ) : (
+                        blockSequence.map(block => renderBlock(block))
+                      )}
+                    </div>
+                  </div>
+                </ScrollArea>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
 }

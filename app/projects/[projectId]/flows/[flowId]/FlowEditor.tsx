@@ -1,6 +1,6 @@
 "use client";
 
-import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
+import CustomEdge from "@/components/flow/CustomEdge";
 import {
   EndNode,
   FunctionNode,
@@ -10,31 +10,27 @@ import {
   WeightNode,
   YesNoNode,
 } from "@/components/nodes";
-import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Save } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import ReactFlow, {
-  Background,
-  Controls,
-  Node,
-  Edge,
-  applyEdgeChanges,
-  applyNodeChanges,
-  addEdge,
-  ConnectionMode,
-  Connection,
-  EdgeChange,
-  NodeChange,
-  ReactFlowInstance,
-} from "reactflow";
-import "reactflow/dist/style.css";
-import '@/styles/flow-theme.css';
 import { useRootStore } from "@/stores/rootStore";
+import '@/styles/flow-theme.css';
+import { Loader2 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useParams } from "next/navigation";
-import CustomEdge from "@/components/flow/CustomEdge";
+import { useCallback, useEffect, useRef, useState } from "react";
+import ReactFlow, {
+  addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
+  Background,
+  Connection,
+  ConnectionLineType,
+  Edge,
+  EdgeChange,
+  Node,
+  NodeChange,
+  ReactFlowInstance
+} from "reactflow";
+import "reactflow/dist/style.css";
+import { toast } from "sonner";
 
 const nodeTypes = {
   startNode: StartNode,
@@ -47,12 +43,11 @@ const nodeTypes = {
 } as const;
 
 const edgeTypes = {
-  default: CustomEdge,
+  custom: CustomEdge,
 };
 
 function createNewNode(type: string, position: { x: number; y: number }, flowId: string) {
   const newNodeId = `${type}-${nanoid()}`;
-  console.log('Creating node with ID:', newNodeId);
 
   const baseNode = {
     id: newNodeId,
@@ -107,15 +102,18 @@ function createNewNode(type: string, position: { x: number; y: number }, flowId:
           type: 'yesNo',
         },
       };
-    case 'weightNode':
-      return {
-        ...baseNode,
-        data: {
-          ...baseNode.data,
-          type: 'weight',
-          weight: 1,
-        },
-      };
+      case 'weightNode':
+        return {
+          ...baseNode,
+          data: {
+            ...baseNode.data,
+            type: 'weight',
+            weight: 1,
+            operation: 'multiply',
+            useGlobalWeight: false,
+            formula: '$weight * 1', // Default formula
+          },
+        };
     case 'functionNode':
       return {
         ...baseNode,
@@ -150,6 +148,16 @@ export default function FlowEditor() {
     if (flow) {
       setNodes(flow.nodes);
       setEdges(flow.edges);
+    }
+  }, [flow]);
+
+  useEffect(() => {
+    if (flow) {
+      const updatedEdges = flow.edges.map(edge => ({
+        ...edge,
+        type: 'custom'
+      }));
+      setEdges(updatedEdges);
     }
   }, [flow]);
 
@@ -253,22 +261,26 @@ export default function FlowEditor() {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      const nextChanges = changes.map(change => {
-        if (change.type === 'remove') {
-          removeEdge(change.id);
-          return null;
-        }
-        return change;
-      }).filter(Boolean) as EdgeChange[];
-      
-      setEdges((eds) => applyEdgeChanges(nextChanges, eds));
+      setEdges((eds) => {
+        const nextEdges = applyEdgeChanges(changes, eds);
+        return nextEdges.map(edge => ({
+          ...edge,
+          type: 'custom'
+        }));
+      });
     },
-    [removeEdge]
+    []
   );
 
   const handleConnect = useCallback(
     (params: Connection) => {
-      setEdges((eds) => addEdge(params, eds));
+      // Create new edge with custom type and unique id
+      const newEdge = {
+        ...params,
+        type: 'custom',
+        id: `e${params.source}-${params.sourceHandle}-${params.target}-${params.targetHandle}`,
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
     },
     []
   );
@@ -297,20 +309,17 @@ export default function FlowEditor() {
 
   const saveFlow = useCallback(async () => {
     if (!flow) return;
+  
     
-    console.log('Saving flow with:', {
-      nodeCount: nodes.length,
-      edgeCount: edges.length,
-      nodes,
-      edges,
-      variables: flow?.variables,
-      name: flow.name,
-    });
-
+    const updatedEdges = edges.map(edge => ({
+      ...edge,
+      type: 'custom'
+    }));
+    
     const flowData = {
       content: JSON.stringify({
         nodes,
-        edges,
+        edges: updatedEdges,
         variables: flow?.variables || [],
       }),
       name: flow.name,
@@ -497,7 +506,7 @@ export default function FlowEditor() {
 
   return (
     <div className="flex h-full w-full" ref={reactFlowWrapper}>
-      <ReactFlow
+<ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
@@ -508,14 +517,18 @@ export default function FlowEditor() {
         onDrop={onDrop}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        connectionMode={ConnectionMode.Loose}
-        defaultEdgeOptions={{ type: 'smoothstep' }}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        defaultEdgeOptions={{
+          animated: true,
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+        }}
         deleteKeyCode={['Backspace', 'Delete']}
         minZoom={0.2}
         maxZoom={4}
         fitView
         className="bg-white"
-      >
+      > 
+    
         <Background color={flowData?.color || "#27272a"} gap={16} size={1} />
       </ReactFlow>
     </div>

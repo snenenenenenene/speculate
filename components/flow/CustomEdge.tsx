@@ -1,7 +1,4 @@
-import { useCallback } from 'react';
-import { BaseEdge, EdgeProps, getBezierPath, useReactFlow } from 'reactflow';
-import { useRootStore } from '@/stores/rootStore';
-import { X } from 'lucide-react';
+import { BaseEdge, EdgeLabelRenderer, EdgeProps, getSmoothStepPath, useReactFlow } from "reactflow";
 
 export default function CustomEdge({
   id,
@@ -14,8 +11,8 @@ export default function CustomEdge({
   style = {},
   markerEnd,
 }: EdgeProps) {
-  const { removeEdge } = useRootStore();
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const { setEdges } = useReactFlow();
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -24,33 +21,31 @@ export default function CustomEdge({
     targetPosition,
   });
 
-  const handleEdgeClick = useCallback(
-    (evt: React.MouseEvent) => {
-      evt.stopPropagation();
-      removeEdge(id);
-    },
-    [id, removeEdge]
-  );
+  const onEdgeClick = () => {
+    setEdges((edges) => edges.filter((edge) => edge.id !== id));
+  };
 
   return (
     <>
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
-      {/* Delete button in the middle of the edge */}
-      <foreignObject
-        width={24}
-        height={24}
-        x={labelX - 12}
-        y={labelY - 12}
-        className="opacity-0 hover:opacity-100 transition-opacity duration-300"
-        requiredExtensions="http://www.w3.org/1999/xhtml"
-      >
+      <EdgeLabelRenderer>
         <div
-          className="h-6 w-6 rounded-full bg-white border border-muted flex items-center justify-center cursor-pointer hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
-          onClick={handleEdgeClick}
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            fontSize: 12,
+            pointerEvents: 'all',
+          }}
+          className="nodrag nopan"
         >
-          <X className="h-4 w-4" />
+          <button
+            className="w-5 h-5 bg-gray-200 dark:bg-gray-800 border border-white rounded-full text-xs leading-none hover:shadow-md"
+            onClick={onEdgeClick}
+          >
+            ×
+          </button>
         </div>
-      </foreignObject>
+      </EdgeLabelRenderer>
     </>
   );
 }

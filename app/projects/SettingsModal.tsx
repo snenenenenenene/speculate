@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,21 +10,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { AlertCircle, Hash, LayoutDashboard, Loader2, Plus, Trash2, X } from "lucide-react";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger
+} from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import { AlertCircle, Hash, LayoutDashboard, Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+
+// Constants for system variables
+const SYSTEM_VARIABLES = ['weight'] as const;
+const DEFAULT_WEIGHT = '1';
 
 interface Variable {
   name: string;
@@ -69,6 +72,11 @@ export default function SettingsModal({
   const [activeTab, setActiveTab] = useState<"settings" | "variables" | "danger">("settings");
   const [variableScope, setVariableScope] = useState<"local" | "global">("local");
 
+  // Helper function to check if a variable is a system variable
+  const isSystemVariable = useCallback((name: string) => {
+    return SYSTEM_VARIABLES.includes(name as any);
+  }, []);
+
   // Initialize form state when modal opens or initialData changes
   useEffect(() => {
     if (initialData) {
@@ -80,22 +88,34 @@ export default function SettingsModal({
       // Initialize global variables from project
       if (initialData.globalVariables) {
         console.log('Setting global variables from project:', initialData.globalVariables);
-        const formattedGlobalVars = initialData.globalVariables.map(v => ({
-          ...v,
-          scope: 'global' as const
-        }));
+        let formattedGlobalVars = [...initialData.globalVariables];
+        
+        // Ensure weight variable exists in global scope
+        if (!formattedGlobalVars.some(v => v.name === 'weight')) {
+          formattedGlobalVars.push({
+            name: 'weight',
+            value: DEFAULT_WEIGHT,
+            scope: 'global' as const
+          });
+        }
+        
         setGlobalVariables(formattedGlobalVars);
       }
 
       // Initialize local variables from flow content
       if (initialData.variables && Array.isArray(initialData.variables)) {
         console.log('Setting local variables from flow:', initialData.variables);
-        const localVars = initialData.variables
-          .filter(v => v.scope === 'local')
-          .map(v => ({
-            ...v,
+        let localVars = initialData.variables.filter(v => v.scope === 'local');
+        
+        // Ensure weight variable exists in local scope
+        if (!localVars.some(v => v.name === 'weight')) {
+          localVars.push({
+            name: 'weight',
+            value: DEFAULT_WEIGHT,
             scope: 'local' as const
-          }));
+          });
+        }
+        
         setLocalVariables(localVars);
       }
     }
@@ -104,6 +124,11 @@ export default function SettingsModal({
   const addVariable = useCallback(() => {
     if (!newVariable.name.trim() || !newVariable.value.trim()) {
       toast.error("Both name and value are required");
+      return;
+    }
+
+    if (isSystemVariable(newVariable.name)) {
+      toast.error("Cannot add system variable");
       return;
     }
 
@@ -125,16 +150,24 @@ export default function SettingsModal({
 
     setNewVariable({ name: "", value: "" });
     toast.success(`${scope} variable added successfully`);
-  }, [newVariable, localVariables, globalVariables, variableScope]);
+  }, [newVariable, localVariables, globalVariables, variableScope, isSystemVariable]);
 
   const removeVariable = useCallback((index: number, scope: "local" | "global") => {
+    const variables = scope === 'local' ? localVariables : globalVariables;
+    const variable = variables[index];
+
+    if (isSystemVariable(variable.name)) {
+      toast.error("Cannot remove system variable");
+      return;
+    }
+
     if (scope === 'local') {
       setLocalVariables(prev => prev.filter((_, i) => i !== index));
     } else {
       setGlobalVariables(prev => prev.filter((_, i) => i !== index));
     }
     toast.success(`${scope} variable removed`);
-  }, []);
+  }, [localVariables, globalVariables, isSystemVariable]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -165,7 +198,7 @@ export default function SettingsModal({
         // Update content with local variables only
         const updatedContent = {
           ...contentObj,
-          variables: localVariables.filter(v => v.scope === 'local')
+          variables: localVariables
         };
 
         const settingsData = {
@@ -195,7 +228,7 @@ export default function SettingsModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          variables: globalVariables.filter(v => v.scope === 'global')
+          variables: globalVariables
         }),
       });
 
@@ -206,7 +239,6 @@ export default function SettingsModal({
           const errorJson = JSON.parse(errorText);
           if (errorJson.error) errorMessage = errorJson.error;
         } catch (e) {
-          // If JSON parsing fails, use the raw error text if available
           if (errorText) errorMessage = errorText;
         }
         throw new Error(errorMessage);
@@ -388,58 +420,38 @@ export default function SettingsModal({
                   </div>
 
                   <div className="space-y-2">
-                    {variableScope === 'local' ? 
-                      localVariables.map((variable, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between rounded-md border p-2"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <Hash className="h-4 w-4 text-muted-foreground" />
-                            <div>
+                    {(variableScope === 'local' ? localVariables : globalVariables).map((variable, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between rounded-md border p-2"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <div className="flex items-center gap-2">
                               <p className="text-sm font-medium leading-none">
                                 {variable.name}
                               </p>
-                              <p className="text-sm text-muted-foreground">
-                                {variable.value}
-                              </p>
+                              {isSystemVariable(variable.name) && (
+                                <Badge variant="secondary" className="text-xs">System</Badge>
+                              )}
                             </div>
+                            <p className="text-sm text-muted-foreground">
+                              {variable.value}
+                            </p>
                           </div>
+                        </div>
+                        {!isSystemVariable(variable.name) && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeVariable(index, 'local')}
+                            onClick={() => removeVariable(index, variableScope)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        </div>
-                      ))
-                    : globalVariables.map((variable, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between rounded-md border p-2"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <Hash className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="text-sm font-medium leading-none">
-                                {variable.name}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {variable.value}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeVariable(index, 'global')}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))
-                    }
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

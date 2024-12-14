@@ -1,4 +1,3 @@
-// components/nodes/index.tsx
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -29,11 +28,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { ImageUpload } from '../ui/image-upload';
 import { Input } from '../ui/input';
 import { RichTextEditor } from '../ui/rich-text-editor';
+import { Separator } from '../ui/separator';
 import { NodeWrapper } from './base/NodeWrapper';
 import { FunctionNodeDialog } from './function/FunctionNodeDialog';
 import { MultipleChoiceDialog } from './function/MultipleChoiceNodeDialog';
 import { SingleChoiceDialog } from './function/SingleChoiceDialog';
 import { VisualNodePreview } from './VisualNodePreview';
+
+export const handleImageUpload = async (file: File, callback: (base64: string) => void) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target?.result as string;
+    callback(base64);
+  };
+  reader.readAsDataURL(file);
+};
 
 export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>) => {
   const { removeNode, updateNode } = useRootStore();
@@ -70,10 +79,8 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
     updateNode(flowId, id, newData);
   }, [data, updateNode, flowId, id]);
 
-  const handleImageUpload = useCallback(async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
+  const handleUpload = useCallback(async (file: File) => {
+    handleImageUpload(file, (base64) => {
       handleUpdateNode({
         images: [
           ...(data.images || []),
@@ -84,8 +91,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
           }
         ]
       });
-    };
-    reader.readAsDataURL(file);
+    });
   }, [handleUpdateNode, data.images]);
 
   return (
@@ -122,20 +128,30 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
         handles={{ 
           top: false,
           right: false,
-          bottom: true,
+          bottom: false,
           left: false 
         }}
+
+        customHandles={
+          <Handle 
+            type="source" 
+            position={Position.Bottom} 
+            className="w-3 h-3 !border-2 !bg-white !border-black"
+          />
+        }
       >
         <div className="p-4 space-y-4">
+          <div className="max-h-[200px] overflow-hidden">
+            {data.isVisual && data.images?.[0] && (
+              <img 
+                src={data.images[0].url}
+                alt={data.images[0].alt}
+                className="w-full h-[150px] rounded-lg object-cover"
+              />
+            )}
+          </div>
           {data.isVisual ? (
             <>
-              {data.images?.[0] && (
-                <img 
-                  src={data.images[0].url}
-                  alt={data.images[0].alt}
-                  className="w-full rounded-lg object-cover"
-                />
-              )}
               <div 
                 className="prose prose-sm"
                 dangerouslySetInnerHTML={{ __html: data.welcomeMessage || '' }}
@@ -149,7 +165,6 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
         </div>
       </NodeWrapper>
 
-      {/* Settings Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
@@ -175,7 +190,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
 
                 <div className="space-y-2">
                   <Label>Image (Optional)</Label>
-                  <ImageUpload onUpload={handleImageUpload} />
+                  <ImageUpload onUpload={handleUpload} />
                 </div>
 
                 <div className="space-y-2">
@@ -202,7 +217,6 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
         </DialogContent>
       </Dialog>
 
-      {/* Preview Dialog */}
       <VisualNodePreview
         open={showPreview}
         onOpenChange={setShowPreview}
@@ -221,7 +235,13 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
   const flowId = params.flowId as string;
 
   const editor = useEditor({
-    extensions: [StarterKit, Image],
+    extensions: [
+      StarterKit,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      })
+    ],
     content: data.exitMessage || '',
     onUpdate: ({ editor }) => {
       handleUpdateNode({ exitMessage: editor.getHTML() });
@@ -241,6 +261,21 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
     };
     updateNode(flowId, id, newData);
   }, [data, updateNode, flowId, id]);
+
+  const handleUpload = useCallback(async (file: File) => {
+    handleImageUpload(file, (base64) => {
+      handleUpdateNode({
+        images: [
+          ...(data.images || []),
+          {
+            url: base64,
+            alt: file.name,
+            position: 'top'
+          }
+        ]
+      });
+    });
+  }, [handleUpdateNode, data.images]);
 
   return (
     <>
@@ -281,39 +316,40 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
         }}
       >
         <div className="p-4 space-y-4">
-          {data.redirectFlow ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Redirecting to:</span>
+          <div className="max-h-[200px] overflow-hidden">
+            {data.redirectFlow ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Redirecting to:</span>
+                </div>
+                <Badge variant="secondary" className="text-xs">
+                  {data.redirectFlow.name}
+                </Badge>
               </div>
-              <Badge variant="secondary" className="text-xs">
-                {data.redirectFlow.name}
-              </Badge>
-            </div>
-          ) : data.isVisual ? (
-            <>
-              {data.images?.[0] && (
-                <img 
-                  src={data.images[0].url}
-                  alt={data.images[0].alt}
-                  className="w-full rounded-lg object-cover"
+            ) : data.isVisual ? (
+              <>
+                {data.images?.[0] && (
+                  <img 
+                    src={data.images[0].url}
+                    alt={data.images[0].alt}
+                    className="w-full h-[150px] rounded-lg object-cover"
+                  />
+                )}
+                <div 
+                  className="prose prose-sm"
+                  dangerouslySetInnerHTML={{ __html: data.exitMessage || '' }}
                 />
-              )}
-              <div 
-                className="prose prose-sm"
-                dangerouslySetInnerHTML={{ __html: data.exitMessage || '' }}
-              />
-            </>
-          ) : (
-            <div className="text-sm text-muted-foreground text-center">
-              Terminal end point
-            </div>
-          )}
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground text-center">
+                Terminal end point
+              </div>
+            )}
+          </div>
         </div>
       </NodeWrapper>
 
-      {/* Settings Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
@@ -352,38 +388,6 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
               />
             </div>
 
-            {data.redirectFlow && (
-              <div className="space-y-2">
-                <Label>Select Flow</Label>
-                <Select
-                  value={data.redirectFlow.id}
-                  onValueChange={(value) => {
-                    // You'd need to implement getFlowById
-                    const flow = getFlowById(value);
-                    if (flow) {
-                      handleUpdateNode({
-                        redirectFlow: {
-                          id: flow.id,
-                          name: flow.name
-                        }
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {flows.map(flow => (
-                      <SelectItem key={flow.id} value={flow.id}>
-                        {flow.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {data.isVisual && !data.redirectFlow && (
               <>
                 <div className="space-y-2">
@@ -395,7 +399,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
 
                 <div className="space-y-2">
                   <Label>Image (Optional)</Label>
-                  <ImageUpload onUpload={handleImageUpload} />
+                  <ImageUpload onUpload={handleUpload} />
                 </div>
 
                 <div className="space-y-2">
@@ -422,7 +426,6 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
         </DialogContent>
       </Dialog>
 
-      {/* Preview Dialog */}
       <VisualNodePreview
         open={showPreview}
         onOpenChange={setShowPreview}
@@ -433,13 +436,13 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
   );
 });
 
-export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
+export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
   const { removeNode, updateNode, selections, setSelection } = useRootStore();
   const [showDialog, setShowDialog] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
-  const currentSelection = selections[id]?.optionIds || [];
+  const currentSelection = selections[id]?.optionIds[0] || null;
 
   const editor = useEditor({
     extensions: [
@@ -461,405 +464,6 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
     toast.success('Node deleted');
   }, [removeNode, id, flowId]);
 
-  const handleUpdateNode = useCallback((updates: Partial<MultipleChoiceNodeData>) => {
-    const newData = {
-      ...data,
-      ...updates,
-    };
-    updateNode(flowId, id, newData);
-  }, [data, updateNode, flowId, id]);
-
-  const handleSelectionChange = useCallback((optionIds: string[]) => {
-    if (data.maxSelections && optionIds.length > data.maxSelections) {
-      toast.error(`Maximum ${data.maxSelections} selections allowed`);
-      return;
-    }
-    if (data.minSelections && optionIds.length < data.minSelections) {
-      toast.error(`Minimum ${data.minSelections} selections required`);
-      return;
-    }
-
-    setSelection(id, {
-      optionIds,
-      timestamp: Date.now()
-    });
-  }, [id, data.maxSelections, data.minSelections, setSelection]);
-
-  const handleImageUpload = useCallback(async (file: File, type: 'content' | 'option', optionId?: string) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
-      if (type === 'content') {
-        handleUpdateNode({
-          images: [
-            ...(data.images || []),
-            {
-              url: base64,
-              alt: file.name,
-              position: 'top'
-            }
-          ]
-        });
-      } else if (type === 'option' && optionId) {
-        const newOptions = data.options.map(opt => 
-          opt.id === optionId ? {
-            ...opt,
-            metadata: {
-              ...opt.metadata,
-              image: {
-                url: base64,
-                alt: file.name
-              }
-            }
-          } : opt
-        );
-        handleUpdateNode({ options: newOptions });
-      }
-    };
-    reader.readAsDataURL(file);
-  }, [data, handleUpdateNode]);
-
-  return (
-    <>
-      <NodeWrapper
-        title="Multiple Choice"
-        selected={selected}
-        id={id}
-        onDelete={handleDelete}
-        headerClassName="bg-indigo-50/80 border-indigo-100"
-        headerIcon={<List className="h-4 w-4 text-indigo-500" />}
-        headerActions={
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowPreview(true)}
-              className="h-6 w-6"
-            >
-              <Eye className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowDialog(true)}
-              className="h-6 w-6"
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
-          </>
-        }
-        handles={{ 
-          top: true,
-          right: false,
-          bottom: true,
-          left: false 
-        }}
-      >
-        <div className="p-4">
-          <div className="space-y-4">
-            {data.images?.filter(img => img.position === 'top').map((image, i) => (
-              <img 
-                key={i}
-                src={image.url} 
-                alt={image.alt}
-                className="w-full rounded-lg object-cover" 
-              />
-            ))}
-
-            {data.title && (
-              <h3 className="font-medium">{data.title}</h3>
-            )}
-
-            <div 
-              className="prose prose-sm"
-              dangerouslySetInnerHTML={{ __html: data.content || '' }}
-            />
-
-            {data.description && (
-              <p className="text-sm text-muted-foreground">{data.description}</p>
-            )}
-
-            <div className={cn(
-              "grid gap-2",
-              data.style?.layout === 'grid' 
-                ? `grid-cols-${data.style.columns || 2}` 
-                : 'grid-cols-1'
-            )}>
-              {data.options.map((option) => (
-                <div 
-                  key={option.id}
-                  className={cn(
-                    "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
-                    currentSelection.includes(option.id) && 
-                      "border-primary-500 bg-primary-50/50"
-                  )}
-                  onClick={() => {
-                    const newSelection = data.maxSelections === 1 
-                      ? [option.id]  // Single selection mode
-                      : currentSelection.includes(option.id)
-                        ? currentSelection.filter(id => id !== option.id)  // Remove selection
-                        : [...currentSelection, option.id];  // Add selection
-                    handleSelectionChange(newSelection);
-                  }}
-                >
-                  {option.metadata?.image?.url && data.style?.showImages && (
-                    <img 
-                      src={option.metadata.image.url} 
-                      alt={option.metadata.image.alt}
-                      className="w-12 h-12 rounded object-cover" 
-                    />
-                  )}
-                  <span className={cn(
-                    "text-sm",
-                    currentSelection.includes(option.id) && "text-primary-600 font-medium"
-                  )}>
-                    {option.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {(data.minSelections || data.maxSelections) && (
-              <p className="text-xs text-muted-foreground">
-                {data.minSelections && `Min: ${data.minSelections} `}
-                {data.maxSelections && `Max: ${data.maxSelections}`} selections
-              </p>
-            )}
-          </div>
-        </div>
-      </NodeWrapper>
-
-      <MultipleChoiceDialog 
-        open={showDialog}
-        onOpenChange={setShowDialog}
-        data={data}
-        onUpdate={handleUpdateNode}
-        editor={editor}
-        onImageUpload={handleImageUpload}
-      />
-
-      <VisualNodePreview
-        open={showPreview}
-        onOpenChange={setShowPreview}
-        data={data}
-        type="multiple"
-        renderOptions={() => (
-          <div className={cn(
-            "grid gap-2",
-            data.style?.layout === 'grid' 
-              ? `grid-cols-${data.style.columns || 2}` 
-              : 'grid-cols-1'
-          )}>
-            {data.options.map((option) => (
-              <div 
-                key={option.id}
-                className="border rounded-lg p-2 flex items-center gap-2"
-              >
-                {option.metadata?.image?.url && data.style?.showImages && (
-                  <img 
-                    src={option.metadata.image.url} 
-                    alt={option.metadata.image.alt}
-                    className="w-12 h-12 rounded object-cover" 
-                  />
-                )}
-                <span className="text-sm">{option.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      />
-    </>
-  );
-});
-
-export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
-  const { removeNode, updateNode, selections, setSelection } = useRootStore();
-  const [showDialog, setShowDialog] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const params = useParams();
-  const flowId = params.flowId as string;
-  const currentSelection = selections[id]?.optionIds[0] || null;
-
-  const editor = useEditor({
-    extensions: [StarterKit, Image],
-    content: data.content || '',
-    onUpdate: ({ editor }) => {
-      handleUpdateNode({ content: editor.getHTML() });
-    }
-  });
-
-  const handleDelete = useCallback(() => {
-    if (!flowId) return;
-    removeNode(flowId, id);
-    toast.success('Node deleted');
-  }, [removeNode, id, flowId]);
-
-  const handleUpdateNode = useCallback((updates: Partial<SingleChoiceNodeData>) => {
-    const newData = {
-      ...data,
-      ...updates,
-    };
-    updateNode(flowId, id, newData);
-  }, [data, updateNode, flowId, id]);
-
-  const handleSelectionChange = useCallback((optionId: string) => {
-    setSelection(id, {
-      optionIds: [optionId],
-      timestamp: Date.now()
-    });
-  }, [id, setSelection]);
-
-  return (
-    <>
-      <NodeWrapper
-        title="Single Choice"
-        selected={selected}
-        id={id}
-        onDelete={handleDelete}
-        headerClassName="bg-purple-50/80 border-purple-100"
-        headerIcon={<CircleDot className="h-4 w-4 text-purple-500" />}
-        headerActions={
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowPreview(true)}
-              className="h-6 w-6"
-            >
-              <Eye className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowDialog(true)}
-              className="h-6 w-6"
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
-          </>
-        }
-        handles={{ 
-          top: true,
-          right: false,
-          bottom: true,
-          left: false 
-        }}
-      >
-        <div className="p-4">
-          <div className="space-y-4">
-            {data.images?.filter(img => img.position === 'top').map((image, i) => (
-              <img 
-                key={i}
-                src={image.url} 
-                alt={image.alt}
-                className="w-full rounded-lg object-cover" 
-              />
-            ))}
-
-            {data.title && (
-              <h3 className="font-medium">{data.title}</h3>
-            )}
-
-            <div 
-              className="prose prose-sm"
-              dangerouslySetInnerHTML={{ __html: data.content || '' }}
-            />
-
-            {data.description && (
-              <p className="text-sm text-muted-foreground">{data.description}</p>
-            )}
-
-            <div className="space-y-2">
-              {data.options.map((option) => (
-                <div 
-                  key={option.id}
-                  className={cn(
-                    "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
-                    currentSelection === option.id && 
-                      "border-primary-500 bg-primary-50/50"
-                  )}
-                  onClick={() => handleSelectionChange(option.id)}
-                >
-                  {option.metadata?.image?.url && data.style?.showImages && (
-                    <img 
-                      src={option.metadata.image.url} 
-                      alt={option.metadata.image.alt}
-                      className="w-12 h-12 rounded object-cover" 
-                    />
-                  )}
-                  <span className={cn(
-                    "text-sm",
-                    currentSelection === option.id && "text-primary-600 font-medium"
-                  )}>
-                    {option.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </NodeWrapper>
-
-      <SingleChoiceDialog 
-        open={showDialog}
-        onOpenChange={setShowDialog}
-        data={data}
-        onUpdate={handleUpdateNode}
-        editor={editor}
-        onImageUpload={handleImageUpload}
-      />
-
-      <VisualNodePreview
-        open={showPreview}
-        onOpenChange={setShowPreview}
-        data={data}
-        type="single"
-        renderOptions={() => (
-          <div className="space-y-2">
-            {data.options.map((option) => (
-              <div 
-                key={option.id}
-                className="border rounded-lg p-2 flex items-center gap-2"
-              >
-                {option.metadata?.image?.url && data.style?.showImages && (
-                  <img 
-                    src={option.metadata.image.url} 
-                    alt={option.metadata.image.alt}
-                    className="w-12 h-12 rounded object-cover" 
-                  />
-                )}
-                <span className="text-sm">{option.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      />
-    </>
-  );
-});
-
-export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>) => {
-  const { removeNode, updateNode, selections, setSelection } = useRootStore();
-  const [showDialog, setShowDialog] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const params = useParams();
-  const flowId = params.flowId as string;
-  const currentSelection = selections[id]?.optionIds[0] || null;
-
-  const editor = useEditor({
-    extensions: [StarterKit, Image],
-    content: data.content || '',
-    onUpdate: ({ editor }) => {
-      handleUpdateNode({ content: editor.getHTML() });
-    }
-  });
-
-  const handleDelete = useCallback(() => {
-    if (!flowId) return;
-    removeNode(flowId, id);
-    toast.success('Node deleted');
-  }, [removeNode, id, flowId]);
-
   const handleUpdateNode = useCallback((updates: Partial<YesNoNodeData>) => {
     const newData = {
       ...data,
@@ -867,6 +471,21 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
     };
     updateNode(flowId, id, newData);
   }, [data, updateNode, flowId, id]);
+
+  const handleUpload = useCallback(async (file: File) => {
+    handleImageUpload(file, (base64) => {
+      handleUpdateNode({
+        images: [
+          ...(data.images || []),
+          {
+            url: base64,
+            alt: file.name,
+            position: 'top'
+          }
+        ]
+      });
+    });
+  }, [handleUpdateNode, data.images]);
 
   return (
     <>
@@ -898,22 +517,49 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
           </>
         }
         handles={{ 
-          top: true,
+          top: false,
           right: false,
           bottom: false,
           left: false 
         }}
+        customHandles={
+          <>
+            {/* Source handle at the top */}
+            <Handle
+              type="target"
+              position={Position.Top}
+              className="w-3 h-3 !border-2 !bg-black"
+              style={{ top: '-12px' }}
+            />
+            {/* Yes/No target handles at the bottom */}
+            <Handle
+              type="source"
+              position={Position.Bottom}
+              id="yes"
+              className="w-3 h-3 !border-2 !bg-white !border-black"
+              style={{ left: '25%', bottom: '-12px' }}
+            />
+            <Handle
+              type="source"
+              position={Position.Bottom}
+              id="no"
+              className="w-3 h-3 !border-2 !bg-white !border-black"
+              style={{ left: '75%', bottom: '-12px' }}
+            />
+          </>
+        }
       >
         <div className="p-4">
           <div className="space-y-4">
-            {data.images?.filter(img => img.position === 'top').map((image, i) => (
-              <img 
-                key={i}
-                src={image.url} 
-                alt={image.alt}
-                className="w-full rounded-lg object-cover" 
-              />
-            ))}
+            <div className="max-h-[200px] overflow-hidden">
+              {data.images?.[0] && (
+                <img 
+                  src={data.images[0].url}
+                  alt={data.images[0].alt}
+                  className="w-full h-[150px] rounded-lg object-cover"
+                />
+              )}
+            </div>
 
             {data.title && (
               <h3 className="font-medium">{data.title}</h3>
@@ -1040,7 +686,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
 
             <div className="space-y-2">
               <Label>Image (Optional)</Label>
-              <ImageUpload onUpload={(file) => handleImageUpload(file, 'content')} />
+              <ImageUpload onUpload={handleUpload} />
             </div>
 
             <div className="space-y-2">
@@ -1085,14 +731,449 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
   );
 });
 
-// Re-export node types for use in the flow editor
-export const nodeTypes = {
-  startNode: StartNode,
-  endNode: EndNode,
-  multipleChoice: MultipleChoiceNode,
-  singleChoice: SingleChoiceNode,
-  yesNo: YesNoNode,
-};
+
+export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleChoiceNodeData>) => {
+  const { removeNode, updateNode, selections, setSelection } = useRootStore();
+  const [showDialog, setShowDialog] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const params = useParams();
+  const flowId = params.flowId as string;
+  const currentSelection = selections[id]?.optionIds[0] || null;
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      })
+    ],
+    content: data.content || '',
+    onUpdate: ({ editor }) => {
+      handleUpdateNode({ content: editor.getHTML() });
+    }
+  });
+
+  const handleDelete = useCallback(() => {
+    if (!flowId) return;
+    removeNode(flowId, id);
+    toast.success('Node deleted');
+  }, [removeNode, id, flowId]);
+
+  const handleUpdateNode = useCallback((updates: Partial<SingleChoiceNodeData>) => {
+    const newData = {
+      ...data,
+      ...updates,
+    };
+    updateNode(flowId, id, newData);
+  }, [data, updateNode, flowId, id]);
+
+  const handleUpload = useCallback(async (file: File) => {
+    handleImageUpload(file, (base64) => {
+      handleUpdateNode({
+        images: [
+          ...(data.images || []),
+          {
+            url: base64,
+            alt: file.name,
+            position: 'top'
+          }
+        ]
+      });
+    });
+  }, [handleUpdateNode, data.images]);
+
+  return (
+    <>
+      <NodeWrapper
+        title="Single Choice"
+        selected={selected}
+        id={id}
+        onDelete={handleDelete}
+        headerClassName="bg-purple-50/80 border-purple-100"
+        headerIcon={<CircleDot className="h-4 w-4 text-purple-500" />}
+        headerActions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPreview(true)}
+              className="h-6 w-6"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowDialog(true)}
+              className="h-6 w-6"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          </>
+        }
+        handles={{ 
+          top: false,
+          right: false,
+          bottom: false,
+          left: false 
+        }}
+        customHandles={
+          <>
+            {/* Source handle at the top */}
+            <Handle
+              type="target"
+              position={Position.Top}
+              className="w-3 h-3 !border-2 !bg-black"
+              style={{ top: '-12px' }}
+            />
+            {/* Target handles for each option on the right side */}
+            {data.options.map((option, index) => (
+              <Handle
+                key={option.id}
+                type="source"
+                position={Position.Right}
+                id={option.id}
+                className="w-3 h-3 !border-2 !bg-white !border-black"
+                style={{ 
+                  top: `${((index + 1) * 100) / (data.options.length + 1)}%`,
+                  right: '-12px'
+                }}
+              />
+            ))}
+          </>
+        }
+      >
+        <div className="p-4">
+          <div className="space-y-4">
+            <div className="max-h-[200px] overflow-hidden">
+              {data.images?.[0] && (
+                <img 
+                  src={data.images[0].url}
+                  alt={data.images[0].alt}
+                  className="w-full h-[150px] rounded-lg object-cover"
+                />
+              )}
+            </div>
+
+            {data.title && (
+              <h3 className="font-medium">{data.title}</h3>
+            )}
+
+            <div 
+              className="prose prose-sm"
+              dangerouslySetInnerHTML={{ __html: data.content || '' }}
+            />
+
+            {data.description && (
+              <p className="text-sm text-muted-foreground">{data.description}</p>
+            )}
+
+            <div className="space-y-2">
+              {data.options.map((option) => (
+                <div 
+                  key={option.id}
+                  className={cn(
+                    "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
+                    currentSelection === option.id && "border-primary-500 bg-primary-50/50"
+                  )}
+                  onClick={() => setSelection(id, {
+                    optionIds: [option.id],
+                    timestamp: Date.now()
+                  })}
+                >
+                  {option.metadata?.image?.url && data.style?.showImages && (
+                    <img 
+                      src={option.metadata.image.url}
+                      alt={option.metadata.image.alt}
+                      className="w-12 h-12 rounded object-cover"
+                    />
+                  )}
+                  <span className={cn(
+                    "text-sm",
+                    currentSelection === option.id && "text-primary-600 font-medium"
+                  )}>
+                    {option.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </NodeWrapper>
+
+      <SingleChoiceDialog 
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        data={data}
+        onUpdate={handleUpdateNode}
+        editor={editor}
+        onImageUpload={handleUpload}
+      />
+
+      <VisualNodePreview
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        data={data}
+        type="single"
+        renderOptions={() => (
+          <div className="space-y-2">
+            {data.options.map((option) => (
+              <div 
+                key={option.id}
+                className="border rounded-lg p-2 flex items-center gap-2"
+              >
+                {option.metadata?.image?.url && data.style?.showImages && (
+                  <img 
+                    src={option.metadata.image.url}
+                    alt={option.metadata.image.alt}
+                    className="w-12 h-12 rounded object-cover"
+                  />
+                )}
+                <span className="text-sm">{option.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      />
+    </>
+  );
+});
+
+export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<MultipleChoiceNodeData>) => {
+  const { removeNode, updateNode, selections, setSelection } = useRootStore();
+  const [showDialog, setShowDialog] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const params = useParams();
+  const flowId = params.flowId as string;
+  const currentSelection = selections[id]?.optionIds || [];
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      })
+    ],
+    content: data.content || '',
+    onUpdate: ({ editor }) => {
+      handleUpdateNode({ content: editor.getHTML() });
+    }
+  });
+
+  const handleDelete = useCallback(() => {
+    if (!flowId) return;
+    removeNode(flowId, id);
+    toast.success('Node deleted');
+  }, [removeNode, id, flowId]);
+
+  const handleUpdateNode = useCallback((updates: Partial<MultipleChoiceNodeData>) => {
+    const newData = {
+      ...data,
+      ...updates,
+    };
+    updateNode(flowId, id, newData);
+  }, [data, updateNode, flowId, id]);
+
+  const handleUpload = useCallback(async (file: File, type: 'content' | 'option', optionId?: string) => {
+    handleImageUpload(file, (base64) => {
+      if (type === 'content') {
+        handleUpdateNode({
+          images: [
+            ...(data.images || []),
+            {
+              url: base64,
+              alt: file.name,
+              position: 'top'
+            }
+          ]
+        });
+      } else if (type === 'option' && optionId) {
+        const newOptions = data.options.map(opt => 
+          opt.id === optionId ? {
+            ...opt,
+            metadata: {
+              ...opt.metadata,
+              image: {
+                url: base64,
+                alt: file.name
+              }
+            }
+          } : opt
+        );
+        handleUpdateNode({ options: newOptions });
+      }
+    });
+  }, [data, handleUpdateNode]);
+
+  return (
+    <>
+      <NodeWrapper
+        title="Multiple Choice"
+        selected={selected}
+        id={id}
+        onDelete={handleDelete}
+        headerClassName="bg-indigo-50/80 border-indigo-100"
+        headerIcon={<List className="h-4 w-4 text-indigo-500" />}
+        headerActions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPreview(true)}
+              className="h-6 w-6"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowDialog(true)}
+              className="h-6 w-6"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          </>
+        }
+        handles={{ 
+          top: true,
+          right: false,
+          bottom: true,
+          left: false 
+        }}
+      >
+        <div className="p-4">
+          <div className="space-y-4">
+            <div className="max-h-[200px] overflow-hidden">
+              {data.images?.[0] && (
+                <img 
+                  src={data.images[0].url}
+                  alt={data.images[0].alt}
+                  className="w-full h-[150px] rounded-lg object-cover"
+                />
+              )}
+            </div>
+
+            {data.title && (
+              <h3 className="font-medium">{data.title}</h3>
+            )}
+
+            <div 
+              className="prose prose-sm"
+              dangerouslySetInnerHTML={{ __html: data.content || '' }}
+            />
+
+            {data.description && (
+              <p className="text-sm text-muted-foreground">{data.description}</p>
+            )}
+
+            <div className={cn(
+              "grid gap-2",
+              data.style?.layout === 'grid' 
+                ? `grid-cols-${data.style.columns || 2}` 
+                : 'grid-cols-1'
+            )}>
+              {data.options.map((option) => (
+                <div 
+                  key={option.id}
+                  className={cn(
+                    "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
+                    currentSelection.includes(option.id) && 
+                      "border-primary-500 bg-primary-50/50"
+                  )}
+                  onClick={() => {
+                    const newSelection = data.maxSelections === 1 
+                      ? [option.id]
+                      : currentSelection.includes(option.id)
+                        ? currentSelection.filter(id => id !== option.id)
+                        : [...currentSelection, option.id];
+                    
+                    // Validate selection limits
+                    if (data.maxSelections && newSelection.length > data.maxSelections) {
+                      toast.error(`Maximum ${data.maxSelections} selections allowed`);
+                      return;
+                    }
+                    if (data.minSelections && newSelection.length < data.minSelections) {
+                      toast.error(`Minimum ${data.minSelections} selections required`);
+                      return;
+                    }
+                    
+                    setSelection(id, {
+                      optionIds: newSelection,
+                      timestamp: Date.now()
+                    });
+                  }}
+                >
+                  {option.metadata?.image?.url && data.style?.showImages && (
+                    <img 
+                      src={option.metadata.image.url}
+                      alt={option.metadata.image.alt}
+                      className="w-12 h-12 rounded object-cover"
+                    />
+                  )}
+                  <span className={cn(
+                    "text-sm",
+                    currentSelection.includes(option.id) && "text-primary-600 font-medium"
+                  )}>
+                    {option.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {(data.minSelections || data.maxSelections) && (
+              <p className="text-xs text-muted-foreground">
+                {data.minSelections && `Min: ${data.minSelections} `}
+                {data.maxSelections && `Max: ${data.maxSelections}`} selections
+              </p>
+            )}
+          </div>
+        </div>
+      </NodeWrapper>
+
+      <MultipleChoiceDialog 
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        data={data}
+        onUpdate={handleUpdateNode}
+        editor={editor}
+        onImageUpload={handleUpload}
+      />
+
+      <VisualNodePreview
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        data={data}
+        type="multiple"
+        renderOptions={() => (
+          <div className={cn(
+            "grid gap-2",
+            data.style?.layout === 'grid' 
+              ? `grid-cols-${data.style.columns || 2}` 
+              : 'grid-cols-1'
+          )}>
+            {data.options.map((option) => (
+              <div 
+                key={option.id}
+                className="border rounded-lg p-2 flex items-center gap-2"
+              >
+                {option.metadata?.image?.url && data.style?.showImages && (
+                  <img 
+                    src={option.metadata.image.url}
+                    alt={option.metadata.image.alt}
+                    className="w-12 h-12 rounded object-cover"
+                  />
+                )}
+                <span className="text-sm">{option.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      />
+    </>
+  );
+});
 
 export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNodeData>) => {
   const { removeNode, updateNode, selections, variables } = useRootStore();
@@ -1101,7 +1182,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
   const flowId = params.flowId as string;
   const reactFlowInstance = useReactFlow();
   
-  // Get connected source node (MultipleChoice) if any
   const getSourceNode = useCallback(() => {
     const edges = reactFlowInstance.getEdges().filter(e => e.target === id);
     if (edges.length > 0) {
@@ -1122,38 +1202,24 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
     toast.success('Node deleted');
   }, [removeNode, id, flowId]);
 
-  // Effect for source node updates
-  useEffect(() => {
-    if (sourceNode && sourceNode.id !== data.sourceNodeId) {
-      updateNode(flowId, id, {
-        ...data,
-        sourceNodeId: sourceNode.id,
-        sourceNodeType: sourceNode.type
-      });
-    }
-  }, [sourceNode, data, updateNode, flowId, id]);
-
-  // Evaluate conditions based on selections and variables
   const evaluateCondition = useCallback((condition: FunctionBlock['condition']) => {
     if (!condition) return false;
 
-    // Handle variable conditions
     if (condition.type === 'variable') {
       const variableValue = variables[condition.variable || ''];
       if (variableValue === undefined) return false;
 
       switch (condition.operator) {
-        case '>=': return variableValue >= condition.value;
-        case '<=': return variableValue <= condition.value;
+        case '>=': return variableValue >= Number(condition.value);
+        case '<=': return variableValue <= Number(condition.value);
         case '==': return variableValue === condition.value;
         case '!=': return variableValue !== condition.value;
-        case '>': return variableValue > condition.value;
-        case '<': return variableValue < condition.value;
+        case '>': return variableValue > Number(condition.value);
+        case '<': return variableValue < Number(condition.value);
         default: return false;
       }
     }
 
-    // Handle selection conditions
     if (condition.type === 'selection' && selection) {
       const selectedIds = selection.optionIds;
 
@@ -1172,7 +1238,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
     return false;
   }, [variables, selection]);
 
-  // Get active handle based on conditions
   const getActiveHandle = useCallback(() => {
     const evaluateBlocks = (blocks: FunctionBlock[]): string | null => {
       for (const block of blocks) {
@@ -1190,7 +1255,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
             }
           }
         } else if (block.type === 'operation') {
-          // Process operation and continue
           if (block.blocks) {
             const nextHandle = evaluateBlocks(block.blocks);
             if (nextHandle) return nextHandle;
@@ -1205,7 +1269,6 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
     return evaluateBlocks(data.blocks || []);
   }, [data.blocks, evaluateCondition]);
 
-  // Get all unique handles from blocks
   const getUniqueHandles = useCallback((blocks: FunctionBlock[]): string[] => {
     const handles = new Set<string>();
     
@@ -1225,7 +1288,16 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
   const handles = useMemo(() => getUniqueHandles(data.blocks || []), [data.blocks, getUniqueHandles]);
   const activeHandle = getActiveHandle();
 
-  // Render logic sequence preview
+  useEffect(() => {
+    if (sourceNode && sourceNode.id !== data.sourceNodeId) {
+      updateNode(flowId, id, {
+        ...data,
+        sourceNodeId: sourceNode.id,
+        sourceNodeType: sourceNode.type
+      });
+    }
+  }, [sourceNode, data, updateNode, flowId, id]);
+
   const renderSequencePreview = useCallback((blocks: FunctionBlock[], depth = 0) => {
     return blocks.map((block) => {
       const indent = depth * 12;
@@ -1304,6 +1376,12 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
         }}
         customHandles={
           <>
+            <Handle
+              type="target"
+              position={Position.Top}
+              className="w-3 h-3 !border-2 !bg-black"
+              style={{ top: '-12px' }}
+            />
             {handles.map((handle, index) => (
               <Handle
                 key={handle}
@@ -1311,12 +1389,12 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
                 position={Position.Right}
                 id={handle}
                 className={cn(
-                  "w-2 h-2 !border-2",
+                  "w-3 h-3 !border-2 !border-black",
                   handle === activeHandle ? "!bg-primary-500" : "!bg-white"
                 )}
                 style={{
                   top: `${(index * 40) + 40}px`,
-                  right: '-10px'
+                  right: '-12px'
                 }}
               />
             ))}
@@ -1347,3 +1425,187 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
     </>
   );
 });
+
+import { Scale } from "lucide-react";
+
+interface WeightNodeData {
+  weight: number;
+  operation: 'add' | 'subtract' | 'multiply' | 'divide';
+  useGlobalWeight: boolean;
+  formula: string;
+}
+
+export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData>) => {
+  const { removeNode, updateNode, variables } = useRootStore();
+  const [showSettings, setShowSettings] = useState(false);
+  const params = useParams();
+  const flowId = params.flowId as string;
+
+  const handleDelete = useCallback(() => {
+    if (!flowId) return;
+    removeNode(flowId, id);
+    toast.success('Node deleted');
+  }, [removeNode, id, flowId]);
+
+  const handleUpdateNode = useCallback((updates: Partial<WeightNodeData>) => {
+    const newData = {
+      ...data,
+      ...updates,
+    };
+    updateNode(flowId, id, newData);
+  }, [data, updateNode, flowId, id]);
+
+  // Get current weight values
+  const globalWeight = variables.global?.weight || 1;
+  const localWeight = variables.local?.weight || 1;
+  const currentWeight = data.useGlobalWeight ? globalWeight : localWeight;
+
+  // Calculate result based on operation and formula
+  const calculateResult = useCallback(() => {
+    try {
+      const formula = data.formula
+        .replace(/\$weight/g, currentWeight.toString())
+        .replace(/\$global/g, globalWeight.toString())
+        .replace(/\$local/g, localWeight.toString());
+      
+      // Using Function to safely evaluate the formula
+      const result = new Function(`return ${formula}`)();
+      return Number(result).toFixed(2);
+    } catch (error) {
+      console.error('Error calculating weight:', error);
+      return 'Error';
+    }
+  }, [data.formula, currentWeight, globalWeight, localWeight]);
+
+  return (
+    <>
+      <NodeWrapper
+        title="Weight"
+        selected={selected}
+        id={id}
+        onDelete={handleDelete}
+        headerClassName="bg-amber-50/80 border-amber-100"
+        headerIcon={<Scale className="h-4 w-4 text-amber-500" />}
+        headerActions={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSettings(true)}
+            className="h-6 w-6"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+        }
+        handles={{ 
+          top: true,
+          right: false,
+          bottom: true,
+          left: false 
+        }}
+      >
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
+              <Label>Current Weight</Label>
+              <div className="text-2xl font-bold text-amber-600">
+                {calculateResult()}
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Using {data.useGlobalWeight ? 'Global' : 'Local'} Weight
+            </div>
+          </div>
+
+          <div className="text-sm text-muted-foreground">
+            {data.formula || 'No formula set'}
+          </div>
+        </div>
+      </NodeWrapper>
+
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Weight Node Settings</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Use Global Weight</Label>
+                <div className="text-sm text-muted-foreground">
+                  Switch between global and local weight
+                </div>
+              </div>
+              <Switch
+                checked={data.useGlobalWeight}
+                onCheckedChange={(checked) => handleUpdateNode({ useGlobalWeight: checked })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Weight Formula</Label>
+              <Input 
+                value={data.formula}
+                onChange={(e) => handleUpdateNode({ formula: e.target.value })}
+                placeholder="E.g., $weight * 2 + 1"
+              />
+              <div className="text-xs text-muted-foreground">
+                Available variables: $weight, $global, $local
+              </div>
+            </div>
+
+            <div>
+              <Label>Operation</Label>
+              <Select
+                value={data.operation}
+                onValueChange={(value: WeightNodeData['operation']) => 
+                  handleUpdateNode({ operation: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add</SelectItem>
+                  <SelectItem value="subtract">Subtract</SelectItem>
+                  <SelectItem value="multiply">Multiply</SelectItem>
+                  <SelectItem value="divide">Divide</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Current Values</Label>
+              <div className="mt-2 p-4 rounded-lg bg-muted space-y-2">
+                <div className="flex justify-between">
+                  <span>Global Weight:</span>
+                  <span className="font-mono">{globalWeight}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Local Weight:</span>
+                  <span className="font-mono">{localWeight}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Result:</span>
+                  <span className="font-mono">{calculateResult()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+});
+
+// Re-export node types for use in the flow editor
+export const nodeTypes = {
+  startNode: StartNode,
+  endNode: EndNode,
+  multipleChoice: MultipleChoiceNode,
+  singleChoice: SingleChoiceNode,
+  yesNo: YesNoNode,
+  functionNode: FunctionNode,
+  weightNode: WeightNode,
+};
+

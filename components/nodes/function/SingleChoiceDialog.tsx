@@ -1,14 +1,15 @@
-// components/nodes/function/SingleChoiceDialog.tsx
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SingleChoiceNodeData } from "@/types/nodes";
-import { Editor } from "@tiptap/react";
-import { GripVertical, ImagePlus, Trash2 } from "lucide-react";
+import { Editor, EditorContent } from "@tiptap/react";
+import { GripVertical, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 interface SingleChoiceDialogProps {
@@ -38,99 +39,56 @@ export function SingleChoiceDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex items-center justify-between mb-4">
-            <TabsList>
-              <TabsTrigger value="content" className="flex items-center gap-2">
-                Content
-              </TabsTrigger>
-              <TabsTrigger value="options" className="flex items-center gap-2">
-                Options
-              </TabsTrigger>
-              <TabsTrigger value="style" className="flex items-center gap-2">
-                Style
-              </TabsTrigger>
-            </TabsList>
-          </div>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="options">Options</TabsTrigger>
+            <TabsTrigger value="style">Style</TabsTrigger>
+          </TabsList>
 
           <TabsContent value="content" className="space-y-4">
-            <div className="space-y-4">
-              <div>
-                <Label>Title</Label>
-                <Input
-                  value={data.title || ''}
-                  onChange={(e) => onUpdate({ title: e.target.value })}
-                  placeholder="Enter title..."
-                />
-              </div>
+            <div>
+              <Label>Title</Label>
+              <Input
+                value={data.title || ''}
+                onChange={(e) => onUpdate({ title: e.target.value })}
+                placeholder="Enter title..."
+              />
+            </div>
 
-              <div>
-                <Label>Question</Label>
-                <RichTextEditor editor={editor} />
-              </div>
+            <div>
+              <Label>Question Content</Label>
+              <EditorContent 
+                editor={editor} 
+                className="border rounded-lg mt-2 p-3 min-h-[100px]"
+              />
+            </div>
 
-              <div>
-                <Label>Description (Optional)</Label>
-                <Input
-                  value={data.description || ''}
-                  onChange={(e) => onUpdate({ description: e.target.value })}
-                  placeholder="Add additional context..."
-                />
-              </div>
+            <div>
+              <Label>Description (Optional)</Label>
+              <Input
+                value={data.description || ''}
+                onChange={(e) => onUpdate({ description: e.target.value })}
+                placeholder="Add additional context..."
+              />
+            </div>
 
-              <div>
-                <Label>Content Images</Label>
-                <div className="flex items-center gap-2">
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) onImageUpload(file, 'content');
-                      }}
-                    />
-                    <Button variant="outline" size="sm" type="button">
-                      <ImagePlus className="h-4 w-4 mr-2" />
-                      Add Image
-                    </Button>
-                  </label>
-                </div>
-                {data.images?.map((image, index) => (
-                  <div key={index} className="relative mt-2">
-                    <img
-                      src={image.url}
-                      alt={image.alt}
-                      className="w-full h-32 object-cover rounded-md"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 bg-white/90 hover:bg-white"
-                      onClick={() => {
-                        const newImages = [...(data.images || [])];
-                        newImages.splice(index, 1);
-                        onUpdate({ images: newImages });
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+            <div>
+              <Label>Question Image</Label>
+              <ImageUpload 
+                onUpload={(file) => onImageUpload(file, 'content')} 
+                existingImage={data.images?.[0]?.url}
+                onRemove={() => onUpdate({ images: [] })}
+              />
             </div>
           </TabsContent>
 
           <TabsContent value="options" className="space-y-4">
-            <div className="space-y-4">
-              {data.options.map((option, index) => (
-                <div
-                  key={option.id}
-                  className="relative space-y-2 p-3 bg-muted/30 rounded-md"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                    <div className="flex-1">
+            {data.options.map((option, index) => (
+              <Card key={option.id} className="p-4">
+                <div className="flex items-start gap-4">
+                  <GripVertical className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div className="flex-1 space-y-4">
+                    <div>
                       <Label>Label</Label>
                       <Input
                         value={option.label}
@@ -139,93 +97,66 @@ export function SingleChoiceDialog({
                           newOptions[index] = { ...option, label: e.target.value };
                           onUpdate({ options: newOptions });
                         }}
-                        placeholder={`Option ${index + 1}`}
+                        placeholder="Option label..."
                       />
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        const newOptions = [...data.options];
-                        newOptions.splice(index, 1);
-                        onUpdate({ options: newOptions });
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
 
-                  {data.style?.showImages && (
-                    <div className="space-y-2">
-                      <Label>Option Image</Label>
-                      {option.metadata?.image?.url ? (
-                        <div className="relative w-32">
-                          <img
-                            src={option.metadata.image.url}
-                            alt={option.metadata.image.alt}
-                            className="w-full h-24 object-cover rounded"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-1 right-1 h-6 w-6 bg-white/90 hover:bg-white"
-                            onClick={() => {
-                              const newOptions = [...data.options];
-                              delete newOptions[index].metadata?.image;
-                              onUpdate({ options: newOptions });
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) onImageUpload(file, 'option', option.id);
-                            }}
-                          />
-                          <Button variant="outline" size="sm">
-                            <ImagePlus className="h-4 w-4 mr-2" />
-                            Add Image
-                          </Button>
-                        </label>
-                      )}
+                    <div>
+                      <Label>Value</Label>
+                      <Input
+                        value={option.value}
+                        onChange={(e) => {
+                          const newOptions = [...data.options];
+                          newOptions[index] = { ...option, value: e.target.value };
+                          onUpdate({ options: newOptions });
+                        }}
+                        placeholder="Option value..."
+                      />
                     </div>
-                  )}
 
-                  <div>
-                    <Label>Value</Label>
-                    <Input
-                      value={option.value}
-                      onChange={(e) => {
-                        const newOptions = [...data.options];
-                        newOptions[index] = { ...option, value: e.target.value };
-                        onUpdate({ options: newOptions });
-                      }}
-                      placeholder="Option value..."
-                    />
+                    {data.style?.showImages && (
+                      <div>
+                        <Label>Option Image</Label>
+                        <ImageUpload 
+                          onUpload={(file) => onImageUpload(file, 'option', option.id)}
+                          existingImage={option.metadata?.image?.url}
+                          onRemove={() => {
+                            const newOptions = [...data.options];
+                            delete newOptions[index].metadata?.image;
+                            onUpdate({ options: newOptions });
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
 
-              <Button
-                onClick={() => {
-                  const newOption = {
-                    id: crypto.randomUUID(),
-                    label: '',
-                    value: ''
-                  };
-                  onUpdate({ options: [...data.options, newOption] });
-                }}
-              >
-                Add Option
-              </Button>
-            </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newOptions = data.options.filter(o => o.id !== option.id);
+                      onUpdate({ options: newOptions });
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
+
+            <Button
+              onClick={() => {
+                const newOption = {
+                  id: crypto.randomUUID(),
+                  label: '',
+                  value: ''
+                };
+                onUpdate({ options: [...data.options, newOption] });
+              }}
+              className="w-full"
+            >
+              Add Option
+            </Button>
           </TabsContent>
 
           <TabsContent value="style" className="space-y-4">
@@ -233,9 +164,14 @@ export function SingleChoiceDialog({
               <Label>Layout</Label>
               <Select
                 value={data.style?.layout || 'default'}
-                onValueChange={(value) => onUpdate({
-                  style: { ...data.style, layout: value as any }
-                })}
+                onValueChange={(value: 'default' | 'centered' | 'wide') => 
+                  onUpdate({ 
+                    style: { 
+                      ...data.style,
+                      layout: value
+                    }
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />

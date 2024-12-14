@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { toast } from "sonner";
 import { Edge, Node, applyEdgeChanges, applyNodeChanges } from "reactflow";
+import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { 
-  ChartInstance, 
-  EdgeChange, 
-  NodeChange, 
-  ValidationResult 
+import {
+  ChartInstance,
+  EdgeChange,
+  NodeChange
 } from "./types";
 
 interface FlowState {
@@ -136,26 +135,32 @@ const createFlowSlice: StateCreator<FlowState> = (set, get) => ({
       ),
     })),
 
-  addEdge: (flowId, newEdge) =>
-    set((state) => ({
-      flows: state.flows.map((flow) =>
-        flow.id === flowId
-          ? { ...flow, edges: [...flow.edges, newEdge] }
-          : flow
-      ),
-    })),
-
-  updateEdges: (flowId, changes) =>
-    set((state) => ({
-      flows: state.flows.map((flow) =>
-        flow.id === flowId
-          ? {
-              ...flow,
-              edges: applyEdgeChanges(changes, flow.edges),
-            }
-          : flow
-      ),
-    })),
+    addEdge: (flowId, newEdge) =>
+      set((state) => ({
+        flows: state.flows.map((flow) =>
+          flow.id === flowId
+            ? { 
+                ...flow, 
+                edges: [...flow.edges, { ...newEdge, type: 'custom' }] 
+              }
+            : flow
+        ),
+      })),
+  
+    updateEdges: (flowId, changes) =>
+      set((state) => ({
+        flows: state.flows.map((flow) =>
+          flow.id === flowId
+            ? {
+                ...flow,
+                edges: applyEdgeChanges(changes, flow.edges).map(edge => ({
+                  ...edge,
+                  type: 'custom'
+                })),
+              }
+            : flow
+        ),
+      })),
 
   setCurrentDashboardTab: (tabId) =>
     set((state) => {
