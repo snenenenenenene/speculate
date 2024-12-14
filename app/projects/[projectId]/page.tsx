@@ -148,13 +148,13 @@ export default function ProjectPage() {
         </div>
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/dashboard/projects/${project.id}/settings`}>
+            <Link href={`/projects/${project.id}/settings`}>
               <Settings className="h-4 w-4 mr-2" />
               Settings
             </Link>
           </Button>
           <Button size="sm" asChild>
-            <Link href={`/dashboard/projects/${project.id}/flows`}>
+            <Link href={`/projects/${project.id}/flows`}>
               <LayoutDashboard className="h-4 w-4 mr-2" />
               Open Editor
             </Link>
@@ -245,7 +245,7 @@ export default function ProjectPage() {
             {flows.map((flow) => (
               <Link 
                 key={flow.id}
-                href={`/dashboard/projects/${project.id}/flows/${flow.id}`}
+                href={`/projects/${project.id}/flows/${flow.id}`}
                 className="block"
               >
                 <Card className="hover:shadow-md transition-shadow">
