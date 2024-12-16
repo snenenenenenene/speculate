@@ -3,9 +3,15 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Copy,
   FileJson,
   GitBranch,
   GitCommitHorizontal,
@@ -14,7 +20,10 @@ import {
   Key,
   LayoutDashboard,
   List,
+  Loader2,
   Settings,
+  Share2,
+  Shield,
   Users2,
   Variable
 } from "lucide-react";
@@ -58,6 +67,14 @@ interface ProjectStats {
   };
 }
 
+interface ShareSettings {
+  isPublic: boolean;
+  requiresSignin: boolean;
+  allowedDomains: string[];
+  allowComments: boolean;
+  accessLevel: 'view' | 'edit' | 'comment';
+}
+
 export default function ProjectPage() {
   const params = useParams();
   const [project, setProject] = useState<Project | null>(null);
@@ -75,6 +92,16 @@ export default function ProjectPage() {
     }
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>("");
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareSettings, setShareSettings] = useState<Partial<ShareSettings>>({
+    isPublic: false,
+    requiresSignin: true,
+    allowedDomains: [],
+    allowComments: false,
+    accessLevel: 'view'
+  });
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -119,6 +146,40 @@ export default function ProjectPage() {
     fetchProject();
   }, [params.projectId]);
 
+  const handleShare = async () => {
+    try {
+      setIsSharing(true);
+      
+      const response = await fetch(`/api/projects/${project?.id}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(shareSettings),
+      });
+
+      if (!response.ok) throw new Error('Failed to share project');
+      
+      const data = await response.json();
+      setShareUrl(data.shareUrl);
+      toast.success('Share settings updated');
+    } catch (error) {
+      toast.error('Failed to share project');
+      console.error('Error sharing project:', error);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Share link copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy share link');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -147,6 +208,15 @@ export default function ProjectPage() {
           <p className="text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsShareDialogOpen(true)}
+            className="gap-2"
+          >
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href={`/projects/${project.id}/settings`}>
               <Settings className="h-4 w-4 mr-2" />
@@ -324,43 +394,148 @@ export default function ProjectPage() {
                       View Changes
                     </Button>
                   </div>
-                ))}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* API Tab */}
-        <TabsContent value="api">
-          <Card>
-            <CardHeader>
-              <CardTitle>API Configuration</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="font-medium">API Key</div>
-                <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                  {project.apiKey || 'No API key generated'}
-                </code>
-              </div>
-              <div className="space-y-2">
-                <div className="font-medium">Usage</div>
-                <div className="text-sm text-muted-foreground">
-                  <p>Endpoint: <code className="text-primary">https://api.speculate.dev/v1/{project.id}</code></p>
-                  <p className="mt-1">Rate limit: 1000 requests per hour</p>
+                  ))}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+    
+            {/* API Tab */}
+            <TabsContent value="api">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="font-medium">API Key</div>
+                    <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                      {project.apiKey || 'No API key generated'}
+                    </code>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="font-medium">Usage</div>
+                    <div className="text-sm text-muted-foreground">
+                      <p>Endpoint: <code className="text-primary">https://api.speculate.dev/v1/{project.id}</code></p>
+                      <p className="mt-1">Rate limit: 1000 requests per hour</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="font-medium">Documentation</div>
+                    <p className="text-sm text-muted-foreground">
+                      View the API documentation to learn how to integrate with your flows.
+                    </p>
+                    <Button variant="outline" size="sm">View Documentation</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+    
+          {/* Share Dialog */}
+          <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Share Project</DialogTitle>
+                <DialogDescription>
+                  Configure how you want to share this project
+                </DialogDescription>
+              </DialogHeader>
+    
+              <div className="space-y-4 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Globe2 className="h-4 w-4" />
+                      <Label>Public access</Label>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Anyone with the link can view
+                    </p>
+                  </div>
+                  <Switch
+                    checked={shareSettings.isPublic}
+                    onCheckedChange={(checked) => 
+                      setShareSettings(prev => ({ ...prev, isPublic: checked }))
+                    }
+                  />
                 </div>
+    
+                {!shareSettings.isPublic && (
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        <Label>Require sign in</Label>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Users must be signed in to view
+                      </p>
+                    </div>
+                    <Switch
+                      checked={shareSettings.requiresSignin}
+                      onCheckedChange={(checked) => 
+                        setShareSettings(prev => ({ ...prev, requiresSignin: checked }))
+                      }
+                    />
+                  </div>
+                )}
+    
+                <div className="space-y-2">
+                  <Label>Access Level</Label>
+                  <Select
+                    value={shareSettings.accessLevel}
+                    onValueChange={(value: 'view' | 'edit' | 'comment') => 
+                      setShareSettings(prev => ({ ...prev, accessLevel: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="view">View only</SelectItem>
+                      <SelectItem value="comment">Can comment</SelectItem>
+                      <SelectItem value="edit">Can edit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+    
+                {shareUrl ? (
+                  <div className="space-y-2">
+                    <Label>Share URL</Label>
+                    <div className="flex gap-2">
+                      <Input value={shareUrl} readOnly />
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        onClick={copyShareUrl}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full"
+                    onClick={handleShare}
+                    disabled={isSharing}
+                  >
+                    {isSharing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Link...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="mr-2 h-4 w-4" />
+                        Generate Share Link
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <div className="font-medium">Documentation</div>
-                <p className="text-sm text-muted-foreground">
-                  View the API documentation to learn how to integrate with your flows.
-                </p>
-                <Button variant="outline" size="sm">View Documentation</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+            </DialogContent>
+          </Dialog>
+        </div>
+      );
+    }

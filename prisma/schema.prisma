@@ -56,6 +56,8 @@ model User {
   auditLogs     AuditLog[]     // Actions performed by user
   versions      Version[]       // Versions created by user
   invitations   ProjectInvitation[] // Invitations received
+  shareAccess   ProjectShareAccess[] // Access to shared projects
+  sharedProjects ProjectShare[] // Projects shared by user
 
   @@index([email])
   @@index([role])
@@ -83,6 +85,8 @@ model Project {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   variables   Json[]          @default([])
+  shareSettings Json?         // ProjectShareSettings
+  isPublic    Boolean         @default(false)
   
   userId      String          // Owner
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -92,8 +96,56 @@ model Project {
   invitations ProjectInvitation[]
   auditLogs   AuditLog[]
   domains     AllowedDomain[]
+  shares      ProjectShare[]  // Active shares of this project
 
   @@index([userId])
+  @@index([isPublic])
+}
+
+model ProjectShare {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   String
+  user        User      @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  expiresAt   DateTime?
+  settings    Json      // ShareSettings object
+  shareId     String    @unique  // Public-facing ID for share URLs
+  password    String?   // Hashed password if protected
+  views       Int       @default(0)
+  lastViewed  DateTime?
+  
+  // Access tracking
+  accessLogs  ProjectShareAccess[]
+  
+  @@index([projectId])
+  @@index([createdBy])
+  @@index([shareId])
+  @@index([expiresAt])
+}
+
+model ProjectShareAccess {
+  id          String       @id @default(cuid())
+  shareId     String
+  share       ProjectShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  userId      String?      // Null for anonymous access
+  user        User?        @relation(fields: [userId], references: [id])
+  accessedAt  DateTime     @default(now())
+  ipAddress   String?
+  userAgent   String?
+  accessLevel ShareAccessLevel
+
+  @@index([shareId])
+  @@index([userId])
+  @@index([accessedAt])
+}
+
+enum ShareAccessLevel {
+  VIEW
+  COMMENT
+  EDIT
 }
 
 model ProjectCollaborator {
@@ -235,6 +287,10 @@ enum AuditAction {
   INVITATION_SENT
   INVITATION_ACCEPTED
   INVITATION_REJECTED
+  SHARE_CREATED
+  SHARE_UPDATED
+  SHARE_DELETED
+  SHARE_ACCESSED
 }
 
 model Payment {
