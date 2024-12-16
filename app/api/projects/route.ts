@@ -1,11 +1,8 @@
-// app/api/projects/route.ts
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "../auth/[...nextauth]/options";
-import crypto from 'crypto';
 
-// GET /api/projects - Get all projects for current user
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -16,19 +13,46 @@ export async function GET() {
 
     const projects = await prisma.project.findMany({
       where: {
-        user: {
-          email: session.user.email
-        }
+        OR: [
+          // Projects owned by the user
+          {
+            user: {
+              email: session.user.email
+            }
+          },
+          // Projects where user is a collaborator
+          {
+            collaborators: {
+              some: {
+                user: {
+                  email: session.user.email
+                }
+              }
+            }
+          }
+        ]
       },
       include: {
         _count: {
           select: {
-            charts: true
+            charts: true,
+            collaborators: true
+          }
+        },
+        collaborators: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+                image: true
+              }
+            }
           }
         }
       },
       orderBy: {
-        createdAt: 'desc'
+        updatedAt: 'desc'
       }
     });
 
@@ -42,7 +66,6 @@ export async function GET() {
   }
 }
 
-// POST /api/projects - Create new project
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -60,23 +83,43 @@ export async function POST(req: Request) {
       );
     }
 
-    const apiKey = crypto.randomBytes(32).toString('hex');
-
     const project = await prisma.project.create({
       data: {
         name,
         description,
-        apiKey,
         user: {
           connect: {
             email: session.user.email
+          }
+        },
+        // Add the creator as an OWNER collaborator
+        collaborators: {
+          create: {
+            role: 'OWNER',
+            user: {
+              connect: {
+                email: session.user.email
+              }
+            }
           }
         }
       },
       include: {
         _count: {
           select: {
-            charts: true
+            charts: true,
+            collaborators: true
+          }
+        },
+        collaborators: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+                image: true
+              }
+            }
           }
         }
       }

@@ -1,8 +1,7 @@
-// app/api/projects/[projectId]/route.ts
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "../../auth/[...nextauth]/options";
 
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
   try {
@@ -12,11 +11,39 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({
+    // Get project with all necessary data
+    const project = await prisma.project.findFirst({
       where: {
         id: params.projectId,
-        user: {
-          email: session.user.email
+        OR: [
+          { userId: session.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: session.user.id
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        _count: {
+          select: {
+            charts: true,
+            collaborators: true
+          }
+        },
+        collaborators: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true
+              }
+            }
+          }
         }
       }
     });
@@ -28,34 +55,40 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
       );
     }
 
-    console.log('API GET project - Full project data:', JSON.stringify(project, null, 2));
-
     // Get flows for this project
     const flows = await prisma.chartInstance.findMany({
       where: {
         projectId: params.projectId,
-        user: {
-          email: session.user.email
-        }
+        OR: [
+          { userId: session.user.id },
+          {
+            project: {
+              collaborators: {
+                some: {
+                  userId: session.user.id
+                }
+              }
+            }
+          }
+        ]
       },
       select: {
         id: true,
         name: true,
-        content: true
+        content: true,
+        isPublished: true,
+        version: true,
+        updatedAt: true,
+        variables: true
       }
     });
 
-    const response = { 
+    return NextResponse.json({
       project: {
         ...project,
-        globalVariables: project.variables || []
-      },
-      flows
-    };
-
-    console.log('API GET project - Full response:', JSON.stringify(response, null, 2));
-
-    return NextResponse.json(response);
+        flows
+      }
+    });
   } catch (error) {
     console.error("Error fetching project:", error);
     return NextResponse.json(
@@ -74,38 +107,43 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
 
     const body = await req.json();
-    console.log('API PATCH project - Request body:', JSON.stringify(body, null, 2));
+    const { name, description, variables } = body;
 
     const updateData: any = {
       updatedAt: new Date()
     };
 
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.description !== undefined) updateData.description = body.description;
-    if (body.variables !== undefined) {
-      updateData.variables = body.variables;
-    }
-
-    console.log('API PATCH project - Update data:', JSON.stringify(updateData, null, 2));
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (variables !== undefined) updateData.variables = variables;
 
     const project = await prisma.project.update({
       where: {
         id: params.projectId,
-        user: {
-          email: session.user.email
-        }
+        OR: [
+          { userId: session.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: session.user.id,
+                role: { in: ['OWNER', 'ADMIN'] }
+              }
+            }
+          }
+        ]
       },
-      data: updateData
-    });
-
-    console.log('API PATCH project - Updated project:', JSON.stringify(project, null, 2));
-
-    return NextResponse.json({ 
-      project: {
-        ...project,
-        globalVariables: project.variables || []
+      data: updateData,
+      include: {
+        _count: {
+          select: {
+            charts: true,
+            collaborators: true
+          }
+        }
       }
     });
+
+    return NextResponse.json({ project });
   } catch (error) {
     console.error("Error updating project:", error);
     return NextResponse.json(
@@ -123,32 +161,46 @@ export async function DELETE(req: Request, { params }: { params: { projectId: st
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Delete associated charts first
-    await prisma.chartInstance.deleteMany({
-      where: {
-        projectId: params.projectId,
-        user: {
-          email: session.user.email
-        }
-      }
-    });
-
-    // Then delete the project
-    const project = await prisma.project.deleteMany({
+    // Check if user has permission to delete
+    const project = await prisma.project.findFirst({
       where: {
         id: params.projectId,
-        user: {
-          email: session.user.email
-        }
+        OR: [
+          { userId: session.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: session.user.id,
+                role: 'OWNER'
+              }
+            }
+          }
+        ]
       }
     });
 
-    if (project.count === 0) {
+    if (!project) {
       return NextResponse.json(
-        { error: "Project not found" },
+        { error: "Project not found or insufficient permissions" },
         { status: 404 }
       );
     }
+
+    // Delete associated data
+    await prisma.$transaction([
+      // Delete collaborators
+      prisma.projectCollaborator.deleteMany({
+        where: { projectId: params.projectId }
+      }),
+      // Delete charts/flows
+      prisma.chartInstance.deleteMany({
+        where: { projectId: params.projectId }
+      }),
+      // Delete the project
+      prisma.project.delete({
+        where: { id: params.projectId }
+      })
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
