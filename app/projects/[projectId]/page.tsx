@@ -40,6 +40,23 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
+interface Collaborator {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string;
+  };
+}
 
 interface Project {
   id: string;
@@ -49,6 +66,14 @@ interface Project {
   variables: any[];
   createdAt: string;
   updatedAt: string;
+  collaborators: Collaborator[];
+  userId: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string;
+  };
   _count: {
     charts: number;
     collaborators: number;
@@ -79,6 +104,7 @@ export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
   const [project, setProject] = useState<Project | null>(null);
+  const [owner, setOwner] = useState<{ name: string; email: string; image: string; } | null>(null);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
@@ -107,19 +133,27 @@ export default function ProjectPage() {
     const fetchProject = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/projects/${params.projectId}`);
-        
-        if (!response.ok) {
+        const [projectResponse, ownerResponse] = await Promise.all([
+          fetch(`/api/projects/${params.projectId}`),
+          fetch(`/api/users/${params.projectId}/owner`)
+        ]);
+
+        if (!projectResponse.ok) {
           throw new Error('Failed to fetch project');
         }
 
-        const data = await response.json();
-        setProject(data.project);
-        setFlows(data.project.flows || []);
+        const projectData = await projectResponse.json();
+        setProject(projectData.project);
+        setFlows(projectData.project.flows || []);
         setFormData({
-          name: data.project.name,
-          description: data.project.description || "",
+          name: projectData.project.name,
+          description: projectData.project.description || "",
         });
+        console.log('ownerResponse', ownerResponse)
+        if (ownerResponse.ok) {
+          const ownerData = await ownerResponse.json();
+          setOwner(ownerData.user);
+        }
       } catch (error) {
         console.error('Error fetching project:', error);
         toast.error('Failed to load project data');
@@ -136,7 +170,7 @@ export default function ProjectPage() {
   const handleShare = async () => {
     try {
       setIsSharing(true);
-      
+
       const response = await fetch(`/api/projects/${project?.id}/share`, {
         method: 'POST',
         headers: {
@@ -148,7 +182,7 @@ export default function ProjectPage() {
       if (!response.ok) {
         throw new Error('Failed to share project');
       }
-      
+
       const data = await response.json();
       setShareUrl(data.shareUrl);
       toast.success('Project shared successfully');
@@ -237,6 +271,9 @@ export default function ProjectPage() {
     );
   }
 
+  console.log('pro', project)
+  console.log('owner', owner)
+
   return (
     <div className="flex-1 space-y-8 p-8 pt-6">
       {/* Header */}
@@ -246,8 +283,76 @@ export default function ProjectPage() {
           <p className="text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
+          <div className="flex items-center -space-x-2 mr-2">
+            {/* Owner Avatar */}
+            {owner && (
+              <HoverCard>
+                <HoverCardTrigger>
+                  <Avatar key="owner" className="border-2 border-background w-8 h-8 hover:scale-105 transition-transform">
+                    <AvatarImage
+                      src={owner.image}
+                      alt={owner.name}
+                    />
+                    <AvatarFallback>
+                      {owner.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-fit" align="start">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{owner.name}</span>
+                    <span className="text-xs text-muted-foreground">Owner</span>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            )}
+
+            {/* Collaborators Avatars (excluding owner) */}
+            {project.collaborators?.slice(0, 2).map((collaborator) => (
+              <HoverCard key={collaborator.id}>
+                <HoverCardTrigger>
+                  <Avatar className="border-2 border-background w-8 h-8 hover:scale-105 transition-transform">
+                    <AvatarImage src={collaborator.user.image} alt={collaborator.user.name} />
+                    <AvatarFallback>
+                      {collaborator.user.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-fit" align="start">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{collaborator.user.name}</span>
+                    <span className="text-xs text-muted-foreground">{collaborator.role.charAt(0) + collaborator.role.slice(1).toLowerCase()}</span>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            ))}
+
+            {/* Additional collaborators count */}
+            {project.collaborators?.length > 2 && (
+              <HoverCard>
+                <HoverCardTrigger>
+                  <Avatar className="border-2 border-background w-8 h-8 hover:scale-105 transition-transform">
+                    <AvatarFallback>
+                      +{project.collaborators.length - 2}
+                    </AvatarFallback>
+                  </Avatar>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-fit" align="start">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm text-muted-foreground">Other collaborators</span>
+                    {project.collaborators?.slice(2).map((collaborator) => (
+                      <div key={collaborator.id} className="flex flex-col">
+                        <span className="font-medium">{collaborator.user.name}</span>
+                        <span className="text-xs text-muted-foreground">{collaborator.role.charAt(0) + collaborator.role.slice(1).toLowerCase()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            )}
+          </div>
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => setIsCollaboratorsOpen(true)}
             className="gap-2"
@@ -255,17 +360,17 @@ export default function ProjectPage() {
             <Users2 className="h-4 w-4" />
             Manage Team
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setIsShareDialogOpen(true)}
             className="gap-2"
           >
             <Share2 className="h-4 w-4" />
             Share
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => setIsSettingsOpen(true)}
             className="gap-2"
@@ -431,7 +536,7 @@ export default function ProjectPage() {
                   />
                 </div>
                 <Button onClick={handleSaveSettings} disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save Changes
                 </Button>
 
@@ -544,7 +649,7 @@ export default function ProjectPage() {
               </div>
               <Switch
                 checked={shareSettings.isPublic}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setShareSettings(prev => ({ ...prev, isPublic: checked }))
                 }
               />
@@ -554,7 +659,7 @@ export default function ProjectPage() {
               <Label>Access Level</Label>
               <Select
                 value={shareSettings.accessLevel}
-                onValueChange={(value: 'view' | 'edit' | 'comment') => 
+                onValueChange={(value: 'view' | 'edit' | 'comment') =>
                   setShareSettings(prev => ({ ...prev, accessLevel: value }))
                 }
               >
@@ -574,9 +679,9 @@ export default function ProjectPage() {
                 <Label>Share URL</Label>
                 <div className="flex gap-2">
                   <Input value={shareUrl} readOnly />
-                  <Button 
-                    size="icon" 
-                    variant="outline" 
+                  <Button
+                    size="icon"
+                    variant="outline"
                     onClick={() => {
                       navigator.clipboard.writeText(shareUrl);
                       toast.success("Share link copied to clipboard");
