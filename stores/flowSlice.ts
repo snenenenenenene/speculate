@@ -188,7 +188,28 @@ const createFlowSlice: StateCreator<FlowState> = (set, get) => ({
     }));
 
     try {
-      // TODO: Implement save to DB functionality
+      const projectId = get().currentProject?.id;
+      if (!projectId) {
+        throw new Error("No project ID set");
+      }
+
+      const response = await fetch(`/api/projects/${projectId}/flows`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: newFlow.id,
+          name: newFlow.name,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save new flow");
+      }
+
+      const data = await response.json();
+      console.log("Created new flow:", data);
       return newFlow.id;
     } catch (error) {
       console.error("Failed to save new tab:", error);

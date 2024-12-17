@@ -17,31 +17,51 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { ProjectPublishDialog } from "@/components/projects/ProjectPublishDialog";
 import {
-  BarChart2,
-  Clock,
-  CodeSquare,
-  Copy,
-  FileText,
-  Loader2,
-  Plus,
-  RefreshCw,
+  FileJson,
+  GitBranch,
+  GitCommitHorizontal,
+  Globe2,
+  History,
+  Key,
+  LayoutDashboard,
+  List,
   Settings,
-  Share2,
+  Users2,
+  Variable,
+  Copy,
+  RefreshCw,
+  Plus,
   Trash2,
-  Users2
+  Share2,
+  Loader2,
+  Clock,
+  FileText,
+  CodeSquare,
+  Play
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { APITestRequest, APIUsageStats, APILog, AccessLog } from "@/types/api";
+
+interface ShareSettings {
+  isPublic: boolean;
+  requiresSignin: boolean;
+  allowedDomains: string[];
+  allowComments: boolean;
+  accessLevel: 'view' | 'edit' | 'comment';
+}
 
 interface Collaborator {
   id: string;
@@ -61,19 +81,10 @@ interface Collaborator {
 interface Project {
   id: string;
   name: string;
-  description: string | null;
+  description: string;
   apiKey: string | null;
-  variables: any[];
-  createdAt: string;
+  isPublic: boolean;
   updatedAt: string;
-  collaborators: Collaborator[];
-  userId: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    image: string;
-  };
   _count: {
     charts: number;
     collaborators: number;
@@ -91,13 +102,17 @@ interface Flow {
   variables: any[];
 }
 
-interface ShareSettings {
-  isPublic: boolean;
-  requiresSignin: boolean;
-  allowedDomains: string[];
-  allowComments: boolean;
-  accessLevel: 'view' | 'edit' | 'comment';
-  password?: string;
+interface ProjectStats {
+  totalFlows: number;
+  publishedFlows: number;
+  draftFlows: number;
+  totalVersions: number;
+  latestVersion: number;
+  totalVariables: number;
+  apiUsage: {
+    total: number;
+    lastWeek: number;
+  };
 }
 
 export default function ProjectPage() {
@@ -106,10 +121,23 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [owner, setOwner] = useState<{ name: string; email: string; image: string; } | null>(null);
   const [flows, setFlows] = useState<Flow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<ProjectStats>({
+    totalFlows: 0,
+    publishedFlows: 0,
+    draftFlows: 0,
+    totalVersions: 0,
+    latestVersion: 0,
+    totalVariables: 0,
+    apiUsage: {
+      total: 0,
+      lastWeek: 0
+    }
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string>("");
   const [isSharing, setIsSharing] = useState(false);
   const [shareSettings, setShareSettings] = useState<ShareSettings>({
@@ -129,43 +157,98 @@ export default function ProjectPage() {
     description: "",
   });
 
+  const [apiUsageStats, setApiUsageStats] = useState<APIUsageStats | null>(null);
+  const [apiLogs, setApiLogs] = useState<APILog[]>([]);
+  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+  const [testRequest, setTestRequest] = useState<APITestRequest>({
+    endpoint: '',
+    method: 'GET',
+    body: '{}'
+  });
+  const [testResponse, setTestResponse] = useState<string>('');
+  const [isTestingApi, setIsTestingApi] = useState(false);
+
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        setLoading(true);
-        const [projectResponse, ownerResponse] = await Promise.all([
+        setIsLoading(true);
+        const [projectResponse, ownerResponse, flowsResponse] = await Promise.all([
           fetch(`/api/projects/${params.projectId}`),
-          fetch(`/api/users/${params.projectId}/owner`)
+          fetch(`/api/users/${params.projectId}/owner`),
+          fetch(`/api/projects/${params.projectId}/flows`)
         ]);
 
-        if (!projectResponse.ok) {
-          throw new Error('Failed to fetch project');
+        if (!projectResponse.ok || !flowsResponse.ok) {
+          throw new Error('Failed to fetch project data');
         }
 
         const projectData = await projectResponse.json();
+        const flowsData = await flowsResponse.json();
+
         setProject(projectData.project);
-        setFlows(projectData.project.flows || []);
+        setFlows(flowsData.flows);
         setFormData({
           name: projectData.project.name,
           description: projectData.project.description || "",
         });
-        console.log('ownerResponse', ownerResponse)
+
         if (ownerResponse.ok) {
           const ownerData = await ownerResponse.json();
           setOwner(ownerData.user);
         }
+
+        // Calculate stats
+        const publishedFlows = flowsData.flows.filter((f: Flow) => f.isPublished);
+        setStats({
+          totalFlows: flowsData.flows.length,
+          publishedFlows: publishedFlows.length,
+          draftFlows: flowsData.flows.length - publishedFlows.length,
+          totalVersions: flowsData.flows.reduce((acc: number, flow: Flow) => acc + flow.version, 0),
+          latestVersion: Math.max(...flowsData.flows.map((f: Flow) => f.version), 0),
+          totalVariables: projectData.project.variables?.length || 0,
+          apiUsage: {
+            total: 1250, // Example data - replace with real API usage stats
+            lastWeek: 250
+          }
+        });
       } catch (error) {
         console.error('Error fetching project:', error);
         toast.error('Failed to load project data');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
-    if (params.projectId) {
-      fetchProject();
-    }
+    fetchProject();
   }, [params.projectId]);
+
+  const fetchAPIUsage = async () => {
+    try {
+      setIsLoadingUsage(true);
+      const response = await fetch(`/api/projects/${params.projectId}/usage`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch API usage');
+      }
+
+      const data = await response.json();
+      setApiUsageStats(data.stats);
+      setApiLogs(data.apiLogs);
+      setAccessLogs(data.accessLogs);
+    } catch (error) {
+      console.error('Error fetching API usage:', error);
+      toast.error('Failed to load API usage data');
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  };
+
+  useEffect(() => {
+    if (project?.id) {
+      fetchAPIUsage();
+    }
+  }, [project?.id]);
 
   const handleShare = async () => {
     try {
@@ -250,7 +333,60 @@ export default function ProjectPage() {
     }
   };
 
-  if (loading) {
+  const handlePublish = async () => {
+    try {
+      const response = await fetch(`/api/projects/${project?.id}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.error || 'Failed to publish project');
+      }
+
+      toast.success('Project published successfully');
+      router.refresh();
+    } catch (error) {
+      console.error('Error publishing project:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish project');
+    }
+  };
+
+  const handleTestApi = async () => {
+    if (!project?.apiKey) {
+      toast.error('No API key available');
+      return;
+    }
+
+    try {
+      setIsTestingApi(true);
+      const response = await fetch(`/api/v1/${project.id}`, {
+        headers: {
+          'Authorization': `Bearer ${project.apiKey}`
+        }
+      });
+
+      const data = await response.json();
+      setTestResponse(JSON.stringify(data, null, 2));
+      
+      if (!response.ok) {
+        toast.error(`API test failed: ${data.error || 'Unknown error'}`);
+      } else {
+        toast.success('API test successful');
+      }
+    } catch (error) {
+      console.error('Error testing API:', error);
+      toast.error('Failed to test API');
+      setTestResponse(JSON.stringify({ error: 'Failed to test API' }, null, 2));
+    } finally {
+      setIsTestingApi(false);
+    }
+  };
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
@@ -271,230 +407,503 @@ export default function ProjectPage() {
     );
   }
 
-  console.log('pro', project)
-  console.log('owner', owner)
-
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6">
+    <div className="flex flex-col h-full p-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-          <p className="text-muted-foreground">{project.description}</p>
-        </div>
+      <div className="flex items-center justify-between border-b pb-4 mb-4">
         <div className="flex items-center gap-4">
-          <div className="flex items-center -space-x-2 mr-2">
-            {/* Owner Avatar */}
-            {owner && (
-              <HoverCard>
-                <HoverCardTrigger>
-                  <Avatar key="owner" className="border-2 border-background w-8 h-8 hover:scale-105 transition-transform">
-                    <AvatarImage
-                      src={owner.image}
-                      alt={owner.name}
-                    />
-                    <AvatarFallback>
-                      {owner.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-fit" align="start">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{owner.name}</span>
-                    <span className="text-xs text-muted-foreground">Owner</span>
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            )}
-
-            {/* Collaborators Avatars (excluding owner) */}
-            {project.collaborators?.slice(0, 2).map((collaborator) => (
-              <HoverCard key={collaborator.id}>
-                <HoverCardTrigger>
-                  <Avatar className="border-2 border-background w-8 h-8 hover:scale-105 transition-transform">
-                    <AvatarImage src={collaborator.user.image} alt={collaborator.user.name} />
-                    <AvatarFallback>
-                      {collaborator.user.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-fit" align="start">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{collaborator.user.name}</span>
-                    <span className="text-xs text-muted-foreground">{collaborator.role.charAt(0) + collaborator.role.slice(1).toLowerCase()}</span>
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            ))}
-
-            {/* Additional collaborators count */}
-            {project.collaborators?.length > 2 && (
-              <HoverCard>
-                <HoverCardTrigger>
-                  <Avatar className="border-2 border-background w-8 h-8 hover:scale-105 transition-transform">
-                    <AvatarFallback>
-                      +{project.collaborators.length - 2}
-                    </AvatarFallback>
-                  </Avatar>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-fit" align="start">
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm text-muted-foreground">Other collaborators</span>
-                    {project.collaborators?.slice(2).map((collaborator) => (
-                      <div key={collaborator.id} className="flex flex-col">
-                        <span className="font-medium">{collaborator.user.name}</span>
-                        <span className="text-xs text-muted-foreground">{collaborator.role.charAt(0) + collaborator.role.slice(1).toLowerCase()}</span>
-                      </div>
-                    ))}
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            )}
+          <div>
+            <h1 className="text-2xl font-bold">{project?.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {project?.description || "No description"}
+            </p>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setIsCollaboratorsOpen(true)}
-            className="gap-2"
           >
-            <Users2 className="h-4 w-4" />
-            Manage Team
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsShareDialogOpen(true)}
-            className="gap-2"
-          >
-            <Share2 className="h-4 w-4" />
-            Share
+            <Users2 className="h-4 w-4 mr-2" />
+            Team
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setIsSettingsOpen(true)}
-            className="gap-2"
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="h-4 w-4 mr-2" />
             Settings
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsShareDialogOpen(true)}
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Share
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPublishDialogOpen(true)}
+          >
+            <Globe2 className="h-4 w-4 mr-2" />
+            Publish
+          </Button>
           <Button size="sm" asChild>
-            <Link href={`/projects/${project.id}/flows`}>
-              <BarChart2 className="h-4 w-4 mr-2" />
+            <Link href={`/projects/${project?.id}/flows`}>
+              <LayoutDashboard className="h-4 w-4 mr-2" />
               Open Editor
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Flows</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{project._count?.charts || 0}</div>
-            {flows?.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">
-                  {flows.filter(f => f.isPublished).length} Published
-                </Badge>
-                <Badge variant="outline">
-                  {flows.filter(f => !f.isPublished).length} Drafts
-                </Badge>
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto pr-4">
+        {/* Stats Grid */}
+        <div className="grid gap-4 md:grid-cols-4 mb-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Flows</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{project._count?.charts || 0}</div>
+              {flows?.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">
+                    {flows.filter(f => f.isPublished).length} Published
+                  </Badge>
+                  <Badge variant="outline">
+                    {flows.filter(f => !f.isPublished).length} Drafts
+                  </Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+              <Users2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{project._count?.collaborators || 1}</div>
+              <p className="text-xs text-muted-foreground">
+                Active collaborators
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {new Date(project.updatedAt).toLocaleDateString()}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <p className="text-xs text-muted-foreground">
+                Last modified
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-            <Users2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{project._count?.collaborators || 1}</div>
-            <p className="text-xs text-muted-foreground">
-              Active collaborators
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Variables</CardTitle>
+              <CodeSquare className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{project.variables?.length || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                Global project variables
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Date(project.updatedAt).toLocaleDateString()}
+        {/* Main Content */}
+        <Tabs defaultValue="flows" className="space-y-4">
+          <TabsList className="bg-background sticky top-0 z-10">
+            <TabsTrigger value="flows" className="gap-2">
+              <List className="h-4 w-4" />
+              Flows
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="gap-2">
+              <History className="h-4 w-4" />
+              Activity
+            </TabsTrigger>
+            <TabsTrigger value="versions" className="gap-2">
+              <GitCommitHorizontal className="h-4 w-4" />
+              Versions
+            </TabsTrigger>
+            <TabsTrigger value="api" className="gap-2">
+              <Key className="h-4 w-4" />
+              API
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Flows Tab */}
+          <TabsContent value="flows" className="space-y-4">
+            <div className="grid gap-4 grid-cols-3">
+              {flows.map((flow) => (
+                <Link 
+                  key={flow.id}
+                  href={`/projects/${project.id}/flows/${flow.id}`}
+                  className="block"
+                >
+                  <Card className="hover:shadow-md transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
+                      {flow.isPublished ? (
+                        <Badge>Published</Badge>
+                      ) : (
+                        <Badge variant="outline">Draft</Badge>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      {flow.description && (
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {flow.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <FileText className="h-4 w-4" />
+                          <span>v{flow.version}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>
+                            Updated {new Date(flow.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Last modified
-            </p>
-          </CardContent>
-        </Card>
+          </TabsContent>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Variables</CardTitle>
-            <CodeSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{project.variables?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Global project variables
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Flows Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {flows.map((flow) => (
-          <Link
-            key={flow.id}
-            href={`/projects/${project.id}/flows/${flow.id}`}
-            className="block"
-          >
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
-                {flow.isPublished ? (
-                  <Badge>Published</Badge>
-                ) : (
-                  <Badge variant="outline">Draft</Badge>
-                )}
+          {/* Activity Tab */}
+          <TabsContent value="activity">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                {flow.description && (
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {flow.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
-                    <span>v{flow.version}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    <span>
-                      Updated {new Date(flow.updatedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
+                <ScrollArea className="h-[600px] pr-4">
+                  {/* Example activity items - replace with real data */}
+                  {[...Array(10)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 py-3 border-b last:border-0">
+                      <div className="flex-shrink-0">
+                        <Users2 className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm">
+                          Flow "Main Flow" was published
+                          <span className="text-muted-foreground"> • 2h ago</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Version 2.1.0 released with 3 new nodes
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </ScrollArea>
               </CardContent>
             </Card>
-          </Link>
-        ))}
+          </TabsContent>
+
+          {/* Versions Tab */}
+          <TabsContent value="versions">
+            <Card>
+              <CardHeader>
+                <CardTitle>Version History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[600px] pr-4">
+                  {/* Example version history - replace with real data */}
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 py-3 border-b last:border-0">
+                      <Badge variant="outline">v2.{5-i}.0</Badge>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium">Major update with new validation rules</p>
+                        <p className="text-xs text-muted-foreground">
+                          Published on {new Date().toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        View Changes
+                      </Button>
+                    </div>
+                  ))}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* API Tab */}
+          <TabsContent value="api">
+            <div className="grid gap-4 grid-cols-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="font-medium">API Key</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                        {project.apiKey || 'No API key generated'}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          if (project.apiKey) {
+                            navigator.clipboard.writeText(project.apiKey);
+                            toast.success("API key copied to clipboard");
+                          }
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        onClick={handleRegenerateApiKey}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">Usage Statistics</div>
+                    {isLoadingUsage ? (
+                      <div className="h-[100px] flex items-center justify-center">
+                        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 grid-cols-3">
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{apiUsageStats?.total || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                              All time API requests
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{apiUsageStats?.lastWeek || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                              Requests in last 7 days
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{apiUsageStats?.uniqueUsers || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                              Distinct API consumers
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">API Tester</div>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="grid gap-4">
+                          <div className="grid gap-2">
+                            <Label>Test API Endpoint</Label>
+                            <div className="flex gap-2">
+                              <code className="flex items-center rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                                GET /api/v1/{project.id}
+                              </code>
+                              <Button 
+                                onClick={handleTestApi} 
+                                disabled={isTestingApi || !project?.apiKey}
+                                size="sm"
+                              >
+                                {isTestingApi ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {testResponse && (
+                            <div className="grid gap-2">
+                              <Label>Response</Label>
+                              <ScrollArea className="h-[200px] w-full rounded-md border">
+                                <pre className="p-4 text-sm">
+                                  {testResponse}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">API Documentation</div>
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Base URL</h4>
+                        <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                          /api/v1/{project.id}
+                        </code>
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Available Endpoints</h4>
+                        <div className="space-y-4">
+                          <div>
+                            <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                              GET /api/v1/{project.id}
+                            </code>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Get project data including all flows
+                            </p>
+                            <div className="mt-2">
+                              <p className="text-sm font-medium">Example Response:</p>
+                              <pre className="mt-1 p-2 rounded bg-muted text-xs font-mono overflow-x-auto">
+{`{
+  "project": {
+    "id": "project-id",
+    "name": "Project Name",
+    "description": "Project Description",
+    "isPublic": true,
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "stats": {
+      "flows": 2,
+      "collaborators": 3
+    },
+    "flows": [
+      {
+        "id": "flow-id",
+        "name": "Flow Name",
+        "content": {
+          "nodes": [],
+          "edges": [],
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "version": 1,
+        "updatedAt": "2024-01-01T00:00:00.000Z",
+        "publishedAt": "2024-01-01T00:00:00.000Z",
+        "variables": [],
+        "isPublished": true,
+        "color": "#80B500",
+        "onePageMode": false
+      }
+    ]
+  }
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Authentication</h4>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Include your API key in the request headers:
+                        </p>
+                        <code className="block relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                          Authorization: Bearer {project.apiKey || 'your-api-key'}
+                        </code>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Rate Limits</h4>
+                        <p className="text-sm text-muted-foreground">
+                          • 1,000 requests per hour<br />
+                          • 10,000 requests per day<br />
+                          • Maximum payload size: 5MB
+                        </p>
+                      </div>
+
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/docs/api" target="_blank">
+                          View Full Documentation
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">Recent Activity</div>
+                    <Card>
+                      <ScrollArea className="h-[300px]">
+                        <div className="p-4 space-y-4">
+                          {accessLogs.map((log) => (
+                            <div key={log.id} className="flex items-start gap-4 border-b last:border-0 pb-4">
+                              <div className="flex-shrink-0">
+                                <Globe2 className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <p className="text-sm">
+                                  {log.user ? (
+                                    <span className="font-medium">{log.user.name}</span>
+                                  ) : (
+                                    <span className="font-medium">{log.ipAddress}</span>
+                                  )}
+                                  <span className="text-muted-foreground"> • {new Date(log.accessedAt).toLocaleString()}</span>
+                                </p>
+                                {log.userAgent && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {log.userAgent}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Modals */}
       <CollaboratorsModal
-        projectId={project.id}
+        projectId={project?.id}
         isOpen={isCollaboratorsOpen}
         onClose={() => setIsCollaboratorsOpen(false)}
       />
@@ -562,14 +971,14 @@ export default function ProjectPage() {
                   <Label>API Key</Label>
                   <div className="flex items-center gap-2">
                     <Input
-                      value={project.apiKey || "No API key generated"}
+                      value={project?.apiKey || "No API key generated"}
                       readOnly
                     />
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => {
-                        if (project.apiKey) {
+                        if (project?.apiKey) {
                           navigator.clipboard.writeText(project.apiKey);
                           toast.success("API key copied to clipboard");
                         }
@@ -596,7 +1005,7 @@ export default function ProjectPage() {
                 </Button>
 
                 <div className="rounded-md border">
-                  {project.variables?.length > 0 ? (
+                  {project?.variables?.length > 0 ? (
                     <div className="divide-y">
                       {project.variables.map((variable: any, index: number) => (
                         <div
@@ -712,6 +1121,14 @@ export default function ProjectPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Publish Dialog */}
+      <ProjectPublishDialog
+        open={isPublishDialogOpen}
+        onOpenChange={setIsPublishDialogOpen}
+        onPublish={handlePublish}
+        currentVersion={project?.version || 0}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

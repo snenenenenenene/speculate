@@ -31,13 +31,26 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
   saveToDb: async (flows: ChartInstance[]) => {
     try {
       console.log("saveToDb called with:", flows);
+      const projectId = get().projectId;
+      
+      if (!projectId) {
+        throw new Error("No project ID set");
+      }
 
       const response = await fetch("/api/flows", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: flows }),
+        body: JSON.stringify({ 
+          projectId,
+          content: flows.map(flow => ({
+            ...flow,
+            nodes: flow.nodes || [],
+            edges: flow.edges || [],
+            variables: flow.variables || []
+          }))
+        }),
       });
 
       if (!response.ok) {
@@ -45,7 +58,7 @@ const createUtilitySlice: StateCreator<UtilityState> = (set, get) => ({
       }
 
       const data = await response.json();
-      return data.flows;
+      return data.charts;
     } catch (error) {
       console.error("Error saving to database:", error);
       toast.error("Failed to save flow");

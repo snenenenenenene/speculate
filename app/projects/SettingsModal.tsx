@@ -56,7 +56,6 @@ export default function SettingsModal({
   flowId,
   initialData,
 }: SettingsModalProps) {
-  console.log('initialData:', initialData);
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

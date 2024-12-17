@@ -1,7 +1,7 @@
-import prisma from "@/lib/prisma";
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "../auth/[...nextauth]/options";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +31,16 @@ export async function POST(request: Request) {
     const project = await prisma.project.findFirst({
       where: {
         id: body.projectId,
-        userId: user.id,
+        OR: [
+          { userId: user.id },
+          {
+            collaborators: {
+              some: {
+                userId: user.id
+              }
+            }
+          }
+        ]
       },
     });
 
@@ -39,50 +48,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Create flow with default chart instance
-    const flow = await prisma.flow.create({
-      data: {
-        name: body.name || "Main Flow",
-        description: body.description || "Initial flow",
-        project: {
-          connect: {
-            id: body.projectId
-          }
-        },
-        user: {
-          connect: {
-            id: user.id
-          }
-        },
-        chartInstances: {
-          create: {
-            id: body.chartInstances?.[0]?.id || "default",
-            name: body.chartInstances?.[0]?.name || "Default Instance",
-            nodes: "[]",
-            edges: "[]",
-            color: body.chartInstances?.[0]?.color || "#3B82F6",
-            onePageMode: body.chartInstances?.[0]?.onePageMode || false,
-            publishedVersions: "[]",
-            variables: "[]"
-          }
+    // Create chart instance directly
+    const charts = await Promise.all(body.content.map(async (chart: any) => {
+      return prisma.chartInstance.create({
+        data: {
+          name: chart.name || "New Chart",
+          content: JSON.stringify({
+            nodes: chart.nodes || [],
+            edges: chart.edges || [],
+            variables: chart.variables || []
+          }),
+          color: chart.color || "#80B500",
+          onePageMode: chart.onePageMode || false,
+          projectId: body.projectId,
+          userId: user.id,
+          variables: chart.variables || []
         }
-      },
-      include: {
-        chartInstances: true
-      }
-    });
+      });
+    }));
 
-    // Update project with the new flow
-    await prisma.project.update({
-      where: { id: project.id },
-      data: { flowId: flow.id }
-    });
-
-    return NextResponse.json(flow);
-  } catch (error: any) {
-    console.error("Error creating flow:", error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Failed to create flow" 
-    }, { status: 500 });
+    return NextResponse.json({ charts });
+  } catch (error) {
+    console.error("Error creating charts:", error);
+    return NextResponse.json(
+      { error: "Failed to create charts" },
+      { status: 500 }
+    );
   }
 }

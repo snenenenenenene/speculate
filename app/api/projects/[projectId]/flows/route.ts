@@ -4,6 +4,13 @@ import { NextResponse } from "next/server";
 import { authOptions } from "../../../auth/[...nextauth]/options";
 import { nanoid } from "nanoid";
 
+interface SessionUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
 // GET /api/projects/[projectId]/flows
 export async function GET(
   req: Request,
@@ -11,17 +18,37 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // First verify project access
+    const project = await prisma.project.findFirst({
+      where: {
+        id: params.projectId,
+        OR: [
+          { userId: user.id },
+          {
+            collaborators: {
+              some: {
+                userId: user.id
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // Get all flows for the project
     const flows = await prisma.chartInstance.findMany({
       where: {
-        projectId: params.projectId,
-        user: {
-          email: session.user.email
-        }
+        projectId: params.projectId
       },
       orderBy: {
         updatedAt: 'desc'
@@ -66,8 +93,9 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -95,7 +123,7 @@ export async function POST(
         },
         user: {
           connect: {
-            email: session.user.email
+            email: user.email
           }
         }
       }
