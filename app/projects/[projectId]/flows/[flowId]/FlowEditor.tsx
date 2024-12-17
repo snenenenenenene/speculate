@@ -1,6 +1,7 @@
 "use client";
 
 import CustomEdge from "@/components/flow/CustomEdge";
+import { PublishDialog } from "@/components/flow/PublishDialog";
 import {
   EndNode,
   FunctionNode,
@@ -12,7 +13,8 @@ import {
 } from "@/components/nodes";
 import { useRootStore } from "@/stores/rootStore";
 import '@/styles/flow-theme.css';
-import { Loader2 } from "lucide-react";
+import { PublishSettings } from "@/types";
+import { GitCommit, Loader2 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,6 +33,9 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 
 const nodeTypes = {
   startNode: StartNode,
@@ -130,6 +135,7 @@ function createNewNode(type: string, position: { x: number; y: number }, flowId:
 }
 
 export default function FlowEditor() {
+  const { theme } = useTheme();
   const params = useParams();
   const flowId = params.flowId as string;
   const projectId = params.projectId as string;
@@ -143,6 +149,7 @@ export default function FlowEditor() {
   const [isLoading, setIsLoading] = useState(true);
   const [flowData, setFlowData] = useState<any>(null);
   const [globalVariables, setGlobalVariables] = useState<any[]>([]);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
 
   useEffect(() => {
     if (flow) {
@@ -496,6 +503,29 @@ export default function FlowEditor() {
     );
   }, []);
 
+  const handlePublishFlow = async (settings: Partial<PublishSettings>) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.error || 'Failed to publish flow');
+      }
+
+      toast.success('Flow published successfully');
+      setIsPublishDialogOpen(false);
+    } catch (error) {
+      console.error('Error publishing flow:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -506,7 +536,7 @@ export default function FlowEditor() {
 
   return (
     <div className="flex h-full w-full" ref={reactFlowWrapper}>
-<ReactFlow
+      <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
@@ -520,17 +550,23 @@ export default function FlowEditor() {
         connectionLineType={ConnectionLineType.SmoothStep}
         defaultEdgeOptions={{
           animated: true,
-          style: { stroke: '#94a3b8', strokeWidth: 2 },
+          style: { stroke: theme === 'dark' ? '#a1a1aa' : '#94a3b8', strokeWidth: 2 },
         }}
         deleteKeyCode={['Backspace', 'Delete']}
         minZoom={0.2}
         maxZoom={4}
         fitView
-        className="bg-white"
+        className={cn("transition-colors duration-200", theme === 'dark' && "dark")}
       > 
-    
-        <Background color={flowData?.color || "#27272a"} gap={16} size={1} />
+        <Background color={theme === 'dark' ? "#27272a" : "#27272a"} gap={16} size={1} />
       </ReactFlow>
+
+      <PublishDialog
+        open={isPublishDialogOpen}
+        onOpenChange={setIsPublishDialogOpen}
+        onPublish={handlePublishFlow}
+        currentVersion={flow?.version || 0}
+      />
     </div>
   );
 }

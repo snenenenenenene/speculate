@@ -13,6 +13,9 @@ import { Suspense } from "react";
 import React from "react";
 import SettingsModal from "@/app/projects/SettingsModal";
 import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
+import { PublishDialog } from "@/components/flow/PublishDialog";
+import { PublishSettings } from "@/types";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function ProjectLayout({
   children,
@@ -29,6 +32,7 @@ export default function ProjectLayout({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -125,6 +129,32 @@ export default function ProjectLayout({
     }
   };
 
+  const handlePublishFlow = async (settings: Partial<PublishSettings>) => {
+    if (!flowId) return;
+    
+    try {
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.error || 'Failed to publish flow');
+      }
+
+      toast.success('Flow published successfully');
+      setIsPublishDialogOpen(false);
+      setRefreshTrigger(prev => prev + 1); // Refresh flow list
+    } catch (error) {
+      console.error('Error publishing flow:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
+    }
+  };
+
   return (
     <div className="flex h-screen">
       {isFlowPage && (
@@ -161,6 +191,7 @@ export default function ProjectLayout({
               />
               <div className="flex-1" />
               <div className="flex items-center gap-2">
+                <ThemeToggle />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -197,6 +228,7 @@ export default function ProjectLayout({
                   variant="ghost"
                   size="sm"
                   className="gap-2"
+                  onClick={() => setIsPublishDialogOpen(true)}
                 >
                   <GitCommit className="h-4 w-4" />
                   Publish
@@ -220,6 +252,16 @@ export default function ProjectLayout({
         flowId={flowId}
         initialData={flowData}
       />
+
+      {/* Publish Dialog */}
+      {flowId && (
+        <PublishDialog
+          open={isPublishDialogOpen}
+          onOpenChange={setIsPublishDialogOpen}
+          onPublish={handlePublishFlow}
+          currentVersion={flowData?.version || 0}
+        />
+      )}
     </div>
   );
 }

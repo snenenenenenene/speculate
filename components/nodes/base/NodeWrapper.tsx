@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useParams } from 'next/navigation';
 import { useRootStore } from '@/stores/rootStore';
 import { toast } from 'sonner';
+import { useTheme } from 'next-themes';
 
 export type NodeWrapperProps = {
   title: string;
@@ -44,6 +45,7 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
     customHandles
   } = props;
 
+  const { theme } = useTheme();
   const params = useParams();
   const flowId = params.flowId as string;
   const { removeNode } = useRootStore();
@@ -79,7 +81,12 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
       >
         <Card className={cn(
           "group min-w-[240px] relative",
-          selected ? "ring-2 ring-black/10 shadow-lg bg-white" : "ring-1 ring-zinc-200/50 shadow-sm bg-white",
+          selected ? "ring-2 shadow-lg" : "ring-1 shadow-sm",
+          theme === 'dark' ? (
+            selected ? "ring-white/20 bg-zinc-900" : "ring-zinc-800 bg-zinc-900"
+          ) : (
+            selected ? "ring-black/10 bg-white" : "ring-zinc-200/50 bg-white"
+          ),
           "transition-all duration-200"
         )}>
           {/* Default Node Handles */}
@@ -90,7 +97,8 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
                   type="target"
                   position={Position.Top}
                   className={cn(
-                    "w-3 h-3 rounded-full border-2 border-zinc-200 bg-white",
+                    "w-3 h-3 rounded-full border-2",
+                    theme === 'dark' ? "border-zinc-600 bg-zinc-900" : "border-zinc-200 bg-white",
                     "!transform !translate-x-[-50%] !translate-y-[-50%]"
                   )}
                 />
@@ -100,7 +108,8 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
                   type="source"
                   position={Position.Right}
                   className={cn(
-                    "w-3 h-3 rounded-full border-2 border-zinc-200 bg-white",
+                    "w-3 h-3 rounded-full border-2",
+                    theme === 'dark' ? "border-zinc-600 bg-zinc-900" : "border-zinc-200 bg-white",
                     "!transform !translate-x-[50%] !translate-y-[-50%]"
                   )}
                 />
@@ -110,7 +119,8 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
                   type="source"
                   position={Position.Bottom}
                   className={cn(
-                    "w-3 h-3 rounded-full border-2 border-zinc-200 bg-white",
+                    "w-3 h-3 rounded-full border-2",
+                    theme === 'dark' ? "border-zinc-600 bg-zinc-900" : "border-zinc-200 bg-white",
                     "!transform !translate-x-[-50%] !translate-y-[50%]"
                   )}
                 />
@@ -120,7 +130,8 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
                   type="target"
                   position={Position.Left}
                   className={cn(
-                    "w-3 h-3 rounded-full border-2 border-zinc-200 bg-white",
+                    "w-3 h-3 rounded-full border-2",
+                    theme === 'dark' ? "border-zinc-600 bg-zinc-900" : "border-zinc-200 bg-white",
                     "!transform !translate-x-[-50%] !translate-y-[-50%]"
                   )}
                 />
@@ -133,7 +144,7 @@ export const NodeWrapper = React.memo(function NodeWrapper(props: NodeWrapperPro
 
           <CardHeader className={cn(
             "flex flex-row items-center justify-between space-y-0 pb-2",
-            headerClassName
+            theme === 'dark' && headerClassName?.includes('bg-') ? headerClassName.replace(/bg-(\w+)-50/g, 'bg-$1-950') : headerClassName
           )}>
             <div className="flex items-center gap-2">
               {headerIcon}

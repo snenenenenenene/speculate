@@ -34,6 +34,7 @@ import { FunctionNodeDialog } from './function/FunctionNodeDialog';
 import { MultipleChoiceDialog } from './function/MultipleChoiceNodeDialog';
 import { SingleChoiceDialog } from './function/SingleChoiceDialog';
 import { VisualNodePreview } from './VisualNodePreview';
+import { useTheme } from 'next-themes';
 
 export const handleImageUpload = async (file: File, callback: (base64: string) => void) => {
   const reader = new FileReader();
@@ -50,6 +51,7 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
   const [showPreview, setShowPreview] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
+  const { theme } = useTheme();
 
   const editor = useEditor({
     extensions: [
@@ -136,7 +138,12 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
           <Handle 
             type="source" 
             position={Position.Bottom} 
-            className="w-3 h-3 !border-2 !bg-white !border-black"
+            className={cn(
+              "w-3 h-3 !border-2",
+              theme === 'dark' 
+                ? "!bg-zinc-900 !border-white" 
+                : "!bg-white !border-black"
+            )}
           />
         }
       >
@@ -233,6 +240,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
   const [showPreview, setShowPreview] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
+  const { theme } = useTheme();
 
   const editor = useEditor({
     extensions: [
@@ -443,6 +451,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
   const params = useParams();
   const flowId = params.flowId as string;
   const currentSelection = selections[id]?.optionIds[0] || null;
+  const { theme } = useTheme();
 
   const editor = useEditor({
     extensions: [
@@ -524,26 +533,39 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
         }}
         customHandles={
           <>
-            {/* Source handle at the top */}
             <Handle
               type="target"
               position={Position.Top}
-              className="w-3 h-3 !border-2 !bg-black"
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900" 
+                  : "!bg-black"
+              )}
               style={{ top: '-12px' }}
             />
-            {/* Yes/No target handles at the bottom */}
             <Handle
               type="source"
               position={Position.Bottom}
               id="yes"
-              className="w-3 h-3 !border-2 !bg-white !border-black"
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900 !border-white" 
+                  : "!bg-white !border-black"
+              )}
               style={{ left: '25%', bottom: '-12px' }}
             />
             <Handle
               type="source"
               position={Position.Bottom}
               id="no"
-              className="w-3 h-3 !border-2 !bg-white !border-black"
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900 !border-white" 
+                  : "!bg-white !border-black"
+              )}
               style={{ left: '75%', bottom: '-12px' }}
             />
           </>
@@ -578,7 +600,13 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
               <div 
                 className={cn(
                   "border rounded-lg p-3 flex items-center justify-center cursor-pointer transition-colors",
-                  currentSelection === 'yes' && "border-primary-500 bg-primary-50/50"
+                  theme === 'dark' 
+                    ? currentSelection === 'yes' 
+                      ? "border-primary-400 bg-primary-950/50" 
+                      : "border-zinc-800"
+                    : currentSelection === 'yes' 
+                      ? "border-primary-500 bg-primary-50/50"
+                      : "border-zinc-200",
                 )}
                 onClick={() => setSelection(id, {
                   optionIds: ['yes'],
@@ -587,7 +615,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
               >
                 <span className={cn(
                   "text-sm font-medium",
-                  currentSelection === 'yes' && "text-primary-600"
+                  currentSelection === 'yes' && (theme === 'dark' ? "text-primary-400" : "text-primary-600")
                 )}>
                   {data.yesLabel || 'Yes'}
                 </span>
@@ -596,7 +624,13 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
               <div 
                 className={cn(
                   "border rounded-lg p-3 flex items-center justify-center cursor-pointer transition-colors",
-                  currentSelection === 'no' && "border-primary-500 bg-primary-50/50"
+                  theme === 'dark' 
+                    ? currentSelection === 'no' 
+                      ? "border-primary-400 bg-primary-950/50" 
+                      : "border-zinc-800"
+                    : currentSelection === 'no' 
+                      ? "border-primary-500 bg-primary-50/50"
+                      : "border-zinc-200",
                 )}
                 onClick={() => setSelection(id, {
                   optionIds: ['no'],
@@ -605,7 +639,7 @@ export const YesNoNode = memo(({ id, data, selected }: NodeProps<YesNoNodeData>)
               >
                 <span className={cn(
                   "text-sm font-medium",
-                  currentSelection === 'no' && "text-primary-600"
+                  currentSelection === 'no' && (theme === 'dark' ? "text-primary-400" : "text-primary-600")
                 )}>
                   {data.noLabel || 'No'}
                 </span>
@@ -739,6 +773,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
   const params = useParams();
   const flowId = params.flowId as string;
   const currentSelection = selections[id]?.optionIds[0] || null;
+  const { theme } = useTheme();
 
   const editor = useEditor({
     extensions: [
@@ -820,21 +855,29 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
         }}
         customHandles={
           <>
-            {/* Source handle at the top */}
             <Handle
               type="target"
               position={Position.Top}
-              className="w-3 h-3 !border-2 !bg-black"
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900" 
+                  : "!bg-black"
+              )}
               style={{ top: '-12px' }}
             />
-            {/* Target handles for each option on the right side */}
             {data.options.map((option, index) => (
               <Handle
                 key={option.id}
                 type="source"
                 position={Position.Right}
                 id={option.id}
-                className="w-3 h-3 !border-2 !bg-white !border-black"
+                className={cn(
+                  "w-3 h-3 !border-2",
+                  theme === 'dark' 
+                    ? "!bg-zinc-900 !border-white" 
+                    : "!bg-white !border-black"
+                )}
                 style={{ 
                   top: `${((index + 1) * 100) / (data.options.length + 1)}%`,
                   right: '-12px'
@@ -875,7 +918,13 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
                   key={option.id}
                   className={cn(
                     "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
-                    currentSelection === option.id && "border-primary-500 bg-primary-50/50"
+                    theme === 'dark' 
+                      ? currentSelection === option.id 
+                        ? "border-primary-400 bg-primary-950/50" 
+                        : "border-zinc-800"
+                      : currentSelection === option.id 
+                        ? "border-primary-500 bg-primary-50/50"
+                        : "border-zinc-200",
                   )}
                   onClick={() => setSelection(id, {
                     optionIds: [option.id],
@@ -891,7 +940,7 @@ export const SingleChoiceNode = memo(({ id, data, selected }: NodeProps<SingleCh
                   )}
                   <span className={cn(
                     "text-sm",
-                    currentSelection === option.id && "text-primary-600 font-medium"
+                    currentSelection === option.id && (theme === 'dark' ? "text-primary-400 font-medium" : "text-primary-600 font-medium")
                   )}>
                     {option.label}
                   </span>
@@ -947,6 +996,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
   const params = useParams();
   const flowId = params.flowId as string;
   const currentSelection = selections[id]?.optionIds || [];
+  const { theme } = useTheme();
 
   const editor = useEditor({
     extensions: [
@@ -991,16 +1041,18 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
         });
       } else if (type === 'option' && optionId) {
         const newOptions = data.options.map(opt => 
-          opt.id === optionId ? {
-            ...opt,
-            metadata: {
-              ...opt.metadata,
-              image: {
-                url: base64,
-                alt: file.name
+          opt.id === optionId 
+            ? {
+                ...opt,
+                metadata: {
+                  ...opt.metadata,
+                  image: {
+                    url: base64,
+                    alt: file.name
+                  }
+                }
               }
-            }
-          } : opt
+            : opt
         );
         handleUpdateNode({ options: newOptions });
       }
@@ -1079,8 +1131,13 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
                   key={option.id}
                   className={cn(
                     "border rounded-lg p-2 flex items-center gap-2 cursor-pointer transition-colors",
-                    currentSelection.includes(option.id) && 
-                      "border-primary-500 bg-primary-50/50"
+                    theme === 'dark' 
+                      ? currentSelection.includes(option.id)
+                        ? "border-primary-400 bg-primary-950/50" 
+                        : "border-zinc-800"
+                      : currentSelection.includes(option.id)
+                        ? "border-primary-500 bg-primary-50/50"
+                        : "border-zinc-200",
                   )}
                   onClick={() => {
                     const newSelection = data.maxSelections === 1 
@@ -1114,7 +1171,7 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
                   )}
                   <span className={cn(
                     "text-sm",
-                    currentSelection.includes(option.id) && "text-primary-600 font-medium"
+                    currentSelection.includes(option.id) && (theme === 'dark' ? "text-primary-400 font-medium" : "text-primary-600 font-medium")
                   )}>
                     {option.label}
                   </span>
@@ -1181,6 +1238,7 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
   const params = useParams();
   const flowId = params.flowId as string;
   const reactFlowInstance = useReactFlow();
+  const { theme } = useTheme();
   
   const getSourceNode = useCallback(() => {
     const edges = reactFlowInstance.getEdges().filter(e => e.target === id);
@@ -1379,7 +1437,12 @@ export const FunctionNode = memo(({ id, data, selected }: NodeProps<FunctionNode
             <Handle
               type="target"
               position={Position.Top}
-              className="w-3 h-3 !border-2 !bg-black"
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900" 
+                  : "!bg-black"
+              )}
               style={{ top: '-12px' }}
             />
             {handles.map((handle, index) => (
@@ -1440,6 +1503,7 @@ export const WeightNode = memo(({ id, data, selected }: NodeProps<WeightNodeData
   const [showSettings, setShowSettings] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
+  const { theme } = useTheme();
 
   const handleDelete = useCallback(() => {
     if (!flowId) return;

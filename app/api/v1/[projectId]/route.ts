@@ -21,7 +21,8 @@ export async function GET(
     const project = await prisma.project.findFirst({
       where: {
         id: params.projectId,
-        apiKey
+        apiKey,
+        isPublic: true
       },
       include: {
         _count: {
@@ -40,10 +41,11 @@ export async function GET(
       );
     }
 
-    // Get all flows for this project
+    // Get all published flows for this project
     const flows = await prisma.chartInstance.findMany({
       where: {
-        projectId: params.projectId
+        projectId: params.projectId,
+        isPublished: true
       },
       select: {
         id: true,

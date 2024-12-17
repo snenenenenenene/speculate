@@ -21,6 +21,7 @@
     --xy-handle-border-color-default: #AAAAAA;
   
     --xy-edge-label-color-default: #505050;
+    background-color: white;
 }
  
 .react-flow.dark { 
@@ -29,6 +30,10 @@
     0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.13),
     0px 0.51px 1.01px 0px rgba(255, 255, 255, 0.2);
     --xy-theme-color-focus: #535353;
+    --xy-theme-edge-hover: white;
+    --xy-handle-border-color-default: #FFFFFF;
+    --xy-edge-label-color-default: #E0E0E0;
+    background-color: rgb(9, 9, 11);
 }
 
 .react-flow__handle {
@@ -38,16 +43,32 @@
     border: 2px solid black;
 }
 
+.dark .react-flow__handle {
+    background-color: rgb(9, 9, 11);
+    border: 2px solid white;
+}
+
 .react-flow__handle.connectionindicator:hover {
     pointer-events: all;
     border-color: black;
     background-color: white;
 }
 
+.dark .react-flow__handle.connectionindicator:hover {
+    border-color: white;
+    background-color: rgb(9, 9, 11);
+}
+
 .react-flow__handle.connectionindicator:focus, 
 .react-flow__handle.connectingfrom,
 .react-flow__handle.connectingto {
     border-color: black;
+}
+
+.dark .react-flow__handle.connectionindicator:focus, 
+.dark .react-flow__handle.connectingfrom,
+.dark .react-flow__handle.connectingto {
+    border-color: white;
 }
 
 /* Node styling */
@@ -57,12 +78,25 @@
     border-radius: 8px;
 }
 
+.dark .react-flow__node {
+    background: rgb(24, 24, 27);
+    border: 1px solid rgb(39, 39, 42);
+}
+
 .react-flow__node:hover {
     border-color: #cbd5e1;
 }
 
+.dark .react-flow__node:hover {
+    border-color: rgb(63, 63, 70);
+}
+
 .react-flow__node.selected {
     border-color: black;
+}
+
+.dark .react-flow__node.selected {
+    border-color: white;
 }
 
 /* Edge styling */
@@ -71,28 +105,39 @@
     stroke-width: 2;
 }
 
+.dark .react-flow__edge-path {
+    stroke: rgb(161, 161, 170);
+}
+
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {
     stroke: black;
+}
+
+.dark .react-flow__edge.selected .react-flow__edge-path,
+.dark .react-flow__edge:hover .react-flow__edge-path {
+    stroke: white;
 }
 
 /* Connection line */
 .react-flow__connection-path {
     stroke: black;
     stroke-width: 2;
-    
 }
 
+.dark .react-flow__connection-path {
+    stroke: white;
+}
 
 .edges-remove-button {
     opacity: 0;
     transition: opacity 0.2s;
-  }
+}
   
-  .react-flow__edge:hover .edges-remove-button {
+.react-flow__edge:hover .edges-remove-button {
     opacity: 1;
-  }
+}
   
-  .edges-remove-button:hover {
+.edges-remove-button:hover {
     cursor: pointer;
-  }
+}

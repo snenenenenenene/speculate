@@ -54,6 +54,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { APITestRequest, APIUsageStats, APILog, AccessLog } from "@/types/api";
+import { PublishDialog } from "@/components/flow/PublishDialog";
 
 interface ShareSettings {
   isPublic: boolean;
@@ -168,6 +169,8 @@ export default function ProjectPage() {
   });
   const [testResponse, setTestResponse] = useState<string>('');
   const [isTestingApi, setIsTestingApi] = useState(false);
+  const [isPublishFlowDialogOpen, setIsPublishFlowDialogOpen] = useState(false);
+  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -386,6 +389,31 @@ export default function ProjectPage() {
     }
   };
 
+  const handlePublishFlow = async (settings: Partial<PublishSettings>) => {
+    if (!selectedFlowId) return;
+
+    try {
+      const response = await fetch(`/api/projects/${project?.id}/flows/${selectedFlowId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.error || 'Failed to publish flow');
+      }
+
+      toast.success('Flow published successfully');
+      router.refresh();
+    } catch (error) {
+      console.error('Error publishing flow:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -561,11 +589,25 @@ export default function ProjectPage() {
                   <Card className="hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                       <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
-                      {flow.isPublished ? (
-                        <Badge>Published</Badge>
-                      ) : (
-                        <Badge variant="outline">Draft</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {flow.isPublished ? (
+                          <Badge>Published</Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSelectedFlowId(flow.id);
+                              setIsPublishFlowDialogOpen(true);
+                            }}
+                          >
+                            <Globe2 className="h-4 w-4 mr-1" />
+                            Publish
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {flow.description && (
@@ -1128,6 +1170,14 @@ export default function ProjectPage() {
         onOpenChange={setIsPublishDialogOpen}
         onPublish={handlePublish}
         currentVersion={project?.version || 0}
+      />
+
+      {/* Publish Flow Dialog */}
+      <PublishDialog
+        open={isPublishFlowDialogOpen}
+        onOpenChange={setIsPublishFlowDialogOpen}
+        onPublish={handlePublishFlow}
+        currentVersion={flows.find(f => f.id === selectedFlowId)?.version || 0}
       />
 
       {/* Delete Confirmation Dialog */}

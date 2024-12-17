@@ -3,6 +3,7 @@
 
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 
 const pricingTiers = [
 	{
@@ -60,33 +61,63 @@ const pricingTiers = [
 ];
 
 function PricingTier({ tier, index }: { tier: any; index: number }) {
+	const { theme } = useTheme();
+	const isDark = theme === 'dark';
+
 	return (
 		<li className={cn(
 			"flex flex-col",
-			tier.popular && "relative bg-primary-50/50 rounded-[20px] p-6"
+			tier.popular && cn(
+				"relative rounded-[20px] p-6",
+				isDark ? "bg-primary-950/50" : "bg-primary-50/50"
+			)
 		)}>
 			<div className="styles_tierHeader">
 				<h2 className={cn(
 					"inline-block text-sm font-medium rounded-full px-3 py-1",
-					tier.popular ? "bg-primary-100 text-primary-700" : "bg-base-100 text-base-700"
+					tier.popular 
+						? isDark 
+							? "bg-primary-800 text-primary-200" 
+							: "bg-primary-100 text-primary-700"
+						: isDark
+							? "bg-zinc-800 text-zinc-300"
+							: "bg-base-100 text-base-700"
 				)}>
 					{tier.name}
 				</h2>
 			</div>
 
-			<p className="text-base-600 text-sm mt-4">{tier.description}</p>
+			<p className={cn(
+				"text-sm mt-4",
+				isDark ? "text-zinc-400" : "text-base-600"
+			)}>{tier.description}</p>
 
 			<p className="mt-4 flex items-baseline">
 				{tier.price === "Free" ? (
-					<span className="text-4xl font-bold text-base-800">Free</span>
+					<span className={cn(
+						"text-4xl font-bold",
+						isDark ? "text-zinc-100" : "text-base-800"
+					)}>Free</span>
 				) : (
 					<>
-						<span className="text-base-800 text-lg font-medium">€</span>
-						<span className="text-4xl font-bold text-base-800">{tier.price}</span>
+						<span className={cn(
+							"text-lg font-medium",
+							isDark ? "text-zinc-100" : "text-base-800"
+						)}>€</span>
+						<span className={cn(
+							"text-4xl font-bold",
+							isDark ? "text-zinc-100" : "text-base-800"
+						)}>{tier.price}</span>
 						{tier.priceDetail && (
 							<>
-								<span className="text-base-600 ml-2">/month</span>
-								<span className="text-base-600 ml-1">/editor</span>
+								<span className={cn(
+									"ml-2",
+									isDark ? "text-zinc-400" : "text-base-600"
+								)}>/month</span>
+								<span className={cn(
+									"ml-1",
+									isDark ? "text-zinc-400" : "text-base-600"
+								)}>/editor</span>
 							</>
 						)}
 					</>
@@ -94,32 +125,48 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 			</p>
 
 			{tier.priceNote && (
-				<p className="text-sm text-base-600 mt-2">{tier.priceNote}</p>
+				<p className={cn(
+					"text-sm mt-2",
+					isDark ? "text-zinc-400" : "text-base-600"
+				)}>{tier.priceNote}</p>
 			)}
 
-			<p className="text-lg font-medium text-base-800 mt-6">{tier.headerDescription}</p>
+			<p className={cn(
+				"text-lg font-medium mt-6",
+				isDark ? "text-zinc-100" : "text-base-800"
+			)}>{tier.headerDescription}</p>
 
 			<ul className={cn(
 				"mt-6 space-y-4 flex-grow",
-				tier.popular && "border-t border-primary-200 pt-6"
+				tier.popular && cn(
+					"border-t pt-6",
+					isDark ? "border-primary-700" : "border-primary-200"
+				)
 			)}>
 				{tier.features.map((feature: string) => (
 					<li key={feature} className="flex items-center gap-3">
 						<span className={cn(
 							"flex-shrink-0",
-							tier.popular ? "text-primary-500" : "text-base-600"
+							tier.popular 
+								? isDark 
+									? "text-primary-300" 
+									: "text-primary-500"
+								: isDark
+									? "text-zinc-400"
+									: "text-base-600"
 						)}>
 							<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
 								<path
 									d="M1.5 5L3.5 7L8.5 2"
 									stroke="currentColor"
-									strokeWidth="2"
-									strokeLinecap="round"
 									strokeLinejoin="round"
 								/>
 							</svg>
 						</span>
-						<span className="text-base-700 text-sm">{feature}</span>
+						<span className={cn(
+							"text-sm",
+							isDark ? "text-zinc-300" : "text-base-700"
+						)}>{feature}</span>
 					</li>
 				))}
 			</ul>
@@ -127,7 +174,13 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 			{index > 0 && (
 				<p className={cn(
 					"mt-6 text-sm",
-					tier.popular ? "text-primary-600" : "text-base-600"
+					tier.popular 
+						? isDark 
+							? "text-primary-300" 
+							: "text-primary-600"
+						: isDark
+							? "text-zinc-400"
+							: "text-base-600"
 				)}>
 					<svg
 						width="26"
@@ -140,7 +193,6 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 							d="M2.81363 0.0771968C2.91656 -0.0257322 3.08344 -0.0257323 3.18637 0.0771967L5.4228 2.31363C5.52573 2.41656 5.52573 2.58344 5.4228 2.68637L3.18637 4.9228C3.08344 5.02573 2.91656 5.02573 2.81363 4.9228L0.577197 2.68637C0.474268 2.58344 0.474268 2.41656 0.577197 2.31363L2.81363 0.0771968Z"
 							fill="currentColor"
 						/>
-						{/* Repeat diamond pattern for middle and right */}
 					</svg>
 					Plus everything in {index === 1 ? "Starter" : "Pro"}
 				</p>
@@ -151,8 +203,12 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 				className={cn(
 					"mt-8 rounded-lg px-6 py-3 text-center text-sm font-medium transition-colors",
 					tier.popular
-						? "bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700"
-						: "bg-base-50 text-base-800 hover:bg-base-100"
+						? isDark
+							? "bg-gradient-to-r from-primary-300 to-primary-400 text-primary-950 hover:from-primary-400 hover:to-primary-500"
+							: "bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700"
+						: isDark
+							? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+							: "bg-base-50 text-base-800 hover:bg-base-100"
 				)}
 			>
 				{tier.name === "Org" ? "Contact Sales" : "Get Started"}
@@ -162,17 +218,29 @@ function PricingTier({ tier, index }: { tier: any; index: number }) {
 }
 
 export default function PricingPage() {
+	const { theme } = useTheme();
+	const isDark = theme === 'dark';
+
 	return (
 		<div className="py-24 sm:py-32">
 			<div className="mx-auto max-w-7xl px-6 lg:px-8">
 				<div className="mx-auto max-w-4xl text-center">
-					<h1 className="text-base font-semibold leading-7 text-primary-600">
+					<h1 className={cn(
+						"text-base font-semibold leading-7",
+						isDark ? "text-primary-300" : "text-primary-600"
+					)}>
 						Pricing
 					</h1>
-					<p className="mt-2 text-4xl font-bold tracking-tight text-base-900 sm:text-5xl">
+					<p className={cn(
+						"mt-2 text-4xl font-bold tracking-tight sm:text-5xl",
+						isDark ? "text-zinc-100" : "text-base-900"
+					)}>
 						Choose your plan
 					</p>
-					<p className="mt-6 text-lg leading-8 text-base-600">
+					<p className={cn(
+						"mt-6 text-lg leading-8",
+						isDark ? "text-zinc-400" : "text-base-600"
+					)}>
 						Start building for free, then add a plan to go further
 					</p>
 				</div>
@@ -183,56 +251,104 @@ export default function PricingPage() {
 							key={tier.name}
 							className={cn(
 								"relative flex flex-col gap-6 rounded-3xl p-8",
-								tier.popular ? "ring-2 ring-primary-600" : "ring-1 ring-base-200"
+								tier.popular 
+									? isDark
+										? "ring-2 ring-primary-300"
+										: "ring-2 ring-primary-600"
+									: isDark
+										? "ring-1 ring-zinc-800"
+										: "ring-1 ring-base-200"
 							)}
 						>
 							<div className="flex items-center justify-between gap-x-4">
 								<h3
 									className={cn(
 										"text-lg font-semibold leading-8",
-										tier.popular ? "text-primary-600" : "text-base-900"
+										tier.popular 
+											? isDark
+												? "text-primary-200"
+												: "text-primary-600"
+											: isDark
+												? "text-zinc-100"
+												: "text-base-900"
 									)}
 								>
 									{tier.name}
 								</h3>
 								{tier.popular && (
-									<p className="rounded-full bg-primary-600/10 px-2.5 py-1 text-xs font-semibold leading-5 text-primary-600">
+									<p className={cn(
+										"rounded-full px-2.5 py-1 text-xs font-semibold leading-5",
+										isDark
+											? "bg-primary-800/50 text-primary-200"
+											: "bg-primary-600/10 text-primary-600"
+									)}>
 										Most popular
 									</p>
 								)}
 							</div>
-							<p className="text-sm leading-6 text-base-600">
+							<p className={cn(
+								"text-sm leading-6",
+								isDark ? "text-zinc-400" : "text-base-600"
+							)}>
 								{tier.headerDescription}
 							</p>
-							<div className="mt-2 flex items-baseline gap-x-1">
-								{tier.price === "Free" ? (
-									<span className="text-4xl font-bold tracking-tight text-base-900">
-										Free
-									</span>
-								) : (
+
+							<div className="mt-4 flex items-baseline gap-x-2">
+								{tier.priceDetail ? (
 									<>
-										<span className="text-4xl font-bold tracking-tight text-base-900">
+										<span className={cn(
+											"text-4xl font-bold tracking-tight",
+											isDark ? "text-zinc-100" : "text-base-900"
+										)}>
 											€{tier.price}
 										</span>
-										<span className="text-sm font-semibold leading-6 text-base-600">
-											/month
+										<span className={cn(
+											"text-sm font-semibold leading-6",
+											isDark ? "text-zinc-400" : "text-base-600"
+										)}>
+											/month/editor
 										</span>
 									</>
+								) : (
+									<span className={cn(
+										"text-4xl font-bold tracking-tight",
+										isDark ? "text-zinc-100" : "text-base-900"
+									)}>
+										Free
+									</span>
 								)}
 							</div>
+
 							{tier.priceNote && (
-								<p className="text-sm leading-6 text-base-500">
+								<p className={cn(
+									"mt-2 text-sm leading-6",
+									isDark ? "text-zinc-400" : "text-base-600"
+								)}>
 									{tier.priceNote}
 								</p>
 							)}
-							<ul className="mt-8 space-y-3 text-sm leading-6 text-base-600">
+
+							<ul className={cn(
+								"mt-8 space-y-3 text-sm leading-6",
+								isDark ? "text-zinc-300" : "text-base-600"
+							)}>
 								{tier.features.map((feature: string) => (
 									<li key={feature} className="flex gap-x-3">
 										<svg
-											className="h-6 w-5 flex-none text-primary-600"
+											className={cn(
+												"h-6 w-5 flex-none",
+												tier.popular
+													? isDark
+														? "text-primary-300"
+														: "text-primary-600"
+													: isDark
+														? "text-zinc-500"
+														: "text-base-400"
+											)}
+											aria-hidden="true"
+											xmlns="http://www.w3.org/2000/svg"
 											viewBox="0 0 20 20"
 											fill="currentColor"
-											aria-hidden="true"
 										>
 											<path
 												fillRule="evenodd"
@@ -244,16 +360,21 @@ export default function PricingPage() {
 									</li>
 								))}
 							</ul>
+
 							<Link
-								href={tier.name === "Starter" ? "/signup" : "/contact"}
+								href={tier.name === "Org" ? "/contact" : "/auth"}
 								className={cn(
 									"mt-8 block rounded-md px-3 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
 									tier.popular
-										? "bg-primary-600 text-white hover:bg-primary-500 focus-visible:outline-primary-600"
-										: "bg-base-900 text-white hover:bg-base-800 focus-visible:outline-base-600"
+										? isDark
+											? "bg-primary-300 text-primary-950 hover:bg-primary-200 focus-visible:outline-primary-300"
+											: "bg-primary-600 text-white hover:bg-primary-500 focus-visible:outline-primary-600"
+										: isDark
+											? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 focus-visible:outline-white"
+											: "bg-base-50 text-base-900 hover:bg-base-100 focus-visible:outline-base-600"
 								)}
 							>
-								{tier.name === "Starter" ? "Get started" : "Contact sales"}
+								{tier.name === "Org" ? "Contact sales" : "Get started"}
 							</Link>
 						</div>
 					))}
