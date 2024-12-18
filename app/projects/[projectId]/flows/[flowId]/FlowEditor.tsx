@@ -509,6 +509,59 @@ export default function FlowEditor({ projectId, flowId, initialFlow }: FlowEdito
     );
   }, []);
 
+  const handlePublish = async (publishData: {
+    name?: string;
+    description?: string;
+    changelog?: string[];
+  }) => {
+    console.log('Publishing flow with data:', publishData);
+    
+    try {
+      const flowContent = {
+        nodes,
+        edges,
+        variables: flow?.variables || [],
+      };
+
+      console.log('Flow content to publish:', flowContent);
+
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...publishData,
+          content: flowContent,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to publish flow');
+      }
+
+      const result = await response.json();
+      console.log('Publish response:', result);
+
+      // Update local state
+      if (flow) {
+        updateFlow(flowId, {
+          ...flow,
+          version: result.flow.version,
+          isPublished: true,
+          publishedAt: result.flow.publishedAt,
+        });
+      }
+
+      toast.success('Flow published successfully');
+    } catch (error) {
+      console.error('Error publishing flow:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
+      throw error;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">

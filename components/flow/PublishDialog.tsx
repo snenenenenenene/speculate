@@ -65,7 +65,7 @@ export function PublishDialog({
 
       await onPublish(publishData);
 
-      // Reset form
+      // Only reset form and close dialog if publish was successful
       setVersionName('');
       setDescription('');
       setChangelog([]);
@@ -79,7 +79,7 @@ export function PublishDialog({
         message: error.message,
         stack: error.stack
       });
-      toast.error(error.message || 'Failed to publish flow');
+      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
     } finally {
       setIsPublishing(false);
     }

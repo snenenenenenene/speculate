@@ -147,30 +147,40 @@ export default function FlowLayout({
   }, [loadFlowData]);
 
   const handlePublishFlow = useCallback(async (settings: any) => {
-    try {
-      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings)
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data?.error || 'Failed to publish flow');
-      }
+    // Save the current flow state
+    if (!saveFlowRef.current) {
+      toast.error('Flow editor not ready');
+      return;
+    }
 
-      const result = await response.json();
-      if (result.success) {
-        toast.success('Flow published successfully');
-        setIsPublishDialogOpen(false);
-        setRefreshTrigger(prev => prev + 1); // Refresh flow list
-        loadFlowData(); // Refresh flow data to update version info
-      }
-    } catch (error) {
-      console.error('Error publishing flow:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
+    await saveFlowRef.current();
+
+    // Get the latest flow data
+    const flowResponse = await fetch(`/api/projects/${projectId}/flows/${flowId}`);
+    const { flow } = await flowResponse.json();
+
+    // Parse the content
+    const flowContent = flow.content ? JSON.parse(flow.content) : null;
+
+    const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...settings,
+        content: flowContent,
+      })
+    });
+    
+    const result = await response.json();
+    console.log('Publish response:', result);
+
+    if (result.success && result.version && result.flow) {
+      toast.success('Flow published successfully');
+      setIsPublishDialogOpen(false);
+      setRefreshTrigger(prev => prev + 1); // Refresh flow list
+      loadFlowData(); // Refresh flow data to update version info
     }
   }, [projectId, flowId, loadFlowData]);
 
