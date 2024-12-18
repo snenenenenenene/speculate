@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, LayoutGrid, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "react-hot-toast";
 
 interface Flow {
@@ -34,6 +34,27 @@ export function FlowSelector({
   const [flows, setFlows] = useState<Flow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentFlowDetails, setCurrentFlowDetails] = useState<Flow | null>(null);
+  const selectorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
+        // Check if the click target is part of the React Flow canvas
+        const target = event.target as HTMLElement;
+        const isReactFlow = target.closest('.react-flow') !== null;
+        
+        // Only close if it's not a React Flow element
+        if (!isReactFlow) {
+          setIsOpen(false);
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchFlows = async () => {
@@ -100,7 +121,7 @@ export function FlowSelector({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={selectorRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(

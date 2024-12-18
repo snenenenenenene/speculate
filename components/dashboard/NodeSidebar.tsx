@@ -80,9 +80,10 @@ interface NodeSidebarProps {
   isCollapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   projectId: string;
+  children?: React.ReactNode;
 }
 
-export function NodeSidebar({ isCollapsed, onCollapsedChange, projectId }: NodeSidebarProps) {
+export function NodeSidebar({ isCollapsed, onCollapsedChange, projectId, children }: NodeSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
 
@@ -106,21 +107,13 @@ export function NodeSidebar({ isCollapsed, onCollapsedChange, projectId }: NodeS
         isCollapsed ? "w-16" : "w-72"
       )}
     >
-      <div className="flex h-full flex-col gap-4 py-4">
-        <div className={cn("px-3", isCollapsed ? "hidden" : "block")}>
-          <Link
-            href="/projects"
-            className={cn(
-              "flex items-center gap-2 text-sm font-medium",
-              "hover:text-accent-foreground"
-            )}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Projects
-          </Link>
-        </div>
+      <div className="flex h-full flex-col">
+        {/* Back link section */}
+        {children}
+
+        {/* Search and categories section */}
         {!isCollapsed && (
-          <div className="px-3 space-y-4">
+          <div className="px-4 py-4 space-y-4">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -148,37 +141,41 @@ export function NodeSidebar({ isCollapsed, onCollapsedChange, projectId }: NodeS
             </div>
           </div>
         )}
-        <ScrollArea className="flex-1 px-3">
-          <div className="space-y-2">
-            {filteredNodes.map(node => {
-              const Icon = node.icon;
-              return (
-                <div
-                  key={node.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, node.id)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
-                    "cursor-move hover:bg-muted transition-colors",
-                    "group/item",
-                    isCollapsed && "justify-center px-2"
-                  )}
-                >
-                  <Icon className={cn(
-                    "h-4 w-4 shrink-0",
-                    "text-muted-foreground group-hover/item:text-foreground"
-                  )} />
-                  {!isCollapsed && (
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="font-medium truncate">{node.label}</span>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {node.description}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+
+        {/* Nodes list section */}
+        <ScrollArea className="flex-1">
+          <div className="px-4 py-2">
+            <div className="space-y-3">
+              {filteredNodes.map(node => {
+                const Icon = node.icon;
+                return (
+                  <div
+                    key={node.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, node.id)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
+                      "cursor-move hover:bg-muted transition-colors",
+                      "group/item",
+                      isCollapsed && "justify-center px-2"
+                    )}
+                  >
+                    <Icon className={cn(
+                      "h-4 w-4 shrink-0",
+                      "text-muted-foreground group-hover/item:text-foreground"
+                    )} />
+                    {!isCollapsed && (
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="font-medium truncate">{node.label}</span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {node.description}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </ScrollArea>
       </div>

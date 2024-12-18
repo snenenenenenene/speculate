@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, PanelLeft, Save, Settings, Upload, GitCommit } from "lucide-react";
+import { Loader2, PanelLeft, Save, Settings, Upload, GitCommit, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FlowSelector } from "@/components/dashboard/FlowSelector";
 import { useState, useEffect, useCallback } from "react";
@@ -12,6 +12,7 @@ import SettingsModal from "@/app/projects/SettingsModal";
 import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
 import { PublishDialog } from "@/components/flow/PublishDialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import Link from "next/link";
 
 interface Variable {
   name: string;
@@ -266,7 +267,20 @@ export default function FlowLayout({
           isCollapsed={isSidebarCollapsed}
           onCollapsedChange={setIsSidebarCollapsed}
           projectId={projectId}
-        />
+        >
+          <div className={cn("px-3 pt-4 mb-2", isSidebarCollapsed ? "hidden" : "block")}>
+            <Link
+              href={`/projects/${params.projectId}`}
+              className={cn(
+                "flex items-center gap-2 text-sm font-medium",
+                "hover:text-accent-foreground"
+              )}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Project
+            </Link>
+          </div>
+        </NodeSidebar>
         <main className="flex-1 overflow-hidden">
           {children}
         </main>

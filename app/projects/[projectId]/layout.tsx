@@ -18,13 +18,14 @@ export default function ProjectLayout({
   const isFlowPage = pathname.includes('/flows/');
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-background">
       {/* Project Navbar - Only show on non-flow pages */}
       {!isFlowPage && (
         <header className="fixed top-0 left-0 right-0 flex h-14 items-center gap-4 border-b bg-background px-6 z-10">
-          <Link href="/projects">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Link href={`/projects/${params.projectId}`}>
+            <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="h-4 w-4" />
+              Back to project
             </Button>
           </Link>
           <div className="flex-1" />
