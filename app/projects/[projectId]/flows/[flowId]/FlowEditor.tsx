@@ -33,6 +33,7 @@ import "reactflow/dist/style.css";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { createFlowAuditLog } from '@/lib/audit';
 
 const nodeTypes = {
   startNode: StartNode,
@@ -570,6 +571,176 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
     toast.success('Flow published successfully');
   };
 
+  const handleNodeAdd = async (node: Node) => {
+    try {
+      // Existing node add logic
+      const updatedNodes = [...nodes, node];
+      setNodes(updatedNodes);
+      await saveFlow(updatedNodes, edges);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_NODE_ADDED', {
+        nodeId: node.id,
+        nodeType: node.type,
+        label: node.data?.label,
+      });
+    } catch (error) {
+      console.error('Error adding node:', error);
+      toast.error('Failed to add node');
+    }
+  };
+
+  const handleNodeRemove = async (node: Node) => {
+    try {
+      // Existing node remove logic
+      const updatedNodes = nodes.filter(n => n.id !== node.id);
+      setNodes(updatedNodes);
+      await saveFlow(updatedNodes, edges);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_NODE_REMOVED', {
+        nodeId: node.id,
+        nodeType: node.type,
+        label: node.data?.label,
+      });
+    } catch (error) {
+      console.error('Error removing node:', error);
+      toast.error('Failed to remove node');
+    }
+  };
+
+  const handleNodeUpdate = async (node: Node) => {
+    try {
+      // Existing node update logic
+      const updatedNodes = nodes.map(n => n.id === node.id ? node : n);
+      setNodes(updatedNodes);
+      await saveFlow(updatedNodes, edges);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_NODE_UPDATED', {
+        nodeId: node.id,
+        nodeType: node.type,
+        label: node.data?.label,
+        changes: node.data?.changes, // If tracking specific changes
+      });
+    } catch (error) {
+      console.error('Error updating node:', error);
+      toast.error('Failed to update node');
+    }
+  };
+
+  const handleEdgeAdd = async (edge: Edge) => {
+    try {
+      // Existing edge add logic
+      const updatedEdges = [...edges, edge];
+      setEdges(updatedEdges);
+      await saveFlow(nodes, updatedEdges);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_EDGE_ADDED', {
+        edgeId: edge.id,
+        source: edge.source,
+        target: edge.target,
+      });
+    } catch (error) {
+      console.error('Error adding edge:', error);
+      toast.error('Failed to add connection');
+    }
+  };
+
+  const handleEdgeRemove = async (edge: Edge) => {
+    try {
+      // Existing edge remove logic
+      const updatedEdges = edges.filter(e => e.id !== edge.id);
+      setEdges(updatedEdges);
+      await saveFlow(nodes, updatedEdges);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_EDGE_REMOVED', {
+        edgeId: edge.id,
+        source: edge.source,
+        target: edge.target,
+      });
+    } catch (error) {
+      console.error('Error removing edge:', error);
+      toast.error('Failed to remove connection');
+    }
+  };
+
+  const handleFlowSettingsUpdate = async (settings: any) => {
+    try {
+      // Existing settings update logic
+      await updateFlowSettings(settings);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_SETTINGS_UPDATED', {
+        changes: settings,
+      });
+    } catch (error) {
+      console.error('Error updating flow settings:', error);
+      toast.error('Failed to update flow settings');
+    }
+  };
+
+  const handleVariableAdd = async (variable: any) => {
+    try {
+      // Existing variable add logic
+      const updatedVariables = [...variables, variable];
+      setVariables(updatedVariables);
+      await updateFlowVariables(updatedVariables);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_VARIABLE_ADDED', {
+        variable: {
+          name: variable.name,
+          type: variable.type,
+        },
+      });
+    } catch (error) {
+      console.error('Error adding variable:', error);
+      toast.error('Failed to add variable');
+    }
+  };
+
+  const handleVariableUpdate = async (variable: any) => {
+    try {
+      // Existing variable update logic
+      const updatedVariables = variables.map(v => v.id === variable.id ? variable : v);
+      setVariables(updatedVariables);
+      await updateFlowVariables(updatedVariables);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_VARIABLE_UPDATED', {
+        variable: {
+          id: variable.id,
+          name: variable.name,
+          type: variable.type,
+          changes: variable.changes, // If tracking specific changes
+        },
+      });
+    } catch (error) {
+      console.error('Error updating variable:', error);
+      toast.error('Failed to update variable');
+    }
+  };
+
+  const handleVariableRemove = async (variableId: string) => {
+    try {
+      // Existing variable remove logic
+      const updatedVariables = variables.filter(v => v.id !== variableId);
+      setVariables(updatedVariables);
+      await updateFlowVariables(updatedVariables);
+
+      // Create audit log
+      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_VARIABLE_REMOVED', {
+        variableId,
+      });
+    } catch (error) {
+      console.error('Error removing variable:', error);
+      toast.error('Failed to remove variable');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -584,9 +755,9 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={handleConnect}
+          onNodesChange={handleNodeUpdate}
+          onEdgesChange={handleEdgeRemove}
+          onConnect={handleEdgeAdd}
           onInit={setReactFlowInstance}
           onDragOver={(event) => event.preventDefault()}
           onDrop={onDrop}

@@ -18,7 +18,8 @@ import {
   FunctionSquare,
   List,
   Settings2,
-  XCircle
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
@@ -240,7 +241,10 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
   const [showPreview, setShowPreview] = useState(false);
   const params = useParams();
   const flowId = params.flowId as string;
+  const projectId = params.projectId as string;
   const { theme } = useTheme();
+  const [flows, setFlows] = useState<any[]>([]);
+  const [isLoadingFlows, setIsLoadingFlows] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -255,6 +259,31 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
       handleUpdateNode({ exitMessage: editor.getHTML() });
     }
   });
+
+  useEffect(() => {
+    const fetchFlows = async () => {
+      try {
+        setIsLoadingFlows(true);
+        const response = await fetch(`/api/projects/${projectId}/flows`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch flows');
+        }
+        const data = await response.json();
+        // Filter out the current flow to prevent self-referencing
+        const otherFlows = data.flows.filter((f: any) => f.id !== flowId);
+        setFlows(otherFlows);
+      } catch (error) {
+        console.error('Error fetching flows:', error);
+        toast.error('Failed to load flows');
+      } finally {
+        setIsLoadingFlows(false);
+      }
+    };
+
+    if (showDialog) {
+      fetchFlows();
+    }
+  }, [showDialog, projectId, flowId]);
 
   const handleDelete = useCallback(() => {
     if (!flowId) return;
@@ -396,38 +425,79 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
               />
             </div>
 
-            {data.isVisual && !data.redirectFlow && (
+            {data.redirectFlow || data.isVisual ? (
               <>
-                <div className="space-y-2">
-                  <Label>Exit Message</Label>
-                  <div className="border rounded-lg p-4">
-                    <RichTextEditor editor={editor} />
+                {data.redirectFlow && (
+                  <div className="space-y-2">
+                    <Label>Select Flow</Label>
+                    {isLoadingFlows ? (
+                      <div className="flex items-center justify-center h-10">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : (
+                      <Select
+                        value={data.redirectFlow?.id}
+                        onValueChange={(value) => {
+                          const selectedFlow = flows.find(f => f.id === value);
+                          if (selectedFlow) {
+                            handleUpdateNode({
+                              redirectFlow: {
+                                id: selectedFlow.id,
+                                name: selectedFlow.name
+                              }
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a flow..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {flows.map((flow) => (
+                            <SelectItem key={flow.id} value={flow.id}>
+                              {flow.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
-                </div>
+                )}
 
-                <div className="space-y-2">
-                  <Label>Image (Optional)</Label>
-                  <ImageUpload onUpload={handleUpload} />
-                </div>
+                {data.isVisual && !data.redirectFlow && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Exit Message</Label>
+                      <div className="border rounded-lg p-4">
+                        <RichTextEditor editor={editor} />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>Layout</Label>
-                  <Select
-                    value={data.style?.layout || 'default'}
-                    onValueChange={(value) => handleUpdateNode({
-                      style: { ...data.style, layout: value as any }
-                    })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Default</SelectItem>
-                      <SelectItem value="centered">Centered</SelectItem>
-                      <SelectItem value="wide">Wide</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label>Image (Optional)</Label>
+                      <ImageUpload onUpload={handleUpload} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Layout</Label>
+                      <Select
+                        value={data.style?.layout || 'default'}
+                        onValueChange={(value) => handleUpdateNode({
+                          style: { ...data.style, layout: value as any }
+                        })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="centered">Centered</SelectItem>
+                          <SelectItem value="wide">Wide</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

@@ -54,7 +54,8 @@ import {
   UserPlus,
   UserMinus,
   GitCommit,
-  Activity
+  Activity,
+  Box
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -556,33 +557,6 @@ export default function ProjectPage() {
     }
   };
 
-  const getActivityIcon = (action: string) => {
-    switch (action) {
-      case 'CREATED':
-        return <Plus className="h-4 w-4" />;
-      case 'UPDATED':
-        return <Pencil className="h-4 w-4" />;
-      case 'DELETED':
-        return <Trash2 className="h-4 w-4" />;
-      case 'PUBLISHED':
-        return <Globe2 className="h-4 w-4" />;
-      case 'UNPUBLISHED':
-        return <EyeOff className="h-4 w-4" />;
-      case 'COLLABORATOR_ADDED':
-        return <UserPlus className="h-4 w-4" />;
-      case 'COLLABORATOR_REMOVED':
-        return <UserMinus className="h-4 w-4" />;
-      case 'VERSION_CREATED':
-        return <GitCommit className="h-4 w-4" />;
-      case 'API_KEY_GENERATED':
-        return <Key className="h-4 w-4" />;
-      case 'SHARE_CREATED':
-        return <Share2 className="h-4 w-4" />;
-      default:
-        return <Activity className="h-4 w-4" />;
-    }
-  };
-
   const getActivityDescription = (log: any) => {
     const entityType = log.entityType.toLowerCase();
     switch (log.action) {
@@ -606,8 +580,66 @@ export default function ProjectPage() {
         return 'generated a new API key';
       case 'SHARE_CREATED':
         return `created a share link for ${entityType}`;
+      case 'FLOW_NODE_ADDED':
+        return `added a ${log.metadata?.nodeType} node to flow`;
+      case 'FLOW_NODE_REMOVED':
+        return `removed a ${log.metadata?.nodeType} node from flow`;
+      case 'FLOW_NODE_UPDATED':
+        return `updated a ${log.metadata?.nodeType} node in flow`;
+      case 'FLOW_EDGE_ADDED':
+        return `added a connection in flow`;
+      case 'FLOW_EDGE_REMOVED':
+        return `removed a connection from flow`;
+      case 'FLOW_SETTINGS_UPDATED':
+        return `updated flow settings`;
+      case 'FLOW_VARIABLE_ADDED':
+        return `added variable "${log.metadata?.variable?.name}" to flow`;
+      case 'FLOW_VARIABLE_UPDATED':
+        return `updated variable "${log.metadata?.variable?.name}" in flow`;
+      case 'FLOW_VARIABLE_REMOVED':
+        return `removed a variable from flow`;
       default:
         return `performed action ${log.action} on ${entityType}`;
+    }
+  };
+
+  const getActivityIcon = (action: string) => {
+    switch (action) {
+      case 'CREATED':
+        return <Plus className="h-4 w-4" />;
+      case 'UPDATED':
+        return <Pencil className="h-4 w-4" />;
+      case 'DELETED':
+        return <Trash2 className="h-4 w-4" />;
+      case 'PUBLISHED':
+        return <Globe2 className="h-4 w-4" />;
+      case 'UNPUBLISHED':
+        return <EyeOff className="h-4 w-4" />;
+      case 'COLLABORATOR_ADDED':
+        return <UserPlus className="h-4 w-4" />;
+      case 'COLLABORATOR_REMOVED':
+        return <UserMinus className="h-4 w-4" />;
+      case 'VERSION_CREATED':
+        return <GitCommit className="h-4 w-4" />;
+      case 'API_KEY_GENERATED':
+        return <Key className="h-4 w-4" />;
+      case 'SHARE_CREATED':
+        return <Share2 className="h-4 w-4" />;
+      case 'FLOW_NODE_ADDED':
+      case 'FLOW_NODE_REMOVED':
+      case 'FLOW_NODE_UPDATED':
+        return <Box className="h-4 w-4" />;
+      case 'FLOW_EDGE_ADDED':
+      case 'FLOW_EDGE_REMOVED':
+        return <GitBranch className="h-4 w-4" />;
+      case 'FLOW_SETTINGS_UPDATED':
+        return <Settings className="h-4 w-4" />;
+      case 'FLOW_VARIABLE_ADDED':
+      case 'FLOW_VARIABLE_UPDATED':
+      case 'FLOW_VARIABLE_REMOVED':
+        return <Variable className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
     }
   };
 
