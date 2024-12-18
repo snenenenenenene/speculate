@@ -34,6 +34,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { createFlowAuditLog } from '@/lib/audit';
+import { FlowAnalytics } from '@/components/flow/FlowAnalytics';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const nodeTypes = {
   startNode: StartNode,
@@ -752,33 +754,35 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
   }
 
   return (
-    <ReactFlowProvider>
-      <div className="flex-1 h-full" ref={reactFlowWrapper}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={handleConnect}
-          onInit={setReactFlowInstance}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={onDrop}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          defaultEdgeOptions={{
-            animated: true,
-            style: { stroke: theme === 'dark' ? '#a1a1aa' : '#94a3b8', strokeWidth: 2 },
-          }}
-          deleteKeyCode={['Backspace', 'Delete']}
-          minZoom={0.2}
-          maxZoom={4}
-          fitView
-          className={cn("transition-colors duration-200", theme === 'dark' && "dark")}
-        > 
-          <Background color={theme === 'dark' ? "#27272a" : "#27272a"} gap={16} size={1} />
-        </ReactFlow>
-      </div>
-    </ReactFlowProvider>
+    <div className="flex-1 h-full">
+      <ReactFlowProvider>
+        <div className="flex-1 h-full" ref={reactFlowWrapper}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={handleConnect}
+            onInit={setReactFlowInstance}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={onDrop}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            defaultEdgeOptions={{
+              animated: true,
+              style: { stroke: theme === 'dark' ? '#a1a1aa' : '#94a3b8', strokeWidth: 2 },
+            }}
+            deleteKeyCode={['Backspace', 'Delete']}
+            minZoom={0.2}
+            maxZoom={4}
+            fitView
+            className={cn("transition-colors duration-200", theme === 'dark' && "dark")}
+          > 
+            <Background color={theme === 'dark' ? "#27272a" : "#27272a"} gap={16} size={1} />
+          </ReactFlow>
+        </div>
+      </ReactFlowProvider>
+    </div>
   );
 }

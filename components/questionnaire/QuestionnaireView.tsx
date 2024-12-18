@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,18 @@ interface Edge {
   sourceHandle?: string;
 }
 
+interface ResponseData {
+  responses: Record<string, { optionIds: string[]; timestamp: number }>;
+  path: string[];
+  weights: Record<string, number>;
+  metadata: {
+    startTime: number;
+    browser: string;
+    device: string;
+    screenSize: string;
+  };
+}
+
 export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +67,32 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
   const [currentNode, setCurrentNode] = useState<NodeData | null>(null);
   const [nodeHistory, setNodeHistory] = useState<NodeData[]>([]);
   const [selections, setSelections] = useState<Record<string, string[]>>({});
+  const [responseData, setResponseData] = useState<ResponseData>({
+    responses: {},
+    path: [],
+    weights: {},
+    metadata: {
+      startTime: Date.now(),
+      browser: typeof window !== 'undefined' ? window.navigator.userAgent : '',
+      device: typeof window !== 'undefined' ? getDeviceType() : '',
+      screenSize: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '',
+    },
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [analytics, setAnalytics] = useState<any>(null);
   const { theme } = useTheme();
+
+  function getDeviceType() {
+    const ua = navigator.userAgent;
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+      return "tablet";
+    }
+    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+      return "mobile";
+    }
+    return "desktop";
+  }
 
   // Fetch project data
   useEffect(() => {
@@ -152,6 +189,17 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       ...prev,
       [nodeId]: selectedOptions
     }));
+
+    setResponseData(prev => ({
+      ...prev,
+      responses: {
+        ...prev.responses,
+        [nodeId]: {
+          optionIds: selectedOptions,
+          timestamp: Date.now()
+        }
+      }
+    }));
   }, []);
 
   const findNextNode = useCallback((currentNodeId: string, selectedOption?: string) => {
@@ -218,8 +266,56 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
     return targetNode;
   }, [currentFlow]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (!currentNode || !currentFlow) return;
+
+    // Track the path
+    setResponseData(prev => ({
+      ...prev,
+      path: [...prev.path, currentNode.id],
+      weights: {
+        ...prev.weights,
+        ...(currentNode.type === 'weightNode' ? {
+          [currentNode.id]: currentNode.data.weight
+        } : {})
+      }
+    }));
+
+    // If this is an end node, submit the response
+    if (currentNode.type === 'endNode' && !currentNode.data.redirectFlow) {
+      setIsSubmitting(true);
+      try {
+        const response = await fetch(`/api/public/projects/${projectId}/flows/${currentFlow.id}/responses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(responseData),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to submit response');
+        }
+
+        // Show results after submission
+        setShowResults(true);
+        
+        // Fetch analytics
+        const analyticsResponse = await fetch(
+          `/api/public/projects/${projectId}/flows/${currentFlow.id}/responses?version=${currentFlow.version}`
+        );
+        if (analyticsResponse.ok) {
+          const data = await analyticsResponse.json();
+          setAnalytics(data.analytics);
+        }
+      } catch (error) {
+        console.error('Error submitting response:', error);
+        toast.error('Failed to submit response');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     console.log('Debug handleNext:', {
       currentNode,
@@ -288,7 +384,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       console.log('No next node found. Current node:', currentNode);
       toast.error('No next node found');
     }
-  }, [currentNode, currentFlow, project?.flows, selections, findNextNode]);
+  }, [currentNode, currentFlow, projectId, responseData]);
 
   const handleBack = useCallback(() => {
     if (nodeHistory.length > 1) {
@@ -507,6 +603,139 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
     }
   }, [selections]);
 
+  const renderResults = useCallback(() => {
+    if (!analytics) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-4">
+            <h3 className="font-medium mb-2">Total Responses</h3>
+            <p className="text-2xl font-bold">{analytics.totalResponses}</p>
+          </Card>
+          <Card className="p-4">
+            <h3 className="font-medium mb-2">Completion Rate</h3>
+            <p className="text-2xl font-bold">
+              {Math.round(analytics.completionRate * 100)}%
+            </p>
+          </Card>
+          <Card className="p-4">
+            <h3 className="font-medium mb-2">Average Time</h3>
+            <p className="text-2xl font-bold">
+              {Math.round(analytics.averageTime / 60)} min
+            </p>
+          </Card>
+        </div>
+
+        {/* Node Statistics */}
+        <Card className="p-6">
+          <h3 className="text-lg font-medium mb-4">Question Statistics</h3>
+          <div className="space-y-4">
+            {Object.entries(analytics.nodeStats).map(([nodeId, stats]: [string, any]) => {
+              const node = currentFlow?.nodes.find(n => n.id === nodeId);
+              if (!node) return null;
+
+              return (
+                <div key={nodeId} className="border-t pt-4">
+                  <h4 className="font-medium mb-2">{node.data.title || node.type}</h4>
+                  <div className="text-sm text-muted-foreground">
+                    <p>Views: {stats.views}</p>
+                    {Object.entries(stats.selections).map(([optionId, count]: [string, any]) => {
+                      let optionLabel = optionId;
+                      if (node.data.options) {
+                        const option = node.data.options.find((o: any) => o.id === optionId);
+                        if (option) optionLabel = option.label;
+                      } else if (optionId === 'yes') {
+                        optionLabel = node.data.yesLabel || 'Yes';
+                      } else if (optionId === 'no') {
+                        optionLabel = node.data.noLabel || 'No';
+                      }
+
+                      const percentage = Math.round((count / stats.views) * 100);
+                      return (
+                        <div key={optionId} className="flex items-center gap-2">
+                          <div className="flex-1">{optionLabel}</div>
+                          <div className="w-32 bg-muted rounded-full h-2">
+                            <div
+                              className="bg-primary h-2 rounded-full"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <div className="w-12 text-right">{percentage}%</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Weight Distribution */}
+        {Object.keys(analytics.weightStats).length > 0 && (
+          <Card className="p-6">
+            <h3 className="text-lg font-medium mb-4">Score Distribution</h3>
+            <div className="space-y-2">
+              {Object.entries(analytics.weightStats)
+                .sort(([a], [b]) => Number(a.split('-')[0]) - Number(b.split('-')[0]))
+                .map(([range, count]: [string, any]) => {
+                  const percentage = Math.round((count / analytics.totalResponses) * 100);
+                  return (
+                    <div key={range} className="flex items-center gap-2">
+                      <div className="w-20">{range}</div>
+                      <div className="flex-1 bg-muted rounded-full h-2">
+                        <div
+                          className="bg-primary h-2 rounded-full"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <div className="w-12 text-right">{percentage}%</div>
+                    </div>
+                  );
+                })}
+            </div>
+          </Card>
+        )}
+
+        {/* Popular Paths */}
+        <Card className="p-6">
+          <h3 className="text-lg font-medium mb-4">Popular Paths</h3>
+          <div className="space-y-2">
+            {Object.entries(analytics.pathStats)
+              .sort(([, a]: [string, any], [, b]: [string, any]) => b - a)
+              .slice(0, 5)
+              .map(([path, count]: [string, any], index) => {
+                const pathNodes = JSON.parse(path).map((nodeId: string) => {
+                  const node = currentFlow?.nodes.find(n => n.id === nodeId);
+                  return node?.data.title || node?.type || nodeId;
+                });
+                const percentage = Math.round((count / analytics.totalResponses) * 100);
+
+                return (
+                  <div key={path} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 text-muted-foreground">#{index + 1}</div>
+                      <div className="flex-1 bg-muted rounded-full h-2">
+                        <div
+                          className="bg-primary h-2 rounded-full"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <div className="w-12 text-right">{percentage}%</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground pl-8">
+                      {pathNodes.join(' → ')}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Card>
+      </div>
+    );
+  }, [analytics, currentFlow]);
+
   if (loading) {
     return (
       <div className="container max-w-2xl mx-auto py-8 px-4">
@@ -557,6 +786,32 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
 
   const canGoBack = nodeHistory.length > 1;
   const canGoNext = currentNode.type === 'endNode' || currentNode.type === 'startNode' || selections[currentNode.id]?.length > 0;
+
+  if (showResults) {
+    return (
+      <div className="min-h-screen bg-background py-8 px-4">
+        <div className="container max-w-4xl mx-auto space-y-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">{project?.name} - Results</h1>
+            {project?.description && (
+              <p className="text-muted-foreground mt-2">{project.description}</p>
+            )}
+          </div>
+
+          {renderResults()}
+
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+            >
+              Start Over
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center py-8 px-4">

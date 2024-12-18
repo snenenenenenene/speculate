@@ -58,6 +58,7 @@ model User {
   invitations   ProjectInvitation[] // Invitations received
   shareAccess   ProjectShareAccess[] // Access to shared projects
   sharedProjects ProjectShare[] // Projects shared by user
+  questionnaireResponses QuestionnaireResponse[]
 
   @@index([email])
   @@index([role])
@@ -224,6 +225,8 @@ model ChartInstance {
   versions       Version[] // Version history
   activeVersion  Version?  @relation("ActiveVersion", fields: [activeVersionId], references: [id])
   activeVersionId String?
+  responses   QuestionnaireResponse[]
+  analytics   QuestionnaireAnalytics[]
 
   @@index([userId])
   @@index([projectId])
@@ -329,4 +332,43 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   REFUNDED
+}
+
+model QuestionnaireResponse {
+  id          String    @id @default(cuid())
+  flowId      String    // Reference to ChartInstance
+  flow        ChartInstance @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  version     Int       // Flow version when response was submitted
+  userId      String?   // Optional: for authenticated users
+  user        User?     @relation(fields: [userId], references: [id])
+  sessionId   String    // For anonymous users
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  responses   Json      // Store all responses {nodeId: {optionIds: [], timestamp}}
+  path        Json      // Store the path taken through the flow
+  weights     Json      // Store calculated weights/scores
+  metadata    Json?     // Additional data (browser, device, etc.)
+  
+  @@index([flowId])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([startedAt])
+  @@index([completedAt])
+}
+
+model QuestionnaireAnalytics {
+  id          String    @id @default(cuid())
+  flowId      String    // Reference to ChartInstance
+  flow        ChartInstance @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  version     Int       // Flow version this analytics is for
+  totalResponses Int    @default(0)
+  completionRate Float  @default(0)
+  averageTime  Int     // In seconds
+  nodeStats    Json    // Stats per node {nodeId: {views, selections, dropouts}}
+  pathStats    Json    // Popular paths {path: count}
+  weightStats  Json    // Weight distribution {range: count}
+  updatedAt    DateTime @updatedAt
+
+  @@unique([flowId, version])
+  @@index([flowId])
 }

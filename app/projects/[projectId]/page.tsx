@@ -66,6 +66,7 @@ import { PublishDialog } from "@/components/flow/PublishDialog";
 import { cn } from "@/lib/utils";
 import { ProjectVersionsDialog } from "@/components/projects/ProjectVersionsDialog";
 import SettingsModal from "@/components/projects/SettingsModal";
+import { FlowAnalytics } from '@/components/flow/FlowAnalytics';
 
 interface ShareSettings {
   isPublic: boolean;
@@ -675,18 +676,12 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="flex flex-col h-full p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b pb-4 mb-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{project?.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {project?.description || "No description"}
-            </p>
-          </div>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold">{project?.name}</h1>
+          <p className="text-muted-foreground">{project?.description}</p>
         </div>
-
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -739,508 +734,516 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto pr-4">
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-4 mb-4">
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="flows">Flows</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="versions">Versions</TabsTrigger>
+          <TabsTrigger value="api">API</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Flows</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle>Overview</CardTitle>
+              <CardDescription>
+                Get a quick overview of your project
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{project._count?.charts || 0}</div>
-              {flows?.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
-                    {flows.filter(f => f.isPublished).length} Published
-                  </Badge>
-                  <Badge variant="outline">
-                    {flows.filter(f => !f.isPublished).length} Drafts
-                  </Badge>
+              <div className="grid gap-4 md:grid-cols-4 mb-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Flows</CardTitle>
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{project._count?.charts || 0}</div>
+                    {flows?.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">
+                          {flows.filter(f => f.isPublished).length} Published
+                        </Badge>
+                        <Badge variant="outline">
+                          {flows.filter(f => !f.isPublished).length} Drafts
+                        </Badge>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+                    <Users2 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{project._count?.collaborators || 1}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Active collaborators
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {new Date(project.updatedAt).toLocaleDateString()}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Last modified
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Variables</CardTitle>
+                    <CodeSquare className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{project.variables?.length || 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Global project variables
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="flows" className="space-y-4">
+          <div className="grid gap-4 grid-cols-3">
+            {flows.map((flow) => (
+              <Link 
+                key={flow.id}
+                href={`/projects/${project.id}/flows/${flow.id}`}
+                className="block"
+              >
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      {flow.isPublished ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {flow.versions?.length || 0} versions
+                          </Badge>
+                          {flow.activeVersionId && (
+                            <Badge variant="secondary" className="text-xs">
+                              v{flow.version} active
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedFlowId(flow.id);
+                            setIsPublishFlowDialogOpen(true);
+                          }}
+                        >
+                          <Globe2 className="h-4 w-4 mr-1" />
+                          Publish
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {flow.description && (
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {flow.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      {flow.isPublished && flow.activeVersionId && (
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          <span>Active</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <FileText className="h-4 w-4" />
+                        <span>v{flow.version}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span>
+                          Updated {new Date(flow.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Flow Analytics</CardTitle>
+              <CardDescription>View analytics for all published flows</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {flows.filter(flow => flow.isPublished).map(flow => (
+                <div key={flow.id} className="space-y-6">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{flow.name}</h3>
+                    <Badge variant="outline">v{flow.version}</Badge>
+                  </div>
+                  <FlowAnalytics
+                    projectId={params.projectId as string}
+                    flowId={flow.id}
+                    version={flow.version}
+                  />
+                  <Separator className="my-6" />
+                </div>
+              ))}
+              {flows.filter(flow => flow.isPublished).length === 0 && (
+                <div className="text-center py-6 text-muted-foreground">
+                  No published flows to show analytics for
                 </div>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
 
+        <TabsContent value="activity">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-              <Users2 className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>
+                Track all changes and updates to your project
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{project._count?.collaborators || 1}</div>
-              <p className="text-xs text-muted-foreground">
-                Active collaborators
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {new Date(project.updatedAt).toLocaleDateString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Last modified
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Variables</CardTitle>
-              <CodeSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{project.variables?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Global project variables
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <Tabs defaultValue="flows" className="space-y-4">
-          <TabsList className="bg-background sticky top-0 z-10">
-            <TabsTrigger value="flows" className="gap-2">
-              <List className="h-4 w-4" />
-              Flows
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="gap-2">
-              <History className="h-4 w-4" />
-              Activity
-            </TabsTrigger>
-            <TabsTrigger value="versions" className="gap-2">
-              <GitCommitHorizontal className="h-4 w-4" />
-              Versions
-            </TabsTrigger>
-            <TabsTrigger value="api" className="gap-2">
-              <Key className="h-4 w-4" />
-              API
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Flows Tab */}
-          <TabsContent value="flows" className="space-y-4">
-            <div className="grid gap-4 grid-cols-3">
-              {flows.map((flow) => (
-                <Link 
-                  key={flow.id}
-                  href={`/projects/${project.id}/flows/${flow.id}`}
-                  className="block"
-                >
-                  <Card className="hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
-                      <div className="flex items-center gap-2">
-                        {flow.isPublished ? (
+              <ScrollArea className="h-[600px] pr-4">
+                {isLoadingActivity ? (
+                  <div className="flex items-center justify-center h-40">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : auditLogs.length > 0 ? (
+                  <div className="space-y-4">
+                    {auditLogs.map((log) => (
+                      <div key={log.id} className="flex items-start gap-4">
+                        <div className="mt-1">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={log.user.image} />
+                            <AvatarFallback>
+                              {log.user.name?.charAt(0) || log.user.email?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                        <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                              {flow.versions?.length || 0} versions
-                            </Badge>
-                            {flow.activeVersionId && (
-                              <Badge variant="secondary" className="text-xs">
-                                v{flow.version} active
-                              </Badge>
-                            )}
+                            <p className="text-sm">
+                              <span className="font-medium">{log.user.name}</span>
+                              {' '}
+                              {getActivityDescription(log)}
+                            </p>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <span>•</span>
+                              <HoverCard>
+                                <HoverCardTrigger>
+                                  <time className="cursor-help">
+                                    {new Date(log.createdAt).toLocaleDateString()}
+                                  </time>
+                                </HoverCardTrigger>
+                                <HoverCardContent side="top" className="w-auto">
+                                  {new Date(log.createdAt).toLocaleString()}
+                                </HoverCardContent>
+                              </HoverCard>
+                            </div>
                           </div>
-                        ) : (
+                          {log.metadata?.description && (
+                            <p className="text-sm text-muted-foreground">
+                              {log.metadata.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className="text-xs"
+                            >
+                              <div className="flex items-center gap-1">
+                                {getActivityIcon(log.action)}
+                                <span>{log.action.toLowerCase()}</span>
+                              </div>
+                            </Badge>
+                            <Badge 
+                              variant="secondary" 
+                              className="text-xs"
+                            >
+                              {log.entityType.toLowerCase()}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-40 text-center">
+                    <Activity className="h-8 w-8 text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium">No activity yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Actions and changes will be shown here
+                    </p>
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="versions">
+          <Card>
+            <CardHeader>
+              <CardTitle>Flow Versions</CardTitle>
+              <CardDescription>
+                Manage and track versions of your flows
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {flows.map((flow) => (
+                  <div key={flow.id} className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">{flow.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Current version: v{flow.version}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedFlowId(flow.id);
+                          setIsVersionsDialogOpen(true);
+                        }}
+                      >
+                        <History className="h-4 w-4 mr-2" />
+                        View History
+                      </Button>
+                    </div>
+                    {flow.versions && flow.versions.length > 0 ? (
+                      <div className="space-y-2">
+                        {flow.versions.slice(0, 3).map((version) => (
+                          <div
+                            key={version.id}
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">v{version.version}</span>
+                                {version.name && (
+                                  <Badge variant="outline">{version.name}</Badge>
+                                )}
+                                {flow.activeVersionId === version.id && (
+                                  <Badge variant="secondary">Active</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Published {new Date(version.publishedAt || version.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {flow.activeVersionId !== version.id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleSetActiveVersion(flow.id, version.id)}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Set Active
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {flow.versions.length > 3 && (
                           <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
+                            variant="link"
+                            className="text-sm"
+                            onClick={() => {
                               setSelectedFlowId(flow.id);
-                              setIsPublishFlowDialogOpen(true);
+                              setIsVersionsDialogOpen(true);
                             }}
                           >
-                            <Globe2 className="h-4 w-4 mr-1" />
-                            Publish
+                            View all {flow.versions.length} versions
                           </Button>
                         )}
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      {flow.description && (
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {flow.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        {flow.isPublished && flow.activeVersionId && (
-                          <div className="flex items-center gap-1">
-                            <CheckCircle2 className="h-4 w-4 text-primary" />
-                            <span>Active</span>
+                    ) : (
+                      <div className="text-center py-6 text-muted-foreground">
+                        No versions published yet
+                      </div>
+                    )}
+                    <Separator />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="api">
+          <div className="grid gap-4 grid-cols-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>API Configuration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <div className="font-medium">API Key</div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                      {project.apiKey || 'No API key generated'}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        if (project.apiKey) {
+                          navigator.clipboard.writeText(project.apiKey);
+                          toast.success("API key copied to clipboard");
+                        }
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      onClick={handleRegenerateApiKey}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-medium">Usage Statistics</div>
+                  {isLoadingUsage ? (
+                    <div className="h-[100px] flex items-center justify-center">
+                      <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 grid-cols-3">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{apiUsageStats?.total || 0}</div>
+                          <p className="text-xs text-muted-foreground">
+                            All time API requests
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{apiUsageStats?.lastWeek || 0}</div>
+                          <p className="text-xs text-muted-foreground">
+                            Requests in last 7 days
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{apiUsageStats?.uniqueUsers || 0}</div>
+                          <p className="text-xs text-muted-foreground">
+                            Distinct API consumers
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-medium">API Tester</div>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="grid gap-4">
+                        <div className="grid gap-2">
+                          <Label>Test API Endpoint</Label>
+                          <div className="flex gap-2">
+                            <code className="flex items-center rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                              GET /api/v1/{project.id}
+                            </code>
+                            <Button 
+                              onClick={handleTestApi} 
+                              disabled={isTestingApi || !project?.apiKey}
+                              size="sm"
+                            >
+                              {isTestingApi ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Play className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {testResponse && (
+                          <div className="grid gap-2">
+                            <Label>Response</Label>
+                            <ScrollArea className="h-[200px] w-full rounded-md border">
+                              <pre className="p-4 text-sm">
+                                {testResponse}
+                              </pre>
+                            </ScrollArea>
                           </div>
                         )}
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-4 w-4" />
-                          <span>v{flow.version}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>
-                            Updated {new Date(flow.updatedAt).toLocaleDateString()}
-                          </span>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                </Link>
-              ))}
-            </div>
-          </TabsContent>
+                </div>
 
-          {/* Activity Tab */}
-          <TabsContent value="activity">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Track all changes and updates to your project
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[600px] pr-4">
-                  {isLoadingActivity ? (
-                    <div className="flex items-center justify-center h-40">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : auditLogs.length > 0 ? (
-                    <div className="space-y-4">
-                      {auditLogs.map((log) => (
-                        <div key={log.id} className="flex items-start gap-4">
-                          <div className="mt-1">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={log.user.image} />
-                              <AvatarFallback>
-                                {log.user.name?.charAt(0) || log.user.email?.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </div>
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm">
-                                <span className="font-medium">{log.user.name}</span>
-                                {' '}
-                                {getActivityDescription(log)}
-                              </p>
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <span>•</span>
-                                <HoverCard>
-                                  <HoverCardTrigger>
-                                    <time className="cursor-help">
-                                      {new Date(log.createdAt).toLocaleDateString()}
-                                    </time>
-                                  </HoverCardTrigger>
-                                  <HoverCardContent side="top" className="w-auto">
-                                    {new Date(log.createdAt).toLocaleString()}
-                                  </HoverCardContent>
-                                </HoverCard>
-                              </div>
-                            </div>
-                            {log.metadata?.description && (
-                              <p className="text-sm text-muted-foreground">
-                                {log.metadata.description}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="outline" 
-                                className="text-xs"
-                              >
-                                <div className="flex items-center gap-1">
-                                  {getActivityIcon(log.action)}
-                                  <span>{log.action.toLowerCase()}</span>
-                                </div>
-                              </Badge>
-                              <Badge 
-                                variant="secondary" 
-                                className="text-xs"
-                              >
-                                {log.entityType.toLowerCase()}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-40 text-center">
-                      <Activity className="h-8 w-8 text-muted-foreground mb-4" />
-                      <p className="text-lg font-medium">No activity yet</p>
-                      <p className="text-sm text-muted-foreground">
-                        Actions and changes will be shown here
-                      </p>
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Versions Tab */}
-          <TabsContent value="versions">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Version History</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsVersionsDialogOpen(true)}
-                >
-                  <History className="h-4 w-4 mr-2" />
-                  Manage Versions
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[600px] pr-4">
-                  {flows?.some(f => f.versions && f.versions.length > 0) ? (
-                    <div className="space-y-8">
-                      {flows.map(flow => flow.versions && flow.versions.length > 0 && (
-                        <div key={flow.id} className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold">{flow.name}</h3>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {flow.isPublished ? `${flow.versions?.length || 0} versions` : "Draft"}
-                              </Badge>
-                              {flow.activeVersionId && (
-                                <Badge variant="secondary" className="text-xs">
-                                  v{flow.version} active
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Show only the latest 3 versions in the tab view */}
-                          {flow.versions.slice(0, 3).map((version) => (
-                            <div key={version.id} 
-                              className={cn(
-                                "flex items-center gap-4 p-4 rounded-lg border",
-                                flow.activeVersionId === version.id && "bg-muted"
-                              )}
-                            >
-                              <div className="flex items-center gap-3">
-                                {flow.activeVersionId === version.id && (
-                                  <div className="text-xs text-muted-foreground">
-                                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                                  </div>
-                                )}
-                                <Badge variant="outline" className="font-mono">v{version.version}</Badge>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium truncate">
-                                    {version.name || `Version ${version.version}`}
-                                  </p>
-                                </div>
-                                {version.metadata?.description && (
-                                  <p className="text-sm text-muted-foreground truncate mt-0.5">
-                                    {version.metadata.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center gap-2 mt-1">
-                                  <p className="text-xs text-muted-foreground">
-                                    Published {new Date(version.createdAt).toLocaleDateString()}
-                                  </p>
-                                  <span className="text-xs text-muted-foreground">•</span>
-                                  <p className="text-xs text-muted-foreground">
-                                    by {version.createdBy.name}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 ml-4">
-                                {flow.activeVersionId !== version.id && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => handleSetActiveVersion(flow.id, version.id)}
-                                  >
-                                    Set Active
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          {flow.versions.length > 3 && (
-                            <Button
-                              variant="ghost"
-                              className="w-full text-sm text-muted-foreground mt-2"
-                              onClick={() => setIsVersionsDialogOpen(true)}
-                            >
-                              View {flow.versions.length - 3} more versions
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                      <GitBranch className="h-8 w-8 text-muted-foreground mb-4" />
-                      <p className="text-lg font-medium">No versions yet</p>
-                      <p className="text-sm text-muted-foreground">
-                        Publish your flows to create versions
-                      </p>
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* API Tab */}
-          <TabsContent value="api">
-            <div className="grid gap-4 grid-cols-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>API Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <div className="font-medium">API Key</div>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                        {project.apiKey || 'No API key generated'}
+                <div className="space-y-2">
+                  <div className="font-medium">API Documentation</div>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Base URL</h4>
+                      <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                        /api/v1/{project.id}
                       </code>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          if (project.apiKey) {
-                            navigator.clipboard.writeText(project.apiKey);
-                            toast.success("API key copied to clipboard");
-                          }
-                        }}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        onClick={handleRegenerateApiKey}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="font-medium">Usage Statistics</div>
-                    {isLoadingUsage ? (
-                      <div className="h-[100px] flex items-center justify-center">
-                        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-                      </div>
-                    ) : (
-                      <div className="grid gap-4 grid-cols-3">
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{apiUsageStats?.total || 0}</div>
-                            <p className="text-xs text-muted-foreground">
-                              All time API requests
-                            </p>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{apiUsageStats?.lastWeek || 0}</div>
-                            <p className="text-xs text-muted-foreground">
-                              Requests in last 7 days
-                            </p>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{apiUsageStats?.uniqueUsers || 0}</div>
-                            <p className="text-xs text-muted-foreground">
-                              Distinct API consumers
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="font-medium">API Tester</div>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="grid gap-4">
-                          <div className="grid gap-2">
-                            <Label>Test API Endpoint</Label>
-                            <div className="flex gap-2">
-                              <code className="flex items-center rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                                GET /api/v1/{project.id}
-                              </code>
-                              <Button 
-                                onClick={handleTestApi} 
-                                disabled={isTestingApi || !project?.apiKey}
-                                size="sm"
-                              >
-                                {isTestingApi ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-
-                          {testResponse && (
-                            <div className="grid gap-2">
-                              <Label>Response</Label>
-                              <ScrollArea className="h-[200px] w-full rounded-md border">
-                                <pre className="p-4 text-sm">
-                                  {testResponse}
-                                </pre>
-                              </ScrollArea>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="font-medium">API Documentation</div>
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">Base URL</h4>
-                        <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                          /api/v1/{project.id}
-                        </code>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">Available Endpoints</h4>
-                        <div className="space-y-4">
-                          <div>
-                            <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                              GET /api/v1/{project.id}
-                            </code>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Get project data including all flows
-                            </p>
-                            <div className="mt-2">
-                              <p className="text-sm font-medium">Example Response:</p>
-                              <pre className="mt-1 p-2 rounded bg-muted text-xs font-mono overflow-x-auto">
+                    
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Available Endpoints</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                            GET /api/v1/{project.id}
+                          </code>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Get project data including all flows
+                          </p>
+                          <div className="mt-2">
+                            <p className="text-sm font-medium">Example Response:</p>
+                            <pre className="mt-1 p-2 rounded bg-muted text-xs font-mono overflow-x-auto">
 {`{
   "project": {
     "id": "project-id",
@@ -1276,105 +1279,103 @@ export default function ProjectPage() {
     ]
   }
 }`}
-                              </pre>
-                            </div>
+                            </pre>
                           </div>
                         </div>
                       </div>
-
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">Authentication</h4>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Include your API key in the request headers:
-                        </p>
-                        <code className="block relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                          Authorization: Bearer {project.apiKey || 'your-api-key'}
-                        </code>
-                      </div>
-
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">Rate Limits</h4>
-                        <p className="text-sm text-muted-foreground">
-                          • 1,000 requests per hour<br />
-                          • 10,000 requests per day<br />
-                          • Maximum payload size: 5MB
-                        </p>
-                      </div>
-
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/docs/api" target="_blank">
-                          View Full Documentation
-                        </Link>
-                      </Button>
                     </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <div className="font-medium">Recent Activity</div>
-                    <Card>
-                      <ScrollArea className="h-[300px]">
-                        <div className="p-4 space-y-4">
-                          {accessLogs.map((log) => (
-                            <div key={log.id} className="flex items-start gap-4 border-b last:border-0 pb-4">
-                              <div className="flex-shrink-0">
-                                <Globe2 className="h-5 w-5 text-muted-foreground" />
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <p className="text-sm">
-                                  {log.user ? (
-                                    <span className="font-medium">{log.user.name}</span>
-                                  ) : (
-                                    <span className="font-medium">{log.ipAddress}</span>
-                                  )}
-                                  <span className="text-muted-foreground"> • {new Date(log.accessedAt).toLocaleString()}</span>
-                                </p>
-                                {log.userAgent && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {log.userAgent}
-                                  </p>
-                                )}
-                              </div>
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Authentication</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Include your API key in the request headers:
+                      </p>
+                      <code className="block relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                        Authorization: Bearer {project.apiKey || 'your-api-key'}
+                      </code>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Rate Limits</h4>
+                      <p className="text-sm text-muted-foreground">
+                        • 1,000 requests per hour<br />
+                        • 10,000 requests per day<br />
+                        • Maximum payload size: 5MB
+                      </p>
+                    </div>
+
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/docs/api" target="_blank">
+                        View Full Documentation
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-medium">Recent Activity</div>
+                  <Card>
+                    <ScrollArea className="h-[300px]">
+                      <div className="p-4 space-y-4">
+                        {accessLogs.map((log) => (
+                          <div key={log.id} className="flex items-start gap-4 border-b last:border-0 pb-4">
+                            <div className="flex-shrink-0">
+                              <Globe2 className="h-5 w-5 text-muted-foreground" />
                             </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </Card>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm">
+                                {log.user ? (
+                                  <span className="font-medium">{log.user.name}</span>
+                                ) : (
+                                  <span className="font-medium">{log.ipAddress}</span>
+                                )}
+                                <span className="text-muted-foreground"> • {new Date(log.accessedAt).toLocaleString()}</span>
+                              </p>
+                              {log.userAgent && (
+                                <p className="text-xs text-muted-foreground">
+                                  {log.userAgent}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-      {/* Modals */}
+        <TabsContent value="settings">
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            projectId={params.projectId as string}
+            initialData={project ? {
+              name: project.name,
+              color: project.color || "#18181b",
+              onePageMode: project.onePageMode || false,
+              variables: [],
+              globalVariables: project.variables as Variable[],
+              mainStartFlowId: project.mainStartFlowId || null,
+              flows: flows.map(flow => ({
+                id: flow.id,
+                name: flow.name,
+                content: flow.content
+              }))
+            } : null}
+          />
+        </TabsContent>
+      </Tabs>
+
       <CollaboratorsModal
         projectId={project?.id}
         isOpen={isCollaboratorsOpen}
         onClose={() => setIsCollaboratorsOpen(false)}
       />
 
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        projectId={params.projectId as string}
-        initialData={project ? {
-          name: project.name,
-          color: project.color || "#18181b",
-          onePageMode: project.onePageMode || false,
-          variables: [],
-          globalVariables: project.variables as Variable[],
-          mainStartFlowId: project.mainStartFlowId || null,
-          flows: flows.map(flow => ({
-            id: flow.id,
-            name: flow.name,
-            content: flow.content
-          }))
-        } : null}
-      />
-
-      {/* Share Dialog */}
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -1460,7 +1461,6 @@ export default function ProjectPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Publish Dialog */}
       <ProjectPublishDialog
         open={isPublishDialogOpen}
         onOpenChange={setIsPublishDialogOpen}
@@ -1468,7 +1468,6 @@ export default function ProjectPage() {
         currentVersion={project?.version || 0}
       />
 
-      {/* Publish Flow Dialog */}
       <PublishDialog
         open={isPublishFlowDialogOpen}
         onOpenChange={setIsPublishFlowDialogOpen}
@@ -1476,7 +1475,6 @@ export default function ProjectPage() {
         currentVersion={flows.find(f => f.id === selectedFlowId)?.version || 0}
       />
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1499,7 +1497,6 @@ export default function ProjectPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add ProjectVersionsDialog */}
       <ProjectVersionsDialog
         open={isVersionsDialogOpen}
         onOpenChange={setIsVersionsDialogOpen}
