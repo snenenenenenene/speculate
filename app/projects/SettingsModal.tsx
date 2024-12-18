@@ -219,43 +219,32 @@ export default function SettingsModal({
           const error = await flowResponse.json();
           throw new Error(error.error || "Failed to save flow settings");
         }
+
+        // Trigger a full save by refreshing the page
+        router.refresh();
       }
 
-      // Save global variables to project
-      console.log('Saving global variables to project:', globalVariables);
-      const projectResponse = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          variables: globalVariables
-        }),
-      });
+      // Save project settings if we have global variables
+      if (globalVariables.length > 0) {
+        console.log('Saving project settings...');
+        const projectResponse = await fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            variables: globalVariables
+          }),
+        });
 
-      if (!projectResponse.ok) {
-        const errorText = await projectResponse.text();
-        let errorMessage = "Failed to save global variables";
-        try {
-          const errorJson = JSON.parse(errorText);
-          if (errorJson.error) errorMessage = errorJson.error;
-        } catch (e) {
-          if (errorText) errorMessage = errorText;
+        if (!projectResponse.ok) {
+          const error = await projectResponse.json();
+          throw new Error(error.error || "Failed to save project settings");
         }
-        throw new Error(errorMessage);
-      }
-
-      const projectData = await projectResponse.json();
-      console.log('Project save response:', projectData);
-      
-      // Update local state with the saved global variables
-      if (projectData.project?.globalVariables) {
-        console.log('Updating global variables from response:', projectData.project.globalVariables);
-        setGlobalVariables(projectData.project.globalVariables);
       }
 
       toast.success("Settings saved successfully");
       onClose();
     } catch (error) {
-      console.error("Error saving settings:", error);
+      console.error('Error saving settings:', error);
       toast.error(error instanceof Error ? error.message : "Failed to save settings");
     } finally {
       setIsSaving(false);

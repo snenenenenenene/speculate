@@ -142,9 +142,14 @@ export default function FlowLayout({
   // Refresh flow data when settings modal closes
   const handleSettingsModalClose = useCallback(() => {
     setIsSettingsModalOpen(false);
-    loadFlowData();
-    setRefreshTrigger(prev => prev + 1); // Trigger FlowSelector refresh
-  }, [loadFlowData]);
+    // Ensure we reload the flow data
+    loadFlowData().then(() => {
+      // After loading flow data, trigger a refresh of the FlowSelector
+      setRefreshTrigger(prev => prev + 1);
+      // Also refresh the router to ensure all components are updated
+      router.refresh();
+    });
+  }, [loadFlowData, router]);
 
   const handlePublishFlow = useCallback(async (settings: any) => {
     // Save the current flow state
