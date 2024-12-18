@@ -134,6 +134,7 @@ function createNewNode(type: string, position: { x: number; y: number }, flowId:
 interface FlowEditorProps {
   projectId: string;
   flowId: string;
+  onPublish: () => void;
   initialFlow?: {
     id: string;
     name: string;
@@ -145,7 +146,7 @@ interface FlowEditorProps {
   };
 }
 
-export default function FlowEditor({ projectId, flowId, initialFlow }: FlowEditorProps) {
+export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }: FlowEditorProps) {
   const { theme } = useTheme();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -157,6 +158,7 @@ export default function FlowEditor({ projectId, flowId, initialFlow }: FlowEdito
   const [isLoading, setIsLoading] = useState(true);
   const [flowData, setFlowData] = useState<any>(null);
   const [globalVariables, setGlobalVariables] = useState<any[]>([]);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
 
   useEffect(() => {
     if (flow) {
@@ -509,57 +511,63 @@ export default function FlowEditor({ projectId, flowId, initialFlow }: FlowEdito
     );
   }, []);
 
-  const handlePublish = async (publishData: {
-    name?: string;
-    description?: string;
-    changelog?: string[];
-  }) => {
-    console.log('Publishing flow with data:', publishData);
-    
-    try {
-      const flowContent = {
-        nodes,
-        edges,
-        variables: flow?.variables || [],
-      };
+  const handlePublish = async (settings: { versionName: string; description: string; autoActivate: boolean }) => {
+    // First, save the current flow state
+    const flowContent = {
+      nodes,
+      edges,
+      variables: flow?.variables || [],
+    };
 
-      console.log('Flow content to publish:', flowContent);
+    const saveResponse = await fetch(`/api/projects/${projectId}/flows/${flowId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: JSON.stringify(flowContent),
+        name: flow?.name,
+        color: flow?.color,
+        onePageMode: flow?.onePageMode,
+      }),
+    });
 
-      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...publishData,
-          content: flowContent,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to publish flow');
-      }
-
-      const result = await response.json();
-      console.log('Publish response:', result);
-
-      // Update local state
-      if (flow) {
-        updateFlow(flowId, {
-          ...flow,
-          version: result.flow.version,
-          isPublished: true,
-          publishedAt: result.flow.publishedAt,
-        });
-      }
-
-      toast.success('Flow published successfully');
-    } catch (error) {
-      console.error('Error publishing flow:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
-      throw error;
+    if (!saveResponse.ok) {
+      throw new Error('Failed to save flow');
     }
+
+    console.log('API PUT: Updated flow:', await saveResponse.json());
+
+    // Then publish the flow
+    const publishResponse = await fetch(`/api/projects/${projectId}/flows/${flowId}/publish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settings),
+    });
+
+    const publishData = await publishResponse.json();
+    console.log('Published flow:', publishData);
+
+    if (!publishResponse.ok) {
+      throw new Error(publishData.error || 'Failed to publish flow');
+    }
+
+    // Update the local state
+    if (publishData.flow) {
+      const updatedFlow = {
+        ...flow,
+        isPublished: true,
+        publishedAt: publishData.flow.publishedAt,
+        version: publishData.version.version,
+        activeVersionId: publishData.flow.activeVersionId,
+      };
+      setFlows(flows.map(f => f.id === flowId ? updatedFlow : f));
+    }
+
+    setIsPublishDialogOpen(false);
+    toast.success('Flow published successfully');
   };
 
   if (isLoading) {

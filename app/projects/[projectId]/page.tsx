@@ -13,7 +13,7 @@ import CollaboratorsModal from "@/components/projects/CollaboratorsModal";
 // } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +47,14 @@ import {
   Clock,
   FileText,
   CodeSquare,
-  Play
+  Play,
+  CheckCircle2,
+  Pencil,
+  EyeOff,
+  UserPlus,
+  UserMinus,
+  GitCommit,
+  Activity
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -204,6 +211,8 @@ export default function ProjectPage() {
   const [isPublishFlowDialogOpen, setIsPublishFlowDialogOpen] = useState(false);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
   const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -261,7 +270,7 @@ export default function ProjectPage() {
           publishedFlows: publishedFlows.length,
           draftFlows: (flowsData.flows?.length || 0) - publishedFlows.length,
           totalVersions: flowsData.flows?.reduce((acc: number, flow: Flow) => acc + (flow.versions?.length || 0), 0) || 0,
-          latestVersion: Math.max(...(flowsData.flows?.map((f: Flow) => f.version) || [0]), 0),
+          latestVersion: Math.max(...(flowsData.flows?.map((f: Flow) => f.version) || [0])),
           totalVariables: projectData.project.variables?.length || 0,
           apiUsage: {
             total: 1250,
@@ -278,6 +287,31 @@ export default function ProjectPage() {
 
     if (params.projectId) {
       fetchProject();
+    }
+  }, [params.projectId]);
+
+  useEffect(() => {
+    const fetchActivityLogs = async () => {
+      try {
+        setIsLoadingActivity(true);
+        const response = await fetch(`/api/projects/${params.projectId}/activity`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch activity logs');
+        }
+
+        const data = await response.json();
+        setAuditLogs(data.auditLogs);
+      } catch (error) {
+        console.error('Error fetching activity logs:', error);
+        toast.error('Failed to load activity logs');
+      } finally {
+        setIsLoadingActivity(false);
+      }
+    };
+
+    if (params.projectId) {
+      fetchActivityLogs();
     }
   }, [params.projectId]);
 
@@ -522,6 +556,61 @@ export default function ProjectPage() {
     }
   };
 
+  const getActivityIcon = (action: string) => {
+    switch (action) {
+      case 'CREATED':
+        return <Plus className="h-4 w-4" />;
+      case 'UPDATED':
+        return <Pencil className="h-4 w-4" />;
+      case 'DELETED':
+        return <Trash2 className="h-4 w-4" />;
+      case 'PUBLISHED':
+        return <Globe2 className="h-4 w-4" />;
+      case 'UNPUBLISHED':
+        return <EyeOff className="h-4 w-4" />;
+      case 'COLLABORATOR_ADDED':
+        return <UserPlus className="h-4 w-4" />;
+      case 'COLLABORATOR_REMOVED':
+        return <UserMinus className="h-4 w-4" />;
+      case 'VERSION_CREATED':
+        return <GitCommit className="h-4 w-4" />;
+      case 'API_KEY_GENERATED':
+        return <Key className="h-4 w-4" />;
+      case 'SHARE_CREATED':
+        return <Share2 className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
+    }
+  };
+
+  const getActivityDescription = (log: any) => {
+    const entityType = log.entityType.toLowerCase();
+    switch (log.action) {
+      case 'CREATED':
+        return `created a new ${entityType}`;
+      case 'UPDATED':
+        return `updated ${entityType} settings`;
+      case 'DELETED':
+        return `deleted a ${entityType}`;
+      case 'PUBLISHED':
+        return `published ${entityType} "${log.metadata?.name || ''}"`;
+      case 'UNPUBLISHED':
+        return `unpublished ${entityType} "${log.metadata?.name || ''}"`;
+      case 'COLLABORATOR_ADDED':
+        return `added ${log.metadata?.collaborator?.name || 'a user'} as a collaborator`;
+      case 'COLLABORATOR_REMOVED':
+        return `removed ${log.metadata?.collaborator?.name || 'a user'} from collaborators`;
+      case 'VERSION_CREATED':
+        return `created version ${log.metadata?.version} of ${entityType} "${log.metadata?.name || ''}"`;
+      case 'API_KEY_GENERATED':
+        return 'generated a new API key';
+      case 'SHARE_CREATED':
+        return `created a share link for ${entityType}`;
+      default:
+        return `performed action ${log.action} on ${entityType}`;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -699,11 +788,20 @@ export default function ProjectPage() {
                       <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
                       <div className="flex items-center gap-2">
                         {flow.isPublished ? (
-                          <Badge>Published</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {flow.versions?.length || 0} versions
+                            </Badge>
+                            {flow.activeVersionId && (
+                              <Badge variant="secondary" className="text-xs">
+                                v{flow.version} active
+                              </Badge>
+                            )}
+                          </div>
                         ) : (
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="ghost"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -724,6 +822,12 @@ export default function ProjectPage() {
                         </p>
                       )}
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        {flow.isPublished && flow.activeVersionId && (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle2 className="h-4 w-4 text-primary" />
+                            <span>Active</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1">
                           <FileText className="h-4 w-4" />
                           <span>v{flow.version}</span>
@@ -747,26 +851,84 @@ export default function ProjectPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>
+                  Track all changes and updates to your project
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[600px] pr-4">
-                  {/* Example activity items - replace with real data */}
-                  {[...Array(10)].map((_, i) => (
-                    <div key={i} className="flex items-center gap-4 py-3 border-b last:border-0">
-                      <div className="flex-shrink-0">
-                        <Users2 className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm">
-                          Flow "Main Flow" was published
-                          <span className="text-muted-foreground"> • 2h ago</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Version 2.1.0 released with 3 new nodes
-                        </p>
-                      </div>
+                  {isLoadingActivity ? (
+                    <div className="flex items-center justify-center h-40">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
-                  ))}
+                  ) : auditLogs.length > 0 ? (
+                    <div className="space-y-4">
+                      {auditLogs.map((log) => (
+                        <div key={log.id} className="flex items-start gap-4">
+                          <div className="mt-1">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={log.user.image} />
+                              <AvatarFallback>
+                                {log.user.name?.charAt(0) || log.user.email?.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm">
+                                <span className="font-medium">{log.user.name}</span>
+                                {' '}
+                                {getActivityDescription(log)}
+                              </p>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <span>•</span>
+                                <HoverCard>
+                                  <HoverCardTrigger>
+                                    <time className="cursor-help">
+                                      {new Date(log.createdAt).toLocaleDateString()}
+                                    </time>
+                                  </HoverCardTrigger>
+                                  <HoverCardContent side="top" className="w-auto">
+                                    {new Date(log.createdAt).toLocaleString()}
+                                  </HoverCardContent>
+                                </HoverCard>
+                              </div>
+                            </div>
+                            {log.metadata?.description && (
+                              <p className="text-sm text-muted-foreground">
+                                {log.metadata.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs"
+                              >
+                                <div className="flex items-center gap-1">
+                                  {getActivityIcon(log.action)}
+                                  <span>{log.action.toLowerCase()}</span>
+                                </div>
+                              </Badge>
+                              <Badge 
+                                variant="secondary" 
+                                className="text-xs"
+                              >
+                                {log.entityType.toLowerCase()}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-40 text-center">
+                      <Activity className="h-8 w-8 text-muted-foreground mb-4" />
+                      <p className="text-lg font-medium">No activity yet</p>
+                      <p className="text-sm text-muted-foreground">
+                        Actions and changes will be shown here
+                      </p>
+                    </div>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -794,48 +956,59 @@ export default function ProjectPage() {
                         <div key={flow.id} className="space-y-4">
                           <div className="flex items-center justify-between">
                             <h3 className="text-lg font-semibold">{flow.name}</h3>
-                            <Badge variant={flow.isPublished ? "default" : "secondary"}>
-                              {flow.isPublished ? "Published" : "Draft"}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {flow.isPublished ? `${flow.versions?.length || 0} versions` : "Draft"}
+                              </Badge>
+                              {flow.activeVersionId && (
+                                <Badge variant="secondary" className="text-xs">
+                                  v{flow.version} active
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           
                           {/* Show only the latest 3 versions in the tab view */}
                           {flow.versions.slice(0, 3).map((version) => (
                             <div key={version.id} 
                               className={cn(
-                                "flex items-center gap-4 py-3 border-b last:border-0",
-                                flow.activeVersionId === version.id && "bg-muted/50 rounded-md"
+                                "flex items-center gap-4 p-4 rounded-lg border",
+                                flow.activeVersionId === version.id && "bg-muted"
                               )}
                             >
-                              <div className="flex items-center gap-2">
-                                <div className={cn(
-                                  "w-2 h-2 rounded-full",
-                                  flow.activeVersionId === version.id ? "bg-green-500" : "bg-muted"
-                                )} />
-                                <Badge variant="outline">v{version.version}</Badge>
+                              <div className="flex items-center gap-3">
+                                {flow.activeVersionId === version.id && (
+                                  <div className="text-xs text-muted-foreground">
+                                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                                  </div>
+                                )}
+                                <Badge variant="outline" className="font-mono">v{version.version}</Badge>
                               </div>
-                              <div className="flex-1 space-y-1">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium">
+                                  <p className="text-sm font-medium truncate">
                                     {version.name || `Version ${version.version}`}
                                   </p>
-                                  {flow.activeVersionId === version.id && (
-                                    <Badge variant="secondary" className="text-xs">Active</Badge>
-                                  )}
                                 </div>
                                 {version.metadata?.description && (
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="text-sm text-muted-foreground truncate mt-0.5">
                                     {version.metadata.description}
                                   </p>
                                 )}
-                                <p className="text-xs text-muted-foreground">
-                                  Published on {new Date(version.createdAt).toLocaleDateString()} by {version.createdBy.name}
-                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-xs text-muted-foreground">
+                                    Published {new Date(version.createdAt).toLocaleDateString()}
+                                  </p>
+                                  <span className="text-xs text-muted-foreground">•</span>
+                                  <p className="text-xs text-muted-foreground">
+                                    by {version.createdBy.name}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 ml-4">
                                 {flow.activeVersionId !== version.id && (
                                   <Button 
-                                    variant="outline" 
+                                    variant="ghost" 
                                     size="sm"
                                     onClick={() => handleSetActiveVersion(flow.id, version.id)}
                                   >
@@ -848,7 +1021,7 @@ export default function ProjectPage() {
                           {flow.versions.length > 3 && (
                             <Button
                               variant="ghost"
-                              className="w-full text-sm text-muted-foreground"
+                              className="w-full text-sm text-muted-foreground mt-2"
                               onClick={() => setIsVersionsDialogOpen(true)}
                             >
                               View {flow.versions.length - 3} more versions
