@@ -95,7 +95,7 @@ export function FlowSelector({
 
   if (isLoading) {
     return (
-      <div className="h-9 w-48 bg-base-50 rounded-lg animate-pulse" />
+      <div className="h-9 w-48 bg-muted rounded-lg animate-pulse" />
     );
   }
 
@@ -105,21 +105,21 @@ export function FlowSelector({
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-2 px-4 py-1.5 rounded-lg",
-          "hover:bg-base-50 transition-colors duration-200",
-          "border border-base-200"
+          "hover:bg-muted transition-colors duration-200",
+          "border border-border"
         )}
       >
-        <LayoutGrid className="h-4 w-4 text-base-500" />
+        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
         <div className="flex items-center gap-3">
           <div 
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: currentFlowDetails?.color || "#18181b" }}
           />
-          <span className="text-sm font-medium">
+          <span className="text-sm font-medium text-foreground">
             {currentFlowDetails?.name || "Select a flow"}
           </span>
         </div>
-        <ChevronDown className="h-4 w-4 text-base-500" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </button>
 
       <AnimatePresence>
@@ -128,17 +128,17 @@ export function FlowSelector({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-base-200 overflow-hidden z-50"
+            className="absolute top-full left-0 mt-2 w-72 bg-popover rounded-lg shadow-lg border border-border overflow-hidden z-50"
           >
             <div className="p-2">
               <div className="relative mb-2">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-base-400" />
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search flows..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-sm bg-base-50 border border-base-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full pl-9 pr-4 py-2 text-sm bg-muted border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground"
                 />
               </div>
 
@@ -149,8 +149,8 @@ export function FlowSelector({
                     className={cn(
                       "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors",
                       flow.id === currentFlow
-                        ? "bg-zinc-100"
-                        : "hover:bg-zinc-50"
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted text-foreground"
                     )}
                     onClick={() => {
                       onFlowSelect(flow.id);
@@ -168,16 +168,16 @@ export function FlowSelector({
                 ))}
 
                 {filteredFlows.length === 0 && searchQuery && (
-                  <p className="text-center py-3 text-sm text-base-500">
+                  <p className="text-center py-3 text-sm text-muted-foreground">
                     No flows found
                   </p>
                 )}
               </div>
 
-              <div className="border-t border-base-200 mt-2 pt-2">
+              <div className="border-t border-border mt-2 pt-2">
                 <button
                   onClick={handleCreateFlow}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors duration-200"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary hover:bg-accent hover:text-accent-foreground rounded-lg transition-colors duration-200"
                 >
                   <Plus className="h-4 w-4" />
                   Create New Flow
