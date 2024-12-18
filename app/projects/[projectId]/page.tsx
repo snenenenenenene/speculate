@@ -56,6 +56,7 @@ import { toast } from "sonner";
 import { APITestRequest, APIUsageStats, APILog, AccessLog } from "@/types/api";
 import { PublishDialog } from "@/components/flow/PublishDialog";
 import { cn } from "@/lib/utils";
+import { ProjectVersionsDialog } from "@/components/projects/ProjectVersionsDialog";
 
 interface ShareSettings {
   isPublic: boolean;
@@ -111,6 +112,7 @@ interface Flow {
   variables: any[];
   versions?: Version[];
   activeVersion?: Version;
+  activeVersionId?: string;
 }
 
 interface Project {
@@ -201,6 +203,7 @@ export default function ProjectPage() {
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [isPublishFlowDialogOpen, setIsPublishFlowDialogOpen] = useState(false);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
+  const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -212,19 +215,39 @@ export default function ProjectPage() {
           fetch(`/api/projects/${params.projectId}/flows`)
         ]);
 
-        if (!projectResponse.ok || !flowsResponse.ok) {
+        console.log('Project response status:', projectResponse.status);
+        console.log('Flows response status:', flowsResponse.status);
+
+        if (!projectResponse.ok) {
+          console.error('Failed to fetch project:', await projectResponse.text());
           throw new Error('Failed to fetch project data');
+        }
+
+        if (!flowsResponse.ok) {
+          console.error('Failed to fetch flows:', await flowsResponse.text());
+          throw new Error('Failed to fetch flows data');
         }
 
         const projectData = await projectResponse.json();
         const flowsData = await flowsResponse.json();
 
+        console.log('Fetched project data:', projectData);
+        console.log('Fetched flows data:', flowsData);
+        console.log('Flows with versions:', flowsData.flows.map(f => ({
+          id: f.id,
+          name: f.name,
+          isPublished: f.isPublished,
+          version: f.version,
+          versionsCount: f.versions?.length || 0,
+          versions: f.versions
+        })));
+
+        if (!projectData.project) {
+          throw new Error('Project data is missing');
+        }
+
         setProject(projectData.project);
-        setFlows(flowsData.flows);
-        setFormData({
-          name: projectData.project.name,
-          description: projectData.project.description || "",
-        });
+        setFlows(flowsData.flows || []);
 
         if (ownerResponse.ok) {
           const ownerData = await ownerResponse.json();
@@ -232,16 +255,16 @@ export default function ProjectPage() {
         }
 
         // Calculate stats
-        const publishedFlows = flowsData.flows.filter((f: Flow) => f.isPublished);
+        const publishedFlows = flowsData.flows?.filter((f: Flow) => f.isPublished) || [];
         setStats({
-          totalFlows: flowsData.flows.length,
+          totalFlows: flowsData.flows?.length || 0,
           publishedFlows: publishedFlows.length,
-          draftFlows: flowsData.flows.length - publishedFlows.length,
-          totalVersions: flowsData.flows.reduce((acc: number, flow: Flow) => acc + flow.version, 0),
-          latestVersion: Math.max(...flowsData.flows.map((f: Flow) => f.version), 0),
+          draftFlows: (flowsData.flows?.length || 0) - publishedFlows.length,
+          totalVersions: flowsData.flows?.reduce((acc: number, flow: Flow) => acc + (flow.versions?.length || 0), 0) || 0,
+          latestVersion: Math.max(...(flowsData.flows?.map((f: Flow) => f.version) || [0]), 0),
           totalVariables: projectData.project.variables?.length || 0,
           apiUsage: {
-            total: 1250, // Example data - replace with real API usage stats
+            total: 1250,
             lastWeek: 250
           }
         });
@@ -253,7 +276,9 @@ export default function ProjectPage() {
       }
     };
 
-    fetchProject();
+    if (params.projectId) {
+      fetchProject();
+    }
   }, [params.projectId]);
 
   const fetchAPIUsage = async () => {
@@ -486,7 +511,7 @@ export default function ProjectPage() {
       setFlows(currentFlows => 
         currentFlows.map(flow => 
           flow.id === flowId
-            ? { ...flow, activeVersion: data.version }
+            ? { ...flow, activeVersionId: versionId }
             : flow
         )
       );
@@ -750,12 +775,20 @@ export default function ProjectPage() {
           {/* Versions Tab */}
           <TabsContent value="versions">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Version History</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsVersionsDialogOpen(true)}
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Manage Versions
+                </Button>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[600px] pr-4">
-                  {flows?.some(f => f.versions?.length > 0) ? (
+                  {flows?.some(f => f.versions && f.versions.length > 0) ? (
                     <div className="space-y-8">
                       {flows.map(flow => flow.versions && flow.versions.length > 0 && (
                         <div key={flow.id} className="space-y-4">
@@ -766,20 +799,27 @@ export default function ProjectPage() {
                             </Badge>
                           </div>
                           
-                          {flow.versions.map((version) => (
+                          {/* Show only the latest 3 versions in the tab view */}
+                          {flow.versions.slice(0, 3).map((version) => (
                             <div key={version.id} 
                               className={cn(
                                 "flex items-center gap-4 py-3 border-b last:border-0",
-                                flow.activeVersion?.id === version.id && "bg-muted/50"
+                                flow.activeVersionId === version.id && "bg-muted/50 rounded-md"
                               )}
                             >
-                              <Badge variant="outline">v{version.version}</Badge>
+                              <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full",
+                                  flow.activeVersionId === version.id ? "bg-green-500" : "bg-muted"
+                                )} />
+                                <Badge variant="outline">v{version.version}</Badge>
+                              </div>
                               <div className="flex-1 space-y-1">
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm font-medium">
                                     {version.name || `Version ${version.version}`}
                                   </p>
-                                  {flow.activeVersion?.id === version.id && (
+                                  {flow.activeVersionId === version.id && (
                                     <Badge variant="secondary" className="text-xs">Active</Badge>
                                   )}
                                 </div>
@@ -791,19 +831,9 @@ export default function ProjectPage() {
                                 <p className="text-xs text-muted-foreground">
                                   Published on {new Date(version.createdAt).toLocaleDateString()} by {version.createdBy.name}
                                 </p>
-                                {version.metadata?.changelog && version.metadata.changelog.length > 0 && (
-                                  <div className="mt-2">
-                                    <p className="text-xs font-medium text-muted-foreground mb-1">Changes:</p>
-                                    <ul className="text-xs text-muted-foreground list-disc list-inside">
-                                      {version.metadata.changelog.map((change, index) => (
-                                        <li key={index}>{change}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
                               </div>
                               <div className="flex items-center gap-2">
-                                {flow.activeVersion?.id !== version.id && (
+                                {flow.activeVersionId !== version.id && (
                                   <Button 
                                     variant="outline" 
                                     size="sm"
@@ -812,12 +842,18 @@ export default function ProjectPage() {
                                     Set Active
                                   </Button>
                                 )}
-                                <Button variant="ghost" size="sm">
-                                  View Changes
-                                </Button>
                               </div>
                             </div>
                           ))}
+                          {flow.versions.length > 3 && (
+                            <Button
+                              variant="ghost"
+                              className="w-full text-sm text-muted-foreground"
+                              onClick={() => setIsVersionsDialogOpen(true)}
+                            >
+                              View {flow.versions.length - 3} more versions
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1345,6 +1381,14 @@ export default function ProjectPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add ProjectVersionsDialog */}
+      <ProjectVersionsDialog
+        open={isVersionsDialogOpen}
+        onOpenChange={setIsVersionsDialogOpen}
+        flows={flows}
+        onActivateVersion={handleSetActiveVersion}
+      />
     </div>
   );
 }

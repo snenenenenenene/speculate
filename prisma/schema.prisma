@@ -221,10 +221,13 @@ model ChartInstance {
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   
   versions       Version[] // Version history
-  
+  activeVersion  Version?  @relation("ActiveVersion", fields: [activeVersionId], references: [id])
+  activeVersionId String?
+
   @@index([userId])
   @@index([projectId])
   @@index([isPublished])
+  @@index([activeVersionId])
 }
 
 model Version {
@@ -241,6 +244,8 @@ model Version {
   
   createdBy   String
   user        User      @relation(fields: [createdBy], references: [id])
+
+  activeOn    ChartInstance[] @relation("ActiveVersion") // Flows where this version is active
 
   @@unique([flowId, version])
   @@index([flowId])
