@@ -755,9 +755,9 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={handleNodeUpdate}
-          onEdgesChange={handleEdgeRemove}
-          onConnect={handleEdgeAdd}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={handleConnect}
           onInit={setReactFlowInstance}
           onDragOver={(event) => event.preventDefault()}
           onDrop={onDrop}

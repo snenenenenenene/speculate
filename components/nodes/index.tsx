@@ -36,6 +36,7 @@ import { MultipleChoiceDialog } from './function/MultipleChoiceNodeDialog';
 import { SingleChoiceDialog } from './function/SingleChoiceDialog';
 import { VisualNodePreview } from './VisualNodePreview';
 import { useTheme } from 'next-themes';
+import { useRouter } from 'next/navigation';
 
 export const handleImageUpload = async (file: File, callback: (base64: string) => void) => {
   const reader = new FileReader();
@@ -240,6 +241,7 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
   const [showDialog, setShowDialog] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const params = useParams();
+  const router = useRouter();
   const flowId = params.flowId as string;
   const projectId = params.projectId as string;
   const { theme } = useTheme();
@@ -269,7 +271,6 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
           throw new Error('Failed to fetch flows');
         }
         const data = await response.json();
-        // Filter out the current flow to prevent self-referencing
         const otherFlows = data.flows.filter((f: any) => f.id !== flowId);
         setFlows(otherFlows);
       } catch (error) {
@@ -314,6 +315,12 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
     });
   }, [handleUpdateNode, data.images]);
 
+  const handleRedirect = useCallback(() => {
+    if (data.redirectFlow?.id) {
+      router.push(`/projects/${projectId}/flows/${data.redirectFlow.id}`);
+    }
+  }, [data.redirectFlow, projectId, router]);
+
   return (
     <>
       <NodeWrapper
@@ -355,7 +362,10 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
         <div className="p-4 space-y-4">
           <div className="max-h-[200px] overflow-hidden">
             {data.redirectFlow ? (
-              <div className="space-y-2">
+              <div 
+                className="space-y-2 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={handleRedirect}
+              >
                 <div className="flex items-center gap-2">
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Redirecting to:</span>
@@ -420,84 +430,90 @@ export const EndNode = memo(({ id, data, selected }: NodeProps<EndNodeData>) => 
                 onCheckedChange={(checked) => {
                   if (!checked) {
                     handleUpdateNode({ redirectFlow: undefined });
+                  } else if (flows.length > 0) {
+                    // Initialize with the first available flow
+                    handleUpdateNode({
+                      redirectFlow: {
+                        id: flows[0].id,
+                        name: flows[0].name
+                      }
+                    });
+                  } else {
+                    toast.error('No flows available for redirection');
                   }
                 }}
               />
             </div>
 
-            {data.redirectFlow || data.isVisual ? (
-              <>
-                {data.redirectFlow && (
-                  <div className="space-y-2">
-                    <Label>Select Flow</Label>
-                    {isLoadingFlows ? (
-                      <div className="flex items-center justify-center h-10">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </div>
-                    ) : (
-                      <Select
-                        value={data.redirectFlow?.id}
-                        onValueChange={(value) => {
-                          const selectedFlow = flows.find(f => f.id === value);
-                          if (selectedFlow) {
-                            handleUpdateNode({
-                              redirectFlow: {
-                                id: selectedFlow.id,
-                                name: selectedFlow.name
-                              }
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a flow..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {flows.map((flow) => (
-                            <SelectItem key={flow.id} value={flow.id}>
-                              {flow.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+            {data.redirectFlow && (
+              <div className="space-y-2">
+                <Label>Select Flow</Label>
+                {isLoadingFlows ? (
+                  <div className="flex items-center justify-center h-10">
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
+                ) : (
+                  <Select
+                    value={data.redirectFlow?.id}
+                    onValueChange={(value) => {
+                      const selectedFlow = flows.find(f => f.id === value);
+                      if (selectedFlow) {
+                        handleUpdateNode({
+                          redirectFlow: {
+                            id: selectedFlow.id,
+                            name: selectedFlow.name
+                          }
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a flow..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {flows.map((flow) => (
+                        <SelectItem key={flow.id} value={flow.id}>
+                          {flow.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
+              </div>
+            )}
 
-                {data.isVisual && !data.redirectFlow && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Exit Message</Label>
-                      <div className="border rounded-lg p-4">
-                        <RichTextEditor editor={editor} />
-                      </div>
-                    </div>
+            {data.isVisual && !data.redirectFlow && (
+              <>
+                <div className="space-y-2">
+                  <Label>Exit Message</Label>
+                  <div className="border rounded-lg p-4">
+                    <RichTextEditor editor={editor} />
+                  </div>
+                </div>
 
-                    <div className="space-y-2">
-                      <Label>Image (Optional)</Label>
-                      <ImageUpload onUpload={handleUpload} />
-                    </div>
+                <div className="space-y-2">
+                  <Label>Image (Optional)</Label>
+                  <ImageUpload onUpload={handleUpload} />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label>Layout</Label>
-                      <Select
-                        value={data.style?.layout || 'default'}
-                        onValueChange={(value) => handleUpdateNode({
-                          style: { ...data.style, layout: value as any }
-                        })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="default">Default</SelectItem>
-                          <SelectItem value="centered">Centered</SelectItem>
-                          <SelectItem value="wide">Wide</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
+                <div className="space-y-2">
+                  <Label>Layout</Label>
+                  <Select
+                    value={data.style?.layout || 'default'}
+                    onValueChange={(value) => handleUpdateNode({
+                      style: { ...data.style, layout: value as any }
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      <SelectItem value="centered">Centered</SelectItem>
+                      <SelectItem value="wide">Wide</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             )}
           </div>
