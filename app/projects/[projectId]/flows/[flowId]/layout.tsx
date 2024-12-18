@@ -3,12 +3,12 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Loader2, PanelLeft, Save, Settings, Upload, GitCommit, ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { FlowSelector } from "@/components/dashboard/FlowSelector";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import React from "react";
-import SettingsModal from "@/app/projects/SettingsModal";
+import SettingsModal from "@/components/projects/SettingsModal";
 import { NodeSidebar } from "@/components/dashboard/NodeSidebar";
 import { PublishDialog } from "@/components/flow/PublishDialog";
 import { ThemeToggle } from "@/components/theme-toggle";

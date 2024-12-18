@@ -65,6 +65,7 @@ import { APITestRequest, APIUsageStats, APILog, AccessLog } from "@/types/api";
 import { PublishDialog } from "@/components/flow/PublishDialog";
 import { cn } from "@/lib/utils";
 import { ProjectVersionsDialog } from "@/components/projects/ProjectVersionsDialog";
+import SettingsModal from "@/components/projects/SettingsModal";
 
 interface ShareSettings {
   isPublic: boolean;
@@ -643,6 +644,15 @@ export default function ProjectPage() {
     }
   };
 
+  const handleOpenSettings = () => {
+    if (!project) return;
+    setFormData({
+      name: project.name,
+      description: project.description || "",
+    });
+    setIsSettingsOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -689,7 +699,7 @@ export default function ProjectPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsSettingsOpen(true)}
+            onClick={handleOpenSettings}
           >
             <Settings className="h-4 w-4 mr-2" />
             Settings
@@ -1345,132 +1355,24 @@ export default function ProjectPage() {
       />
 
       {/* Settings Modal */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Project Settings</DialogTitle>
-          </DialogHeader>
-
-          <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="api">API</TabsTrigger>
-              <TabsTrigger value="variables">Variables</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="general" className="space-y-4">
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Project Name</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                  />
-                </div>
-                <Button onClick={handleSaveSettings} disabled={isSaving}>
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Changes
-                </Button>
-
-                <Separator className="my-4" />
-
-                <div className="space-y-2">
-                  <Label className="text-destructive">Danger Zone</Label>
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Project
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="api" className="space-y-4">
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>API Key</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={project?.apiKey || "No API key generated"}
-                      readOnly
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        if (project?.apiKey) {
-                          navigator.clipboard.writeText(project.apiKey);
-                          toast.success("API key copied to clipboard");
-                        }
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" onClick={handleRegenerateApiKey}>
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Use this key to authenticate API requests to your project.
-                  </p>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="variables" className="space-y-4">
-              <div className="space-y-4 pt-4">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Variable
-                </Button>
-
-                <div className="rounded-md border">
-                  {project?.variables?.length > 0 ? (
-                    <div className="divide-y">
-                      {project.variables.map((variable: any, index: number) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-4"
-                        >
-                          <div>
-                            <p className="font-medium">{variable.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {variable.value}
-                            </p>
-                          </div>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-sm text-muted-foreground">
-                      No variables defined
-                    </div>
-                  )}
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        projectId={params.projectId as string}
+        initialData={project ? {
+          name: project.name,
+          color: project.color || "#18181b",
+          onePageMode: project.onePageMode || false,
+          variables: [],
+          globalVariables: project.variables as Variable[],
+          mainStartFlowId: project.mainStartFlowId || null,
+          flows: flows.map(flow => ({
+            id: flow.id,
+            name: flow.name,
+            content: flow.content
+          }))
+        } : null}
+      />
 
       {/* Share Dialog */}
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>

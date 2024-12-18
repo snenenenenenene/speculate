@@ -18,6 +18,7 @@ interface Project {
   name: string;
   description: string;
   flows: Flow[];
+  mainStartNodeId?: string;
 }
 
 interface Flow {
@@ -61,15 +62,46 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
           throw new Error('Failed to fetch project');
         }
         const data = await response.json();
-        setProject(data);
         
-        // Set initial flow and node
-        if (data.flows.length > 0) {
-          const flow = data.flows[0];
-          setCurrentFlow(flow);
-          const flowContent = JSON.parse(flow.content);
-          const startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
+        // Transform the data to parse flow content
+        const transformedData = {
+          ...data,
+          flows: data.flows.map((flow: Flow) => ({
+            ...flow,
+            content: typeof flow.content === 'string' ? JSON.parse(flow.content) : flow.content
+          }))
+        };
+        
+        console.log('Full project response:', {
+          project: transformedData,
+          flows: transformedData.flows
+        });
+        
+        setProject(transformedData);
+        
+        // Find the flow containing the main start node
+        if (transformedData.flows.length > 0) {
+          // First try to find the main start flow
+          const mainFlow = transformedData.flows.find(f => f.id === transformedData.mainStartFlowId);
+          let startNode = null;
+
+          if (mainFlow) {
+            const flowContent = mainFlow.content;
+            startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
+            if (startNode) {
+              setCurrentFlow(mainFlow);
+              setCurrentNode(startNode);
+              setNodeHistory([startNode]);
+              return;
+            }
+          }
+
+          // Fallback to first flow if main flow not found or invalid
+          const firstFlow = transformedData.flows[0];
+          const flowContent = firstFlow.content;
+          startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
           if (startNode) {
+            setCurrentFlow(firstFlow);
             setCurrentNode(startNode);
             setNodeHistory([startNode]);
           }
@@ -95,29 +127,64 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
   const findNextNode = useCallback((currentNodeId: string, selectedOption?: string) => {
     if (!currentFlow) return null;
     
-    const flowContent = JSON.parse(currentFlow.content);
+    const flowContent = currentFlow.content;
     const edges = flowContent.edges as Edge[];
     const nodes = flowContent.nodes as NodeData[];
 
+    console.log('Debug findNextNode:', {
+      currentNodeId,
+      selectedOption,
+      edges: edges.map(e => ({
+        ...e,
+        matches: {
+          sourceMatches: e.source === currentNodeId,
+          handleMatches: selectedOption ? e.sourceHandle === selectedOption : e.sourceHandle === null
+        }
+      })),
+      nodes,
+      flowContent
+    });
+
     // Find the connecting edge based on the selection
     const edge = edges.find(e => {
-      if (e.source === currentNodeId) {
-        if (selectedOption) {
-          return e.sourceHandle === selectedOption;
-        }
-        return true;
-      }
-      return false;
+      const sourceMatches = e.source === currentNodeId;
+      const handleMatches = selectedOption ? e.sourceHandle === selectedOption : e.sourceHandle === null;
+      
+      console.log('Edge check:', {
+        edge: e,
+        sourceMatches,
+        handleMatches,
+        currentNodeId,
+        selectedOption
+      });
+      
+      return sourceMatches && handleMatches;
     });
+
+    console.log('Found edge:', edge);
 
     if (!edge) return null;
 
     // Find the target node
-    return nodes.find(n => n.id === edge.target) || null;
+    const targetNode = nodes.find(n => n.id === edge.target) || null;
+    console.log('Target node:', targetNode);
+    
+    return targetNode;
   }, [currentFlow]);
 
   const handleNext = useCallback(() => {
     if (!currentNode) return;
+
+    console.log('Debug handleNext:', {
+      currentNode,
+      currentSelection: selections[currentNode.id],
+      currentFlow,
+      flowContent: currentFlow ? (
+        typeof currentFlow.content === 'string' ? 
+        JSON.parse(currentFlow.content) : 
+        currentFlow.content
+      ) : null
+    });
 
     const currentSelection = selections[currentNode.id];
     let nextNode: NodeData | null = null;
@@ -127,7 +194,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       const nextFlow = project?.flows.find(f => f.id === currentNode.data.redirectFlow.id);
       if (nextFlow) {
         setCurrentFlow(nextFlow);
-        const flowContent = JSON.parse(nextFlow.content);
+        const flowContent = typeof nextFlow.content === 'string' ? JSON.parse(nextFlow.content) : nextFlow.content;
         const startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
         if (startNode) {
           nextNode = startNode;
@@ -140,13 +207,16 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       nextNode = findNextNode(currentNode.id, selectedOption);
     }
 
+    console.log('Next node:', nextNode);
+
     if (nextNode) {
       setCurrentNode(nextNode);
       setNodeHistory(prev => [...prev, nextNode!]);
     } else if (currentNode.type !== 'endNode') {
+      console.log('No next node found. Current node:', currentNode);
       toast.error('No next node found');
     }
-  }, [currentNode, selections, findNextNode, project?.flows]);
+  }, [currentNode, selections, findNextNode, project?.flows, currentFlow]);
 
   const handleBack = useCallback(() => {
     if (nodeHistory.length > 1) {
@@ -159,34 +229,62 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
   const renderNodeContent = useCallback((node: NodeData) => {
     const currentSelection = selections[node.id] || [];
 
+    console.log('Debug renderNodeContent:', {
+      node,
+      nodeType: node.type,
+      nodeData: node.data,
+      isVisual: node.data.isVisual,
+      welcomeMessage: node.data.welcomeMessage,
+      images: node.data.images
+    });
+
+    const renderImages = (images: any[]) => {
+      if (!images || images.length === 0) return null;
+      
+      return (
+        <div className="space-y-4 mb-4">
+          {images.map((image, index) => (
+            <img
+              key={index}
+              src={image.url}
+              alt={image.alt || ''}
+              className="w-full rounded-lg object-cover"
+              style={{ maxHeight: '300px' }}
+            />
+          ))}
+        </div>
+      );
+    };
+
     switch (node.type) {
       case 'startNode':
         return (
           <div className="space-y-4">
-            {node.data.images?.[0] && (
-              <img
-                src={node.data.images[0].url}
-                alt={node.data.images[0].alt}
-                className="w-full h-48 object-cover rounded-lg"
-              />
+            {node.data.isVisual ? (
+              <div className="space-y-4">
+                <img
+                  src={node.data.welcomeMessage}
+                  alt="Welcome visual"
+                  className="w-full rounded-lg object-cover"
+                  style={{ maxHeight: '300px' }}
+                />
+              </div>
+            ) : (
+              <>
+                {renderImages(node.data.images)}
+                <div
+                  className="prose prose-sm dark:prose-invert"
+                  dangerouslySetInnerHTML={{ __html: node.data.welcomeMessage }}
+                />
+              </>
             )}
-            <div
-              className="prose prose-sm dark:prose-invert"
-              dangerouslySetInnerHTML={{ __html: node.data.welcomeMessage }}
-            />
           </div>
         );
 
       case 'endNode':
         return (
           <div className="space-y-4">
-            {node.data.images?.[0] && (
-              <img
-                src={node.data.images[0].url}
-                alt={node.data.images[0].alt}
-                className="w-full h-48 object-cover rounded-lg"
-              />
-            )}
+            {renderImages(node.data.images)}
             <div
               className="prose prose-sm dark:prose-invert"
               dangerouslySetInnerHTML={{ __html: node.data.exitMessage }}
@@ -197,13 +295,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       case 'yesNo':
         return (
           <div className="space-y-4">
-            {node.data.images?.[0] && (
-              <img
-                src={node.data.images[0].url}
-                alt={node.data.images[0].alt}
-                className="w-full h-48 object-cover rounded-lg"
-              />
-            )}
+            {renderImages(node.data.images)}
             {node.data.title && (
               <h3 className="text-lg font-medium">{node.data.title}</h3>
             )}
@@ -231,13 +323,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       case 'singleChoice':
         return (
           <div className="space-y-4">
-            {node.data.images?.[0] && (
-              <img
-                src={node.data.images[0].url}
-                alt={node.data.images[0].alt}
-                className="w-full h-48 object-cover rounded-lg"
-              />
-            )}
+            {renderImages(node.data.images)}
             {node.data.title && (
               <h3 className="text-lg font-medium">{node.data.title}</h3>
             )}
@@ -257,7 +343,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
                     {option.metadata?.image?.url && node.data.style?.showImages && (
                       <img
                         src={option.metadata.image.url}
-                        alt={option.metadata.image.alt}
+                        alt={option.metadata.image.alt || ''}
                         className="w-8 h-8 rounded object-cover"
                       />
                     )}
@@ -272,13 +358,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       case 'multipleChoice':
         return (
           <div className="space-y-4">
-            {node.data.images?.[0] && (
-              <img
-                src={node.data.images[0].url}
-                alt={node.data.images[0].alt}
-                className="w-full h-48 object-cover rounded-lg"
-              />
-            )}
+            {renderImages(node.data.images)}
             {node.data.title && (
               <h3 className="text-lg font-medium">{node.data.title}</h3>
             )}
@@ -314,7 +394,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
                     {option.metadata?.image?.url && node.data.style?.showImages && (
                       <img
                         src={option.metadata.image.url}
-                        alt={option.metadata.image.alt}
+                        alt={option.metadata.image.alt || ''}
                         className="w-8 h-8 rounded object-cover"
                       />
                     )}
@@ -375,28 +455,38 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
     );
   }
 
+  console.log('Debug Navigation:', {
+    nodeHistory: nodeHistory,
+    currentNode: currentNode,
+    selections: selections,
+    canGoBack: nodeHistory.length > 1,
+    canGoNext: currentNode.type === 'endNode' || currentNode.type === 'startNode' || selections[currentNode.id]?.length > 0,
+    currentNodeType: currentNode.type,
+    hasSelections: selections[currentNode.id]?.length > 0
+  });
+
   const canGoBack = nodeHistory.length > 1;
-  const canGoNext = currentNode.type === 'endNode' || selections[currentNode.id]?.length > 0;
+  const canGoNext = currentNode.type === 'endNode' || currentNode.type === 'startNode' || selections[currentNode.id]?.length > 0;
 
   return (
-    <div className="container max-w-2xl mx-auto py-8 px-4">
-      <Card className="p-6">
-        <div className="space-y-6">
+    <div className="min-h-screen bg-background flex items-center justify-center py-8 px-4">
+      <Card className="w-full max-w-2xl">
+        <div className="p-6 md:p-8 space-y-8">
           {/* Header */}
-          <div>
+          <div className="text-center">
             <h1 className="text-2xl font-bold">{project.name}</h1>
             {project.description && (
-              <p className="text-muted-foreground mt-1">{project.description}</p>
+              <p className="text-muted-foreground mt-2">{project.description}</p>
             )}
           </div>
 
           {/* Current Node */}
-          <div>
+          <div className="max-w-xl mx-auto">
             {renderNodeContent(currentNode)}
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between pt-4">
+          <div className="flex justify-between pt-6">
             <Button
               variant="outline"
               onClick={handleBack}

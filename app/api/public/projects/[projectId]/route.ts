@@ -5,62 +5,57 @@ export async function GET(
   request: Request,
   { params }: { params: { projectId: string } }
 ) {
-  try {
-    const projectId = params.projectId;
+  const projectId = params.projectId;
 
-    // Fetch the project with its active flows
-    const project = await prisma.project.findUnique({
-      where: {
-        id: projectId,
-      },
-      include: {
-        flows: {
-          where: {
-            versions: {
-              some: {
-                isActive: true,
-              },
-            },
-          },
-          include: {
-            versions: {
-              where: {
-                isActive: true,
-              },
-              take: 1,
+  // Fetch the project with its published flows
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      mainStartFlowId: true,
+      charts: {
+        where: {
+          isPublished: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          content: true,
+          version: true,
+          activeVersion: {
+            select: {
+              content: true,
             },
           },
         },
       },
-    });
+    },
+  });
 
-    if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
-    }
-
-    // Transform the response to include only necessary data
-    const transformedProject = {
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      flows: project.flows.map(flow => ({
-        id: flow.id,
-        name: flow.name,
-        description: flow.description,
-        content: flow.versions[0]?.content,
-        version: flow.versions[0]?.version,
-      })),
-    };
-
-    return NextResponse.json(transformedProject);
-  } catch (error) {
-    console.error('Error fetching published project:', error);
+  if (!project) {
     return NextResponse.json(
-      { error: 'Failed to fetch project' },
-      { status: 500 }
+      { error: 'Project not found' },
+      { status: 404 }
     );
   }
+
+  // Transform the response to include only necessary data
+  const transformedProject = {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    mainStartFlowId: project.mainStartFlowId,
+    flows: project.charts.map(flow => ({
+      id: flow.id,
+      name: flow.name,
+      content: flow.activeVersion?.content || flow.content,
+      version: flow.version,
+    })),
+  };
+
+  return NextResponse.json(transformedProject);
 } 

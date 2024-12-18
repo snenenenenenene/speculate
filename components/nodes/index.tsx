@@ -54,6 +54,23 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
   const params = useParams();
   const flowId = params.flowId as string;
   const { theme } = useTheme();
+  const [isMainStartNode, setIsMainStartNode] = useState(false);
+
+  useEffect(() => {
+    const checkMainStartNode = async () => {
+      try {
+        const response = await fetch(`/api/projects/${params.projectId}`);
+        if (response.ok) {
+          const project = await response.json();
+          setIsMainStartNode(project.mainStartNodeId === id);
+        }
+      } catch (error) {
+        console.error('Error checking main start node:', error);
+      }
+    };
+
+    checkMainStartNode();
+  }, [id, params.projectId]);
 
   const editor = useEditor({
     extensions: [
@@ -101,12 +118,24 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
   return (
     <>
       <NodeWrapper
-        title="Start"
+        title={
+          <div className="flex items-center gap-2">
+            <span>Start</span>
+            {isMainStartNode && (
+              <Badge variant="secondary" className="text-xs">
+                Main Entry
+              </Badge>
+            )}
+          </div>
+        }
         selected={selected}
         id={id}
         onDelete={handleDelete}
-        headerClassName="bg-blue-50/80 border-blue-100"
-        headerIcon={<Flag className="h-4 w-4 text-blue-500" />}
+        headerClassName={cn(
+          "border",
+          isMainStartNode ? "bg-blue-100/80 border-blue-200" : "bg-blue-50/80 border-blue-100"
+        )}
+        headerIcon={<Flag className={cn("h-4 w-4", isMainStartNode ? "text-blue-600" : "text-blue-500")} />}
         headerActions={
           <>
             {data.isVisual && (

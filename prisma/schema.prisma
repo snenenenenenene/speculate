@@ -87,6 +87,7 @@ model Project {
   variables   Json[]          @default([])
   shareSettings Json?         // ProjectShareSettings
   isPublic    Boolean         @default(false)
+  mainStartFlowId String?     // ID of the main start flow
   
   userId      String          // Owner
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -99,7 +100,7 @@ model Project {
   shares      ProjectShare[]  // Active shares of this project
 
   @@index([userId])
-  @@index([isPublic])
+  @@index([mainStartFlowId])
 }
 
 model ProjectShare {
