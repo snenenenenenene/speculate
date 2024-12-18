@@ -69,6 +69,9 @@ function createNewNode(type: string, position: { x: number; y: number }, flowId:
         data: {
           ...baseNode.data,
           type: 'start',
+          isVisual: false,
+          images: [],
+          welcomeMessage: '',
         },
       };
     case 'endNode':
@@ -184,45 +187,44 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
     const fetchFlow = async () => {
       setIsLoading(true);
       try {
-        const [flowResponse, projectResponse] = await Promise.all([
-          fetch(`/api/projects/${projectId}/flows/${flowId}`),
-          fetch(`/api/projects/${projectId}`)
-        ]);
+        const flowResponse = await fetch(`/api/projects/${projectId}/flows/${flowId}`);
 
-        if (!flowResponse.ok || !projectResponse.ok) {
-          throw new Error("Failed to fetch flow or project data");
+        if (!flowResponse.ok) {
+          throw new Error("Failed to fetch flow data");
         }
 
-        const flow = await flowResponse.json();
-        const project = await projectResponse.json();
+        const flowData = await flowResponse.json();
+        console.log("Fetched flow:", flowData);
 
-        console.log("Fetched flow:", flow);
-        console.log("Fetched project:", project);
+        setFlowData(flowData);
 
-        setFlowData(flow);
-        setGlobalVariables(project.variables || []);
-
-        if (flow.flow.content) {
-          const content = JSON.parse(flow.flow.content);
+        if (flowData.flow.content) {
+          const content = JSON.parse(flowData.flow.content);
           
-          const localVariables = (content.variables || []).map(v => ({
-            ...v,
-            scope: 'local'
-          }));
-          const projectGlobalVars = (project.variables || []).map(v => ({
-            ...v,
-            scope: 'global'
-          }));
-          
-          content.variables = [...localVariables, ...projectGlobalVars];
+          // Ensure start nodes have required properties
+          if (content.nodes) {
+            content.nodes = content.nodes.map(node => {
+              if (node.type === 'startNode') {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    images: node.data.images || [],
+                    welcomeMessage: node.data.welcomeMessage || '',
+                  }
+                };
+              }
+              return node;
+            });
+          }
 
           const newFlow = {
             id: flowId,
-            name: flow.flow.name,
+            name: flowData.flow.name,
             nodes: content.nodes || [],
             edges: content.edges || [],
-            color: flow.flow.color,
-            onePageMode: flow.flow.onePageMode,
+            color: flowData.flow.color,
+            onePageMode: flowData.flow.onePageMode,
             publishedVersions: [],
             variables: content.variables || [],
           };
@@ -235,11 +237,11 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
         } else {
           const emptyFlow = {
             id: flowId,
-            name: flow.flow.name,
+            name: flowData.flow.name,
             nodes: [],
             edges: [],
-            color: flow.flow.color,
-            onePageMode: flow.flow.onePageMode,
+            color: flowData.flow.color,
+            onePageMode: flowData.flow.onePageMode,
             publishedVersions: [],
             variables: [],
           };

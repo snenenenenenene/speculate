@@ -212,7 +212,11 @@ export const StartNode = memo(({ id, data, selected }: NodeProps<StartNodeData>)
             <div className="flex items-center space-x-2">
               <Switch
                 checked={data.isVisual}
-                onCheckedChange={(checked) => handleUpdateNode({ isVisual: checked })}
+                onCheckedChange={(checked) => handleUpdateNode({ 
+                  isVisual: checked,
+                  images: checked ? [] : undefined,
+                  welcomeMessage: checked ? data.welcomeMessage || '' : undefined
+                })}
               />
               <Label>Show welcome message</Label>
             </div>
@@ -1206,9 +1210,35 @@ export const MultipleChoiceNode = memo(({ id, data, selected }: NodeProps<Multip
         handles={{ 
           top: true,
           right: false,
-          bottom: true,
+          bottom: false,
           left: false 
         }}
+        customHandles={
+          <>
+            <Handle
+              type="target"
+              position={Position.Top}
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900" 
+                  : "!bg-black"
+              )}
+              style={{ top: '-12px' }}
+            />
+            <Handle
+              type="source"
+              position={Position.Bottom}
+              className={cn(
+                "w-3 h-3 !border-2",
+                theme === 'dark' 
+                  ? "!bg-zinc-900 !border-white" 
+                  : "!bg-white !border-black"
+              )}
+              style={{ bottom: '-12px' }}
+            />
+          </>
+        }
       >
         <div className="p-4">
           <div className="space-y-4">

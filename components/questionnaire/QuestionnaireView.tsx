@@ -24,9 +24,13 @@ interface Project {
 interface Flow {
   id: string;
   name: string;
-  description: string;
-  content: string;
+  description?: string;
+  nodes: NodeData[];
+  edges: Edge[];
   version: number;
+  color?: string;
+  onePageMode?: boolean;
+  variables?: any[];
 }
 
 interface NodeData {
@@ -63,32 +67,47 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
         }
         const data = await response.json();
         
-        // Transform the data to parse flow content
-        const transformedData = {
-          ...data,
-          flows: data.flows.map((flow: Flow) => ({
-            ...flow,
-            content: typeof flow.content === 'string' ? JSON.parse(flow.content) : flow.content
-          }))
-        };
-        
-        console.log('Full project response:', {
-          project: transformedData,
-          flows: transformedData.flows
+        console.log('Project data loaded:', {
+          rawData: data,
+          flowCount: data.flows.length,
+          publishedFlows: data.flows.filter(f => f.isPublished).length,
+          firstFlow: data.flows[0],
+          firstFlowNodes: data.flows[0]?.nodes,
+          firstFlowNodesWithImages: data.flows[0]?.nodes.filter(n => n.data.images?.length > 0),
+          mainStartFlowId: data.mainStartFlowId
         });
         
-        setProject(transformedData);
+        // Filter out unpublished flows
+        data.flows = data.flows.filter(f => f.isPublished);
+        
+        if (data.flows.length === 0) {
+          setError('No published flows available');
+          return;
+        }
+        
+        setProject(data);
         
         // Find the flow containing the main start node
-        if (transformedData.flows.length > 0) {
+        if (data.flows.length > 0) {
           // First try to find the main start flow
-          const mainFlow = transformedData.flows.find(f => f.id === transformedData.mainStartFlowId);
+          const mainFlow = data.flows.find(f => f.id === data.mainStartFlowId);
           let startNode = null;
 
           if (mainFlow) {
-            const flowContent = mainFlow.content;
-            startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
+            startNode = mainFlow.nodes.find((n: NodeData) => n.type === 'startNode');
             if (startNode) {
+              console.log('Found main start node:', {
+                nodeId: startNode.id,
+                nodeType: startNode.type,
+                nodeData: startNode.data,
+                hasImages: !!startNode.data.images,
+                imageCount: startNode.data.images?.length,
+                images: startNode.data.images,
+                flowId: mainFlow.id,
+                flowIsPublished: mainFlow.isPublished,
+                flowPublishedAt: mainFlow.publishedAt,
+                flowActiveVersionId: mainFlow.activeVersionId
+              });
               setCurrentFlow(mainFlow);
               setCurrentNode(startNode);
               setNodeHistory([startNode]);
@@ -97,10 +116,21 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
           }
 
           // Fallback to first flow if main flow not found or invalid
-          const firstFlow = transformedData.flows[0];
-          const flowContent = firstFlow.content;
-          startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
+          const firstFlow = data.flows[0];
+          startNode = firstFlow.nodes.find((n: NodeData) => n.type === 'startNode');
           if (startNode) {
+            console.log('Using fallback start node:', {
+              nodeId: startNode.id,
+              nodeType: startNode.type,
+              nodeData: startNode.data,
+              hasImages: !!startNode.data.images,
+              imageCount: startNode.data.images?.length,
+              images: startNode.data.images,
+              flowId: firstFlow.id,
+              flowIsPublished: firstFlow.isPublished,
+              flowPublishedAt: firstFlow.publishedAt,
+              flowActiveVersionId: firstFlow.activeVersionId
+            });
             setCurrentFlow(firstFlow);
             setCurrentNode(startNode);
             setNodeHistory([startNode]);
@@ -127,13 +157,14 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
   const findNextNode = useCallback((currentNodeId: string, selectedOption?: string) => {
     if (!currentFlow) return null;
     
-    const flowContent = currentFlow.content;
-    const edges = flowContent.edges as Edge[];
-    const nodes = flowContent.nodes as NodeData[];
+    const edges = currentFlow.edges;
+    const nodes = currentFlow.nodes;
+    const currentNode = nodes.find(n => n.id === currentNodeId);
 
     console.log('Debug findNextNode:', {
       currentNodeId,
       selectedOption,
+      currentNodeType: currentNode?.type,
       edges: edges.map(e => ({
         ...e,
         matches: {
@@ -142,20 +173,29 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
         }
       })),
       nodes,
-      flowContent
+      currentFlow: {
+        id: currentFlow.id,
+        isPublished: currentFlow.isPublished,
+        publishedAt: currentFlow.publishedAt,
+        activeVersionId: currentFlow.activeVersionId
+      }
     });
 
     // Find the connecting edge based on the selection
     const edge = edges.find(e => {
       const sourceMatches = e.source === currentNodeId;
-      const handleMatches = selectedOption ? e.sourceHandle === selectedOption : e.sourceHandle === null;
+      // For multiple choice nodes, we don't need to match the sourceHandle
+      const handleMatches = currentNode?.type === 'multipleChoice' 
+        ? true 
+        : (selectedOption ? e.sourceHandle === selectedOption : e.sourceHandle === null);
       
       console.log('Edge check:', {
         edge: e,
         sourceMatches,
         handleMatches,
         currentNodeId,
-        selectedOption
+        selectedOption,
+        nodeType: currentNode?.type
       });
       
       return sourceMatches && handleMatches;
@@ -167,23 +207,33 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
 
     // Find the target node
     const targetNode = nodes.find(n => n.id === edge.target) || null;
-    console.log('Target node:', targetNode);
+    console.log('Target node:', {
+      node: targetNode,
+      nodeData: targetNode?.data,
+      hasImages: !!targetNode?.data.images,
+      imageCount: targetNode?.data.images?.length,
+      images: targetNode?.data.images
+    });
     
     return targetNode;
   }, [currentFlow]);
 
   const handleNext = useCallback(() => {
-    if (!currentNode) return;
+    if (!currentNode || !currentFlow) return;
 
     console.log('Debug handleNext:', {
       currentNode,
+      currentNodeData: currentNode.data,
+      hasImages: !!currentNode.data.images,
+      imageCount: currentNode.data.images?.length,
+      images: currentNode.data.images,
       currentSelection: selections[currentNode.id],
-      currentFlow,
-      flowContent: currentFlow ? (
-        typeof currentFlow.content === 'string' ? 
-        JSON.parse(currentFlow.content) : 
-        currentFlow.content
-      ) : null
+      currentFlow: {
+        id: currentFlow.id,
+        isPublished: currentFlow.isPublished,
+        publishedAt: currentFlow.publishedAt,
+        activeVersionId: currentFlow.activeVersionId
+      },
     });
 
     const currentSelection = selections[currentNode.id];
@@ -193,13 +243,29 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       // Handle flow redirection
       const nextFlow = project?.flows.find(f => f.id === currentNode.data.redirectFlow.id);
       if (nextFlow) {
-        setCurrentFlow(nextFlow);
-        const flowContent = typeof nextFlow.content === 'string' ? JSON.parse(nextFlow.content) : nextFlow.content;
-        const startNode = flowContent.nodes.find((n: NodeData) => n.type === 'startNode');
+        console.log('Redirecting to flow:', {
+          flowId: nextFlow.id,
+          isPublished: nextFlow.isPublished,
+          publishedAt: nextFlow.publishedAt,
+          activeVersionId: nextFlow.activeVersionId,
+          version: nextFlow.version
+        });
+        
+        // Find the start node in the next flow
+        const startNode = nextFlow.nodes.find(n => n.type === 'startNode');
         if (startNode) {
-          nextNode = startNode;
+          setCurrentFlow(nextFlow);
+          setCurrentNode(startNode);
+          // Reset history for the new flow
           setNodeHistory([startNode]);
+          return;
+        } else {
+          console.error('No start node found in redirected flow');
+          toast.error('Error loading next flow');
         }
+      } else {
+        console.error('Redirected flow not found or not published');
+        toast.error('Next flow is not available');
       }
     } else {
       // Find next node based on selection
@@ -207,7 +273,13 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       nextNode = findNextNode(currentNode.id, selectedOption);
     }
 
-    console.log('Next node:', nextNode);
+    console.log('Next node:', {
+      node: nextNode,
+      nodeData: nextNode?.data,
+      hasImages: !!nextNode?.data.images,
+      imageCount: nextNode?.data.images?.length,
+      images: nextNode?.data.images
+    });
 
     if (nextNode) {
       setCurrentNode(nextNode);
@@ -216,7 +288,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       console.log('No next node found. Current node:', currentNode);
       toast.error('No next node found');
     }
-  }, [currentNode, selections, findNextNode, project?.flows, currentFlow]);
+  }, [currentNode, currentFlow, project?.flows, selections, findNextNode]);
 
   const handleBack = useCallback(() => {
     if (nodeHistory.length > 1) {
@@ -235,49 +307,67 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
       nodeData: node.data,
       isVisual: node.data.isVisual,
       welcomeMessage: node.data.welcomeMessage,
-      images: node.data.images
+      images: node.data.images,
+      hasImages: !!node.data.images,
+      imageCount: node.data.images?.length
     });
 
     const renderImages = (images: any[]) => {
-      if (!images || images.length === 0) return null;
+      console.log('renderImages called with:', {
+        images,
+        isArray: Array.isArray(images),
+        length: images?.length,
+        firstImage: images?.[0]
+      });
+
+      if (!images || images.length === 0) {
+        console.log('No images to render:', images);
+        return null;
+      }
       
+      console.log('Rendering images:', images);
       return (
         <div className="space-y-4 mb-4">
-          {images.map((image, index) => (
-            <img
-              key={index}
-              src={image.url}
-              alt={image.alt || ''}
-              className="w-full rounded-lg object-cover"
-              style={{ maxHeight: '300px' }}
-            />
-          ))}
+          {images.map((image, index) => {
+            console.log('Rendering image:', {
+              index,
+              image,
+              url: image.url,
+              alt: image.alt
+            });
+            return (
+              <img
+                key={index}
+                src={image.url}
+                alt={image.alt || ''}
+                className="w-full rounded-lg object-cover"
+                style={{ maxHeight: '300px' }}
+              />
+            );
+          })}
         </div>
       );
     };
 
     switch (node.type) {
       case 'startNode':
+        console.log('Rendering start node:', {
+          node,
+          nodeId: node.id,
+          nodeData: node.data,
+          isVisual: node.data.isVisual,
+          welcomeMessage: node.data.welcomeMessage,
+          images: node.data.images,
+          hasImages: !!node.data.images,
+          imageCount: node.data.images?.length
+        });
         return (
           <div className="space-y-4">
-            {node.data.isVisual ? (
-              <div className="space-y-4">
-                <img
-                  src={node.data.welcomeMessage}
-                  alt="Welcome visual"
-                  className="w-full rounded-lg object-cover"
-                  style={{ maxHeight: '300px' }}
-                />
-              </div>
-            ) : (
-              <>
-                {renderImages(node.data.images)}
-                <div
-                  className="prose prose-sm dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: node.data.welcomeMessage }}
-                />
-              </>
-            )}
+            {renderImages(node.data.images)}
+            <div
+              className="prose prose-sm dark:prose-invert"
+              dangerouslySetInnerHTML={{ __html: node.data.welcomeMessage }}
+            />
           </div>
         );
 
@@ -478,6 +568,11 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
             {project.description && (
               <p className="text-muted-foreground mt-2">{project.description}</p>
             )}
+            {currentFlow && (
+              <div className="mt-2 text-sm text-muted-foreground">
+                Version {currentFlow.version}
+              </div>
+            )}
           </div>
 
           {/* Current Node */}
@@ -501,7 +596,7 @@ export function QuestionnaireView({ projectId }: QuestionnaireViewProps) {
               disabled={!canGoNext}
             >
               {currentNode.type === 'endNode' ? (
-                currentNode.data.redirectFlow ? 'Continue' : 'Finish'
+                currentNode.data.redirectFlow ? 'Continue to Next Flow' : 'Finish'
               ) : (
                 <>
                   Next
