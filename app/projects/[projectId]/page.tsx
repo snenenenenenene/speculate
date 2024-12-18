@@ -710,6 +710,16 @@ export default function ProjectPage() {
             <Globe2 className="h-4 w-4 mr-2" />
             Publish
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+          >
+            <Link href={`/q/${project?.id}`} target="_blank">
+              <Play className="h-4 w-4 mr-2" />
+              Preview
+            </Link>
+          </Button>
           <Button size="sm" asChild>
             <Link href={`/projects/${project?.id}/flows`}>
               <LayoutDashboard className="h-4 w-4 mr-2" />
