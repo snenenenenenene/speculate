@@ -1,22 +1,28 @@
 "use client";
 
-import { ReactFlowProvider } from "reactflow";
+import { Suspense } from "react";
 import FlowEditor from "./FlowEditor";
-import { useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import React from "react";
 
-export default function FlowPage() {
-  const params = useParams();
-  const projectId = params.projectId as string;
-  const flowId = params.flowId as string;
+interface PageProps {
+  params: { projectId: string; flowId: string };
+}
+
+export default function Page({ params }: PageProps) {
+  const unwrappedParams = React.use(params);
+  const { projectId, flowId } = unwrappedParams;
 
   return (
-    <ReactFlowProvider>
-      <div className="h-full w-full flex">
-        <FlowEditor 
-          projectId={projectId} 
-          flowId={flowId}
-        />
+    <Suspense fallback={
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
-    </ReactFlowProvider>
+    }>
+      <FlowEditor
+        projectId={projectId}
+        flowId={flowId}
+      />
+    </Suspense>
   );
 }

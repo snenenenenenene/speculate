@@ -55,6 +55,7 @@ import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { APITestRequest, APIUsageStats, APILog, AccessLog } from "@/types/api";
 import { PublishDialog } from "@/components/flow/PublishDialog";
+import { cn } from "@/lib/utils";
 
 interface ShareSettings {
   isPublic: boolean;
@@ -79,16 +80,22 @@ interface Collaborator {
   };
 }
 
-interface Project {
+interface Version {
   id: string;
-  name: string;
-  description: string;
-  apiKey: string | null;
-  isPublic: boolean;
-  updatedAt: string;
-  _count: {
-    charts: number;
-    collaborators: number;
+  version: number;
+  name?: string;
+  content: any;
+  metadata: {
+    changelog?: string[];
+    description?: string;
+    notes?: string;
+  };
+  createdAt: string;
+  publishedAt?: string;
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
   };
 }
 
@@ -100,7 +107,30 @@ interface Flow {
   isPublished: boolean;
   version: number;
   updatedAt: string;
+  publishedAt?: string;
   variables: any[];
+  versions?: Version[];
+  activeVersion?: Version;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  apiKey: string | null;
+  isPublic: boolean;
+  isPublished: boolean;
+  publishedAt?: string;
+  updatedAt: string;
+  activeFlows?: {
+    id: string;
+    name: string;
+    version: number;
+  }[];
+  _count: {
+    charts: number;
+    collaborators: number;
+  };
 }
 
 interface ProjectStats {
@@ -350,6 +380,18 @@ export default function ProjectPage() {
         throw new Error(data?.error || 'Failed to publish project');
       }
 
+      const data = await response.json();
+      
+      // Update project with new published state
+      if (project && data.project) {
+        setProject({
+          ...project,
+          isPublished: true,
+          publishedAt: data.project.publishedAt,
+          activeFlows: data.project.activeFlows
+        });
+      }
+
       toast.success('Project published successfully');
       router.refresh();
     } catch (error) {
@@ -389,28 +431,69 @@ export default function ProjectPage() {
     }
   };
 
-  const handlePublishFlow = async (settings: Partial<PublishSettings>) => {
-    if (!selectedFlowId) return;
-
+  const handlePublishFlow = async (flowId: string) => {
     try {
-      const response = await fetch(`/api/projects/${project?.id}/flows/${selectedFlowId}/publish`, {
+      const response = await fetch(`/api/projects/${project?.id}/flows/${flowId}/publish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(settings)
       });
-      
+
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data?.error || 'Failed to publish flow');
       }
 
+      const data = await response.json();
+      
+      // Update flows with new version data
+      setFlows(currentFlows => 
+        currentFlows.map(flow => 
+          flow.id === flowId
+            ? {
+                ...flow,
+                isPublished: true,
+                publishedAt: data.flow.publishedAt,
+                version: data.flow.version,
+                versions: [data.flow.version, ...(flow.versions || [])]
+              }
+            : flow
+        )
+      );
+
       toast.success('Flow published successfully');
-      router.refresh();
     } catch (error) {
       console.error('Error publishing flow:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to publish flow');
+    }
+  };
+
+  const handleSetActiveVersion = async (flowId: string, versionId: string) => {
+    try {
+      const response = await fetch(
+        `/api/projects/${project?.id}/flows/${flowId}/versions/${versionId}/activate`,
+        { method: 'POST' }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to set active version');
+      }
+
+      const data = await response.json();
+      
+      // Update flows with new active version
+      setFlows(currentFlows => 
+        currentFlows.map(flow => 
+          flow.id === flowId
+            ? { ...flow, activeVersion: data.version }
+            : flow
+        )
+      );
+
+      toast.success('Active version updated');
+    } catch (error) {
+      toast.error('Failed to update active version');
     }
   };
 
@@ -672,21 +755,81 @@ export default function ProjectPage() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[600px] pr-4">
-                  {/* Example version history - replace with real data */}
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="flex items-center gap-4 py-3 border-b last:border-0">
-                      <Badge variant="outline">v2.{5-i}.0</Badge>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium">Major update with new validation rules</p>
-                        <p className="text-xs text-muted-foreground">
-                          Published on {new Date().toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        View Changes
-                      </Button>
+                  {flows?.some(f => f.versions?.length > 0) ? (
+                    <div className="space-y-8">
+                      {flows.map(flow => flow.versions && flow.versions.length > 0 && (
+                        <div key={flow.id} className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold">{flow.name}</h3>
+                            <Badge variant={flow.isPublished ? "default" : "secondary"}>
+                              {flow.isPublished ? "Published" : "Draft"}
+                            </Badge>
+                          </div>
+                          
+                          {flow.versions.map((version) => (
+                            <div key={version.id} 
+                              className={cn(
+                                "flex items-center gap-4 py-3 border-b last:border-0",
+                                flow.activeVersion?.id === version.id && "bg-muted/50"
+                              )}
+                            >
+                              <Badge variant="outline">v{version.version}</Badge>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">
+                                    {version.name || `Version ${version.version}`}
+                                  </p>
+                                  {flow.activeVersion?.id === version.id && (
+                                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                                  )}
+                                </div>
+                                {version.metadata?.description && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {version.metadata.description}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  Published on {new Date(version.createdAt).toLocaleDateString()} by {version.createdBy.name}
+                                </p>
+                                {version.metadata?.changelog && version.metadata.changelog.length > 0 && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-muted-foreground mb-1">Changes:</p>
+                                    <ul className="text-xs text-muted-foreground list-disc list-inside">
+                                      {version.metadata.changelog.map((change, index) => (
+                                        <li key={index}>{change}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {flow.activeVersion?.id !== version.id && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleSetActiveVersion(flow.id, version.id)}
+                                  >
+                                    Set Active
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="sm">
+                                  View Changes
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                      <GitBranch className="h-8 w-8 text-muted-foreground mb-4" />
+                      <p className="text-lg font-medium">No versions yet</p>
+                      <p className="text-sm text-muted-foreground">
+                        Publish your flows to create versions
+                      </p>
+                    </div>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>

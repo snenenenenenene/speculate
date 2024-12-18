@@ -1,103 +1,192 @@
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PublishSettings } from "@/types";
-import { BookMarked, GitCommit } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { GitBranch, Plus, X } from "lucide-react";
+import { toast } from 'react-hot-toast';
 
 interface PublishDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPublish: (settings: Partial<PublishSettings>) => Promise<void>;
-  currentVersion?: number;
+  projectId: string;
+  flowId: string;
+  currentVersion: number;
+  onPublish: (data: {
+    name?: string;
+    description?: string;
+    changelog?: string[];
+  }) => Promise<void>;
 }
 
 export function PublishDialog({
   open,
   onOpenChange,
+  currentVersion,
   onPublish,
-  currentVersion = 0,
 }: PublishDialogProps) {
-  const [name, setName] = useState("");
-  const [changelog, setChangelog] = useState("");
-  const [publishing, setPublishing] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [versionName, setVersionName] = useState('');
+  const [description, setDescription] = useState('');
+  const [changelog, setChangelog] = useState<string[]>([]);
+  const [newChange, setNewChange] = useState('');
+
+  const handleAddChange = () => {
+    if (newChange.trim()) {
+      console.log('Adding changelog entry:', newChange.trim());
+      setChangelog([...changelog, newChange.trim()]);
+      setNewChange('');
+    }
+  };
+
+  const handleRemoveChange = (index: number) => {
+    console.log('Removing changelog entry at index:', index);
+    setChangelog(changelog.filter((_, i) => i !== index));
+  };
 
   const handlePublish = async () => {
+    console.log('Starting publish process from dialog...', {
+      currentVersion,
+      versionName,
+      description,
+      changelog,
+    });
+
     try {
-      setPublishing(true);
-      await onPublish({
-        version: currentVersion + 1,
-        changelog,
-        name: name || `Version ${currentVersion + 1}`,
-      });
-      toast.success('Flow published successfully');
+      setIsPublishing(true);
+      const publishData = {
+        name: versionName || `Version ${currentVersion + 1}`,
+        description: description || '',
+        changelog: changelog.length > 0 ? changelog : [],
+      };
+      console.log('Publishing with data:', publishData);
+
+      await onPublish(publishData);
+
+      // Reset form
+      setVersionName('');
+      setDescription('');
+      setChangelog([]);
+      setNewChange('');
+      
+      console.log('Publish completed successfully');
       onOpenChange(false);
     } catch (error) {
-      toast.error('Failed to publish flow');
+      console.error('Error in publish dialog:', {
+        error,
+        message: error.message,
+        stack: error.stack
+      });
+      toast.error(error.message || 'Failed to publish flow');
     } finally {
-      setPublishing(false);
+      setIsPublishing(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <GitCommit className="h-5 w-5" />
-            Publish Flow
-          </DialogTitle>
+          <DialogTitle>Publish Flow</DialogTitle>
+          <DialogDescription>
+            Create a new version of your flow. This will make it available in the published API.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Version Name (Optional)</Label>
-            <Input
-              placeholder={`Version ${currentVersion + 1}`}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Changelog</Label>
-            <Textarea
-              placeholder="Describe your changes..."
-              value={changelog}
-              onChange={(e) => setChangelog(e.target.value)}
-              rows={4}
-            />
-          </div>
-
-          <div className="rounded-lg border p-4 bg-muted/50">
-            <div className="flex items-center gap-2">
-              <BookMarked className="h-4 w-4 text-primary" />
-              <span className="font-medium">Publishing will:</span>
+        <div className="grid gap-4 py-4">
+          <div className="flex items-center gap-4">
+            <GitBranch className="h-5 w-5 text-muted-foreground" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-medium">Current Version:</span>
+              <Badge variant="outline">v{currentVersion}</Badge>
             </div>
-            <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-              <li>• Create a new version</li>
-              <li>• Make the flow publicly accessible</li>
-              <li>• Generate a shareable link</li>
-              <li>• Track version history</li>
-            </ul>
           </div>
 
-          <Button
-            className="w-full"
-            onClick={handlePublish}
-            disabled={publishing}
-          >
-            {publishing ? "Publishing..." : "Publish Flow"}
-          </Button>
+          <div className="grid gap-2">
+            <Label htmlFor="version-name">Version Name</Label>
+            <Input
+              id="version-name"
+              placeholder={`Version ${currentVersion + 1}`}
+              value={versionName}
+              onChange={(e) => setVersionName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              placeholder="What's new in this version?"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Changelog</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Add a change..."
+                value={newChange}
+                onChange={(e) => setNewChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddChange();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleAddChange}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {changelog.length > 0 && (
+              <ul className="space-y-2 mt-2">
+                {changelog.map((change, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center gap-2 text-sm bg-muted/50 rounded-md p-2"
+                  >
+                    <span className="flex-1">{change}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => handleRemoveChange(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            onClick={handlePublish}
+            disabled={isPublishing}
+          >
+            {isPublishing ? 'Publishing...' : 'Publish'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
