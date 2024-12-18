@@ -16,146 +16,91 @@ export async function POST(
   req: Request,
   context: { params: { projectId: string; flowId: string } }
 ) {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser;
+
+  if (!user?.id || !user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { projectId, flowId } = context.params;
+  const { versionName, description, content, autoActivate } = await req.json();
+
+  console.log('Publishing flow:', { projectId, flowId, versionName, autoActivate });
+
   try {
-    const params = await Promise.resolve(context.params);
-    const { projectId, flowId } = params;
-    
-    console.log('POST /api/projects/[projectId]/flows/[flowId]/publish - Start', { projectId, flowId });
-    
-    const session = await getServerSession(authOptions);
-    const user = session?.user as SessionUser;
-
-    if (!user?.id || !user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get version metadata and content from request body
-    const body = await req.json();
-    console.log('Request body:', body);
-
-    const { name, description, changelog, content } = body;
-    console.log('Version data:', { name, description, changelog });
-    console.log('Flow content:', content);
-
-    if (!content) {
-      return NextResponse.json({ error: "Flow content is required" }, { status: 400 });
-    }
-
-    // Get flow and check permissions
-    const flow = await prisma.chartInstance.findUnique({
-      where: { id: flowId },
-      include: {
-        project: {
-          include: {
-            collaborators: {
-              where: {
-                userId: user.id,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!flow) {
-      return NextResponse.json({ error: "Flow not found" }, { status: 404 });
-    }
-
-    // Get the latest version number for this flow
+    // Get the latest version number
     const latestVersion = await prisma.version.findFirst({
       where: { flowId },
       orderBy: { version: 'desc' },
-      select: { version: true },
     });
 
     const nextVersion = (latestVersion?.version || 0) + 1;
-    console.log('Next version number:', nextVersion);
-
-    // Check if user has permission to publish
-    const canPublish = flow.userId === user.id || 
-      flow.project?.collaborators.some(c => 
-        ['OWNER', 'ADMIN', 'EDITOR'].includes(c.role)
-      );
-
-    if (!canPublish) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 });
-    }
-
-    // Create metadata object
-    const metadata = {
-      name: name || `Version ${nextVersion}`,
-      description: description || '',
-      changelog: changelog || [],
-      publishedAt: new Date().toISOString(),
-      author: {
-        id: user.id,
-        name: user.name || null,
-      },
-    };
-
-    console.log('Creating version with metadata:', JSON.stringify(metadata, null, 2));
 
     // Create new version
-    const version = await prisma.version.create({
+    const newVersion = await prisma.version.create({
       data: {
-        flowId: flowId,
+        name: versionName || `Version ${nextVersion}`,
+        description,
         version: nextVersion,
-        name: metadata.name,
-        content: content as Prisma.JsonObject,
-        metadata: metadata as Prisma.JsonObject,
-        createdBy: user.id,
-        publishedAt: new Date(),
+        content: typeof content === 'string' ? content : JSON.stringify(content),
+        flowId,
+        userId: user.id,
       },
     });
 
-    console.log('Created version:', version);
+    // If autoActivate is true, set this version as active
+    if (autoActivate) {
+      await prisma.chartInstance.update({
+        where: { id: flowId },
+        data: {
+          content: typeof content === 'string' ? content : JSON.stringify(content),
+          activeVersionId: newVersion.id,
+        },
+      });
 
-    // Update flow publish settings
-    const updatedFlow = await prisma.chartInstance.update({
-      where: { id: flowId },
-      data: {
-        version: nextVersion,
-        isPublished: true,
-        publishedAt: new Date(),
-        content: JSON.stringify(content),
-      },
-    });
+      // Create audit log for activation
+      await prisma.auditLog.create({
+        data: {
+          action: AuditAction.PUBLISHED,
+          entityType: 'FLOW',
+          entityId: flowId,
+          userId: user.id,
+          projectId,
+          metadata: {
+            versionId: newVersion.id,
+            versionNumber: newVersion.version,
+            versionName: newVersion.name,
+          } as Prisma.JsonObject,
+        },
+      });
+    }
 
-    console.log('Updated flow:', updatedFlow);
-
-    // Create audit log
+    // Create audit log for publish
     await prisma.auditLog.create({
       data: {
-        action: 'PUBLISHED' as AuditAction,
+        action: AuditAction.PUBLISHED,
         entityType: 'FLOW',
         entityId: flowId,
         userId: user.id,
-        projectId: flow.projectId,
+        projectId,
         metadata: {
-          version: version.version,
-          name: version.name,
-          description: metadata.description,
-          changelog: metadata.changelog,
+          versionId: newVersion.id,
+          versionNumber: newVersion.version,
+          versionName: newVersion.name,
         } as Prisma.JsonObject,
       },
     });
 
     return NextResponse.json({ 
       success: true,
-      version,
-      flow: updatedFlow,
+      version: newVersion,
+      flow: autoActivate ? await prisma.chartInstance.findUnique({ where: { id: flowId } }) : null,
     });
   } catch (error) {
-    if (error instanceof Error) {
-      console.log('Error publishing flow:', error.message);
-      return NextResponse.json(
-        { error: "Failed to publish flow", details: error.message },
-        { status: 500 }
-      );
-    }
-    console.log('Unknown error publishing flow');
+    console.error('Error publishing flow:', error);
     return NextResponse.json(
-      { error: "Failed to publish flow", details: 'Unknown error' },
+      { error: "Failed to publish flow" },
       { status: 500 }
     );
   }

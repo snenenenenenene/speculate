@@ -65,7 +65,7 @@ export async function POST(
   const updatedFlow = await prisma.chartInstance.update({
     where: { id: flowId },
     data: {
-      content: JSON.stringify(version.content),
+      content: typeof version.content === 'string' ? version.content : JSON.stringify(version.content),
       activeVersionId: versionId,
     },
   });
@@ -73,7 +73,7 @@ export async function POST(
   // Create audit log
   await prisma.auditLog.create({
     data: {
-      action: 'VERSION_ACTIVATED' as AuditAction,
+      action: AuditAction.PUBLISHED,
       entityType: 'FLOW',
       entityId: flowId,
       userId: user.id,
