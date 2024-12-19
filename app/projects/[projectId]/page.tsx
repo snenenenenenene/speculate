@@ -45,7 +45,9 @@ import {
   UserMinus,
   GitCommit,
   Activity,
-  Box
+  Box,
+  ChevronRight,
+  Home
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -149,6 +151,22 @@ interface ProjectStats {
   };
 }
 
+interface SideNavItem {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  badge?: number;
+}
+
+const sideNavItems: SideNavItem[] = [
+  { icon: Home, label: "Overview", value: "overview" },
+  { icon: FileText, label: "Flows", value: "flows", badge: 0 },
+  { icon: Activity, label: "Analytics", value: "analytics" },
+  { icon: History, label: "Activity", value: "activity" },
+  { icon: GitCommitHorizontal, label: "Versions", value: "versions" },
+  { icon: Key, label: "API", value: "api" },
+];
+
 export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
@@ -197,6 +215,8 @@ export default function ProjectPage() {
   });
   const [testResponse, setTestResponse] = useState<string>('');
   const [isTestingApi, setIsTestingApi] = useState(false);
+
+  const [activeSection, setActiveSection] = useState("overview");
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -590,6 +610,13 @@ export default function ProjectPage() {
     setIsSettingsOpen(true);
   };
 
+  // Update side nav badges
+  useEffect(() => {
+    if (flows.length > 0) {
+      sideNavItems[1].badge = flows.length;
+    }
+  }, [flows]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -612,516 +639,557 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold">{project?.name}</h1>
-          <p className="text-muted-foreground">{project?.description}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsCollaboratorsOpen(true)}
-          >
-            <Users2 className="h-4 w-4 mr-2" />
-            Team
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenSettings}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPublishDialogOpen(true)}
-          >
-            <Globe2 className="h-4 w-4 mr-2" />
-            Publish
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            asChild
-          >
-            <Link href={`/q/${project?.id}`} target="_blank">
-              <Play className="h-4 w-4 mr-2" />
-              Preview
-            </Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href={`/projects/${project?.id}/flows`}>
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Open Editor
-            </Link>
-          </Button>
+    <div className="flex h-[calc(100vh-4rem)]">
+      {/* Side Navigation */}
+      <div className="w-64 border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-full flex-col">
+          <div className="space-y-4 py-4">
+            <div className="px-3 py-2">
+              <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+                {project?.name}
+              </h2>
+              <div className="space-y-1">
+                {sideNavItems.map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => setActiveSection(item.value)}
+                    className={cn(
+                      "w-full flex items-center justify-between rounded-md px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      activeSection === item.value
+                        ? "bg-accent text-accent-foreground"
+                        : "transparent"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </div>
+                    {item.badge ? (
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="flows">Flows</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="versions">Versions</TabsTrigger>
-          <TabsTrigger value="api">API</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Overview</CardTitle>
-              <CardDescription>
-                Get a quick overview of your project
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-4 mb-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Flows</CardTitle>
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{project._count?.charts || 0}</div>
-                    {flows?.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">
-                          {flows.filter(f => f.isPublished).length} Published
-                        </Badge>
-                        <Badge variant="outline">
-                          {flows.filter(f => !f.isPublished).length} Drafts
-                        </Badge>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-                    <Users2 className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{project._count?.collaborators || 1}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Active collaborators
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {new Date(project.updatedAt).toLocaleDateString()}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Last modified
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Variables</CardTitle>
-                    <CodeSquare className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{project.variables?.length || 0}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Global project variables
-                    </p>
-                  </CardContent>
-                </Card>
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto">
+        <div className="h-full px-8 py-6">
+          {/* Header Actions */}
+          <div className="mb-8 flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Link href="/projects" className="hover:text-foreground">
+                  Projects
+                </Link>
+                <ChevronRight className="h-4 w-4" />
+                <span className="text-foreground">{project?.name}</span>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="flows" className="space-y-4">
-          <div className="grid gap-4 grid-cols-3">
-            {flows.map((flow) => (
-              <Link 
-                key={flow.id}
-                href={`/projects/${project.id}/flows/${flow.id}`}
-                className="block"
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCollaboratorsOpen(true)}
               >
-                <Card className="hover:shadow-md transition-shadow">
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
-                    <div className="flex items-center gap-2">
-                      {flow.isPublished ? (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {flow.versions?.length || 0} versions
-                          </Badge>
-                          {flow.activeVersionId && (
-                            <Badge variant="secondary" className="text-xs">
-                              v{flow.version} active
-                            </Badge>
-                          )}
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedFlowId(flow.id);
-                            setIsPublishFlowDialogOpen(true);
-                          }}
-                        >
-                          <Globe2 className="h-4 w-4 mr-1" />
-                          Publish
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {flow.description && (
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {flow.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      {flow.isPublished && flow.activeVersionId && (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          <span>Active</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <FileText className="h-4 w-4" />
-                        <span>v{flow.version}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>
-                          Updated {new Date(flow.updatedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                <Users2 className="h-4 w-4 mr-2" />
+                Team
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenSettings}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPublishDialogOpen(true)}
+              >
+                <Globe2 className="h-4 w-4 mr-2" />
+                Publish
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+              >
+                <Link href={`/q/${project?.id}`} target="_blank">
+                  <Play className="h-4 w-4 mr-2" />
+                  Preview
+                </Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link href={`/projects/${project?.id}/flows`}>
+                  <LayoutDashboard className="h-4 w-4 mr-2" />
+                  Open Editor
+                </Link>
+              </Button>
+            </div>
           </div>
-        </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Flow Analytics</CardTitle>
-              <CardDescription>View analytics for all published flows</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FlowAnalytics projectId={params.projectId as string} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>
-                Track all changes and updates to your project
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-4">
-                  {auditLogs.map((log) => {
-                    // Skip duplicate consecutive entries
-                    if (log.id > 0 && 
-                        log.action === auditLogs[log.id - 1].action && 
-                        log.userId === auditLogs[log.id - 1].userId &&
-                        log.flowId === auditLogs[log.id - 1].flowId &&
-                        Math.abs(new Date(log.createdAt).getTime() - new Date(auditLogs[log.id - 1].createdAt).getTime()) < 60000) {
-                      return null;
-                    }
-
-                    return (
-                      <div key={log.id} className="flex items-center gap-4">
-                        <Avatar className="h-8 w-8">
-                          {log.user?.image ? (
-                            <AvatarImage src={log.user.image} alt={log.user.name || ''} />
-                          ) : (
-                            <AvatarFallback>
-                              {log.user?.name?.charAt(0).toUpperCase() || '?'}
-                            </AvatarFallback>
-                          )}
-                        </Avatar>
-                        <div className="flex-1 space-y-1">
-                          <p className="text-sm">
-                            <span className="font-medium">{log.user?.name}</span>{' '}
-                            {log.action === 'published' ? 'published' : 'updated'}{' '}
-                            <span className="font-medium">flow "{log.flow?.name}"</span>
-                          </p>
+          {/* Dynamic Content Based on Active Section */}
+          {activeSection === "overview" && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Overview</CardTitle>
+                  <CardDescription>
+                    Get a quick overview of your project
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-4 mb-4">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Flows</CardTitle>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{project._count?.charts || 0}</div>
+                        {flows?.length > 0 && (
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {log.action}
+                            <Badge variant="secondary">
+                              {flows.filter(f => f.isPublished).length} Published
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
-                            </span>
+                            <Badge variant="outline">
+                              {flows.filter(f => !f.isPublished).length} Drafts
+                            </Badge>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                        )}
+                      </CardContent>
+                    </Card>
 
-        <TabsContent value="versions">
-          <Card>
-            <CardHeader>
-              <CardTitle>Flow Versions</CardTitle>
-              <CardDescription>
-                Manage and track versions of your flows
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {flows.map((flow) => (
-                  <div key={flow.id} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold">{flow.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Current version: v{flow.version}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+                        <Users2 className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{project._count?.collaborators || 1}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Active collaborators
                         </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedFlowId(flow.id);
-                          setIsVersionsDialogOpen(true);
-                        }}
-                      >
-                        <History className="h-4 w-4 mr-2" />
-                        View History
-                      </Button>
-                    </div>
-                    {flow.versions && flow.versions.length > 0 ? (
-                      <div className="space-y-2">
-                        {flow.versions.slice(0, 3).map((version) => (
-                          <div
-                            key={version.id}
-                            className="flex items-center justify-between p-4 border rounded-lg"
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">v{version.version}</span>
-                                {version.name && (
-                                  <Badge variant="outline">{version.name}</Badge>
-                                )}
-                                {flow.activeVersionId === version.id && (
-                                  <Badge variant="secondary">Active</Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                Published {new Date(version.publishedAt || version.createdAt).toLocaleString()}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {flow.activeVersionId !== version.id && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleSetActiveVersion(flow.id, version.id)}
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                                  Set Active
-                                </Button>
-                              )}
-                            </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {new Date(project.updatedAt).toLocaleDateString()}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Last modified
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Variables</CardTitle>
+                        <CodeSquare className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{project.variables?.length || 0}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Global project variables
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeSection === "flows" && (
+            <div className="grid gap-4 grid-cols-3">
+              {flows.map((flow) => (
+                <Link 
+                  key={flow.id}
+                  href={`/projects/${project.id}/flows/${flow.id}`}
+                  className="block"
+                >
+                  <Card className="hover:shadow-md transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">{flow.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        {flow.isPublished ? (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {flow.versions?.length || 0} versions
+                            </Badge>
+                            {flow.activeVersionId && (
+                              <Badge variant="secondary" className="text-xs">
+                                v{flow.version} active
+                              </Badge>
+                            )}
                           </div>
-                        ))}
-                        {flow.versions.length > 3 && (
+                        ) : (
                           <Button
-                            variant="link"
-                            className="text-sm"
-                            onClick={() => {
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               setSelectedFlowId(flow.id);
-                              setIsVersionsDialogOpen(true);
+                              setIsPublishFlowDialogOpen(true);
                             }}
                           >
-                            View all {flow.versions.length} versions
+                            <Globe2 className="h-4 w-4 mr-1" />
+                            Publish
                           </Button>
                         )}
                       </div>
-                    ) : (
-                      <div className="text-center py-6 text-muted-foreground">
-                        No versions published yet
-                      </div>
-                    )}
-                    <Separator />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="api">
-          <div className="grid gap-4 grid-cols-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>API Configuration</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <div className="font-medium">API Key</div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                      {project.apiKey || 'No API key generated'}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        if (project.apiKey) {
-                          navigator.clipboard.writeText(project.apiKey);
-                          toast.success("API key copied to clipboard");
-                        }
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      onClick={handleRegenerateApiKey}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="font-medium">Usage Statistics</div>
-                  {isLoadingUsage ? (
-                    <div className="h-[100px] flex items-center justify-center">
-                      <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4 grid-cols-3">
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">{apiUsageStats?.total || 0}</div>
-                          <p className="text-xs text-muted-foreground">
-                            All time API requests
-                          </p>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">{apiUsageStats?.lastWeek || 0}</div>
-                          <p className="text-xs text-muted-foreground">
-                            Requests in last 7 days
-                          </p>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">{apiUsageStats?.uniqueUsers || 0}</div>
-                          <p className="text-xs text-muted-foreground">
-                            Distinct API consumers
-                          </p>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <div className="font-medium">API Tester</div>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="grid gap-4">
-                        <div className="grid gap-2">
-                          <Label>Test API Endpoint</Label>
-                          <div className="flex gap-2">
-                            <code className="flex items-center rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                              GET /api/v1/{project.id}
-                            </code>
-                            <Button 
-                              onClick={handleTestApi} 
-                              disabled={isTestingApi || !project?.apiKey}
-                              size="sm"
-                            >
-                              {isTestingApi ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Play className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {testResponse && (
-                          <div className="grid gap-2">
-                            <Label>Response</Label>
-                            <ScrollArea className="h-[200px] w-full rounded-md border">
-                              <pre className="p-4 text-sm">
-                                {testResponse}
-                              </pre>
-                            </ScrollArea>
+                    </CardHeader>
+                    <CardContent>
+                      {flow.description && (
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {flow.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        {flow.isPublished && flow.activeVersionId && (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle2 className="h-4 w-4 text-primary" />
+                            <span>Active</span>
                           </div>
                         )}
+                        <div className="flex items-center gap-1">
+                          <FileText className="h-4 w-4" />
+                          <span>v{flow.version}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>
+                            Updated {new Date(flow.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </Link>
+              ))}
+            </div>
+          )}
 
-                <div className="space-y-2">
-                  <div className="font-medium">API Documentation</div>
+          {activeSection === "analytics" && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Flow Analytics</CardTitle>
+                  <CardDescription>View analytics for all published flows</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FlowAnalytics projectId={params.projectId as string} />
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeSection === "activity" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>
+                  Track all changes and updates to your project
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[400px]">
                   <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Base URL</h4>
-                      <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                        /api/v1/{project.id}
-                      </code>
-                    </div>
-                    
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Available Endpoints</h4>
-                      <div className="space-y-4">
+                    {auditLogs.map((log) => {
+                      // Skip duplicate consecutive entries
+                      if (log.id > 0 && 
+                          log.action === auditLogs[log.id - 1].action && 
+                          log.userId === auditLogs[log.id - 1].userId &&
+                          log.flowId === auditLogs[log.id - 1].flowId &&
+                          Math.abs(new Date(log.createdAt).getTime() - new Date(auditLogs[log.id - 1].createdAt).getTime()) < 60000) {
+                        return null;
+                      }
+
+                      return (
+                        <div key={log.id} className="flex items-center gap-4">
+                          <Avatar className="h-8 w-8">
+                            {log.user?.image ? (
+                              <AvatarImage src={log.user.image} alt={log.user.name || ''} />
+                            ) : (
+                              <AvatarFallback>
+                                {log.user?.name?.charAt(0).toUpperCase() || '?'}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          <div className="flex-1 space-y-1">
+                            <p className="text-sm">
+                              <span className="font-medium">{log.user?.name}</span>{' '}
+                              {log.action === 'published' ? 'published' : 'updated'}{' '}
+                              <span className="font-medium">flow "{log.flow?.name}"</span>
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-xs">
+                                {log.action}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "versions" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Flow Versions</CardTitle>
+                <CardDescription>
+                  Manage and track versions of your flows
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {flows.map((flow) => (
+                    <div key={flow.id} className="space-y-4">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                            GET /api/v1/{project.id}
-                          </code>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Get project data including all flows
+                          <h3 className="text-lg font-semibold">{flow.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Current version: v{flow.version}
                           </p>
-                          <div className="mt-2">
-                            <p className="text-sm font-medium">Example Response:</p>
-                            <pre className="mt-1 p-2 rounded bg-muted text-xs font-mono overflow-x-auto">
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedFlowId(flow.id);
+                            setIsVersionsDialogOpen(true);
+                          }}
+                        >
+                          <History className="h-4 w-4 mr-2" />
+                          View History
+                        </Button>
+                      </div>
+                      {flow.versions && flow.versions.length > 0 ? (
+                        <div className="space-y-2">
+                          {flow.versions.slice(0, 3).map((version) => (
+                            <div
+                              key={version.id}
+                              className="flex items-center justify-between p-4 border rounded-lg"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">v{version.version}</span>
+                                  {version.name && (
+                                    <Badge variant="outline">{version.name}</Badge>
+                                  )}
+                                  {flow.activeVersionId === version.id && (
+                                    <Badge variant="secondary">Active</Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  Published {new Date(version.publishedAt || version.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {flow.activeVersionId !== version.id && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSetActiveVersion(flow.id, version.id)}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                    Set Active
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {flow.versions.length > 3 && (
+                            <Button
+                              variant="link"
+                              className="text-sm"
+                              onClick={() => {
+                                setSelectedFlowId(flow.id);
+                                setIsVersionsDialogOpen(true);
+                              }}
+                            >
+                              View all {flow.versions.length} versions
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          No versions published yet
+                        </div>
+                      )}
+                      <Separator />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "api" && (
+            <div className="grid gap-4 grid-cols-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="font-medium">API Key</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                        {project.apiKey || 'No API key generated'}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          if (project.apiKey) {
+                            navigator.clipboard.writeText(project.apiKey);
+                            toast.success("API key copied to clipboard");
+                          }
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        onClick={handleRegenerateApiKey}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">Usage Statistics</div>
+                    {isLoadingUsage ? (
+                      <div className="h-[100px] flex items-center justify-center">
+                        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 grid-cols-3">
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{apiUsageStats?.total || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                              All time API requests
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{apiUsageStats?.lastWeek || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                              Requests in last 7 days
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{apiUsageStats?.uniqueUsers || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                              Distinct API consumers
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">API Tester</div>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="grid gap-4">
+                          <div className="grid gap-2">
+                            <Label>Test API Endpoint</Label>
+                            <div className="flex gap-2">
+                              <code className="flex items-center rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                                GET /api/v1/{project.id}
+                              </code>
+                              <Button 
+                                onClick={handleTestApi} 
+                                disabled={isTestingApi || !project?.apiKey}
+                                size="sm"
+                              >
+                                {isTestingApi ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {testResponse && (
+                            <div className="grid gap-2">
+                              <Label>Response</Label>
+                              <ScrollArea className="h-[200px] w-full rounded-md border">
+                                <pre className="p-4 text-sm">
+                                  {testResponse}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">API Documentation</div>
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Base URL</h4>
+                        <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                          /api/v1/{project.id}
+                        </code>
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Available Endpoints</h4>
+                        <div className="space-y-4">
+                          <div>
+                            <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                              GET /api/v1/{project.id}
+                            </code>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Get project data including all flows
+                            </p>
+                            <div className="mt-2">
+                              <p className="text-sm font-medium">Example Response:</p>
+                              <pre className="mt-1 p-2 rounded bg-muted text-xs font-mono overflow-x-auto">
 {`{
   "project": {
     "id": "project-id",
@@ -1157,75 +1225,76 @@ export default function ProjectPage() {
     ]
   }
 }`}
-                            </pre>
+                              </pre>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Authentication</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Include your API key in the request headers:
-                      </p>
-                      <code className="block relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                        Authorization: Bearer {project.apiKey || 'your-api-key'}
-                      </code>
-                    </div>
-
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Rate Limits</h4>
-                      <p className="text-sm text-muted-foreground">
-                        • 1,000 requests per hour<br />
-                        • 10,000 requests per day<br />
-                        • Maximum payload size: 5MB
-                      </p>
-                    </div>
-
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/docs/api" target="_blank">
-                        View Full Documentation
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="font-medium">Recent Activity</div>
-                  <Card>
-                    <ScrollArea className="h-[300px]">
-                      <div className="p-4 space-y-4">
-                        {accessLogs.map((log) => (
-                          <div key={log.id} className="flex items-start gap-4 border-b last:border-0 pb-4">
-                            <div className="flex-shrink-0">
-                              <Globe2 className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 space-y-1">
-                              <p className="text-sm">
-                                {log.user ? (
-                                  <span className="font-medium">{log.user.name}</span>
-                                ) : (
-                                  <span className="font-medium">{log.ipAddress}</span>
-                                )}
-                                <span className="text-muted-foreground"> • {new Date(log.accessedAt).toLocaleString()}</span>
-                              </p>
-                              {log.userAgent && (
-                                <p className="text-xs text-muted-foreground">
-                                  {log.userAgent}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Authentication</h4>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Include your API key in the request headers:
+                        </p>
+                        <code className="block relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                          Authorization: Bearer {project.apiKey || 'your-api-key'}
+                        </code>
                       </div>
-                    </ScrollArea>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Rate Limits</h4>
+                        <p className="text-sm text-muted-foreground">
+                          • 1,000 requests per hour<br />
+                          • 10,000 requests per day<br />
+                          • Maximum payload size: 5MB
+                        </p>
+                      </div>
+
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/docs/api" target="_blank">
+                          View Full Documentation
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-medium">Recent Activity</div>
+                    <Card>
+                      <ScrollArea className="h-[300px]">
+                        <div className="p-4 space-y-4">
+                          {accessLogs.map((log) => (
+                            <div key={log.id} className="flex items-start gap-4 border-b last:border-0 pb-4">
+                              <div className="flex-shrink-0">
+                                <Globe2 className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <p className="text-sm">
+                                  {log.user ? (
+                                    <span className="font-medium">{log.user.name}</span>
+                                  ) : (
+                                    <span className="font-medium">{log.ipAddress}</span>
+                                  )}
+                                  <span className="text-muted-foreground"> • {new Date(log.accessedAt).toLocaleString()}</span>
+                                </p>
+                                {log.userAgent && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {log.userAgent}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      </div>
 
       <CollaboratorsModal
         projectId={project?.id}
