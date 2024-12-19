@@ -1,16 +1,6 @@
 "use client";
 
 import CollaboratorsModal from "@/components/projects/CollaboratorsModal";
-// import {
-//   AlertDialog,
-//   AlertDialogAction,
-//   AlertDialogCancel,
-//   AlertDialogContent,
-//   AlertDialogDescription,
-//   AlertDialogFooter,
-//   AlertDialogHeader,
-//   AlertDialogTitle,
-// } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -67,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { ProjectVersionsDialog } from "@/components/projects/ProjectVersionsDialog";
 import SettingsModal from "@/components/projects/SettingsModal";
 import { FlowAnalytics } from '@/components/flow/FlowAnalytics';
+import { formatDistanceToNow } from "date-fns";
 
 interface ShareSettings {
   isPublic: boolean;
@@ -179,17 +170,12 @@ export default function ProjectPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string>("");
-  const [isSharing, setIsSharing] = useState(false);
-  const [shareSettings, setShareSettings] = useState<ShareSettings>({
-    isPublic: false,
-    requiresSignin: true,
-    allowedDomains: [],
-    allowComments: false,
-    accessLevel: 'view'
-  });
+  const [isPublishFlowDialogOpen, setIsPublishFlowDialogOpen] = useState(false);
+  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
+  const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
 
   // Settings Modal States
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -211,11 +197,6 @@ export default function ProjectPage() {
   });
   const [testResponse, setTestResponse] = useState<string>('');
   const [isTestingApi, setIsTestingApi] = useState(false);
-  const [isPublishFlowDialogOpen, setIsPublishFlowDialogOpen] = useState(false);
-  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
-  const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -345,54 +326,6 @@ export default function ProjectPage() {
     }
   }, [project?.id]);
 
-  const handleShare = async () => {
-    try {
-      setIsSharing(true);
-
-      const response = await fetch(`/api/projects/${project?.id}/share`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(shareSettings),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to share project');
-      }
-
-      const data = await response.json();
-      setShareUrl(data.shareUrl);
-      toast.success('Project shared successfully');
-    } catch (error) {
-      toast.error('Failed to share project');
-      console.error('Error sharing project:', error);
-    } finally {
-      setIsSharing(false);
-    }
-  };
-
-  const handleSaveSettings = async () => {
-    try {
-      setIsSaving(true);
-      const response = await fetch(`/api/projects/${params.projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) throw new Error("Failed to update project");
-
-      toast.success("Project settings updated");
-      setIsSettingsOpen(false);
-      router.refresh();
-    } catch (error) {
-      toast.error("Failed to update project");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleRegenerateApiKey = async () => {
     try {
       const response = await fetch(`/api/projects/${project?.id}/apiKey`, {
@@ -402,9 +335,11 @@ export default function ProjectPage() {
       if (!response.ok) throw new Error("Failed to regenerate API key");
 
       const data = await response.json();
+      setProject(prev => prev ? { ...prev, apiKey: data.apiKey } : null);
       toast.success("API key regenerated");
       router.refresh();
     } catch (error) {
+      console.error('Error regenerating API key:', error);
       toast.error("Failed to regenerate API key");
     }
   };
@@ -421,6 +356,7 @@ export default function ProjectPage() {
       toast.success("Project deleted");
       router.push("/projects");
     } catch (error) {
+      console.error('Error deleting project:', error);
       toast.error("Failed to delete project");
     } finally {
       setIsDeleting(false);
@@ -702,14 +638,6 @@ export default function ProjectPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsShareDialogOpen(true)}
-          >
-            <Share2 className="h-4 w-4 mr-2" />
-            Share
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
             onClick={() => setIsPublishDialogOpen(true)}
           >
             <Globe2 className="h-4 w-4 mr-2" />
@@ -742,7 +670,6 @@ export default function ProjectPage() {
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="versions">Versions</TabsTrigger>
           <TabsTrigger value="api">API</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -898,25 +825,7 @@ export default function ProjectPage() {
               <CardDescription>View analytics for all published flows</CardDescription>
             </CardHeader>
             <CardContent>
-              {flows.filter(flow => flow.isPublished).map(flow => (
-                <div key={flow.id} className="space-y-6">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold">{flow.name}</h3>
-                    <Badge variant="outline">v{flow.version}</Badge>
-                  </div>
-                  <FlowAnalytics
-                    projectId={params.projectId as string}
-                    flowId={flow.id}
-                    version={flow.version}
-                  />
-                  <Separator className="my-6" />
-                </div>
-              ))}
-              {flows.filter(flow => flow.isPublished).length === 0 && (
-                <div className="text-center py-6 text-muted-foreground">
-                  No published flows to show analytics for
-                </div>
-              )}
+              <FlowAnalytics projectId={params.projectId as string} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -930,79 +839,48 @@ export default function ProjectPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[600px] pr-4">
-                {isLoadingActivity ? (
-                  <div className="flex items-center justify-center h-40">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : auditLogs.length > 0 ? (
-                  <div className="space-y-4">
-                    {auditLogs.map((log) => (
-                      <div key={log.id} className="flex items-start gap-4">
-                        <div className="mt-1">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={log.user.image} />
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-4">
+                  {auditLogs.map((log) => {
+                    // Skip duplicate consecutive entries
+                    if (log.id > 0 && 
+                        log.action === auditLogs[log.id - 1].action && 
+                        log.userId === auditLogs[log.id - 1].userId &&
+                        log.flowId === auditLogs[log.id - 1].flowId &&
+                        Math.abs(new Date(log.createdAt).getTime() - new Date(auditLogs[log.id - 1].createdAt).getTime()) < 60000) {
+                      return null;
+                    }
+
+                    return (
+                      <div key={log.id} className="flex items-center gap-4">
+                        <Avatar className="h-8 w-8">
+                          {log.user?.image ? (
+                            <AvatarImage src={log.user.image} alt={log.user.name || ''} />
+                          ) : (
                             <AvatarFallback>
-                              {log.user.name?.charAt(0) || log.user.email?.charAt(0)}
+                              {log.user?.name?.charAt(0).toUpperCase() || '?'}
                             </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm">
-                              <span className="font-medium">{log.user.name}</span>
-                              {' '}
-                              {getActivityDescription(log)}
-                            </p>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <span>•</span>
-                              <HoverCard>
-                                <HoverCardTrigger>
-                                  <time className="cursor-help">
-                                    {new Date(log.createdAt).toLocaleDateString()}
-                                  </time>
-                                </HoverCardTrigger>
-                                <HoverCardContent side="top" className="w-auto">
-                                  {new Date(log.createdAt).toLocaleString()}
-                                </HoverCardContent>
-                              </HoverCard>
-                            </div>
-                          </div>
-                          {log.metadata?.description && (
-                            <p className="text-sm text-muted-foreground">
-                              {log.metadata.description}
-                            </p>
                           )}
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm">
+                            <span className="font-medium">{log.user?.name}</span>{' '}
+                            {log.action === 'published' ? 'published' : 'updated'}{' '}
+                            <span className="font-medium">flow "{log.flow?.name}"</span>
+                          </p>
                           <div className="flex items-center gap-2">
-                            <Badge 
-                              variant="outline" 
-                              className="text-xs"
-                            >
-                              <div className="flex items-center gap-1">
-                                {getActivityIcon(log.action)}
-                                <span>{log.action.toLowerCase()}</span>
-                              </div>
+                            <Badge variant="secondary" className="text-xs">
+                              {log.action}
                             </Badge>
-                            <Badge 
-                              variant="secondary" 
-                              className="text-xs"
-                            >
-                              {log.entityType.toLowerCase()}
-                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+                            </span>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-40 text-center">
-                    <Activity className="h-8 w-8 text-muted-foreground mb-4" />
-                    <p className="text-lg font-medium">No activity yet</p>
-                    <p className="text-sm text-muted-foreground">
-                      Actions and changes will be shown here
-                    </p>
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1347,27 +1225,6 @@ export default function ProjectPage() {
             </Card>
           </div>
         </TabsContent>
-
-        <TabsContent value="settings">
-          <SettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-            projectId={params.projectId as string}
-            initialData={project ? {
-              name: project.name,
-              color: project.color || "#18181b",
-              onePageMode: project.onePageMode || false,
-              variables: [],
-              globalVariables: project.variables as Variable[],
-              mainStartFlowId: project.mainStartFlowId || null,
-              flows: flows.map(flow => ({
-                id: flow.id,
-                name: flow.name,
-                content: flow.content
-              }))
-            } : null}
-          />
-        </TabsContent>
       </Tabs>
 
       <CollaboratorsModal
@@ -1375,91 +1232,6 @@ export default function ProjectPage() {
         isOpen={isCollaboratorsOpen}
         onClose={() => setIsCollaboratorsOpen(false)}
       />
-
-      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Share Project</DialogTitle>
-            <DialogDescription>
-              Configure how you want to share this project
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <Label>Public access</Label>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Anyone with the link can view
-                </p>
-              </div>
-              <Switch
-                checked={shareSettings.isPublic}
-                onCheckedChange={(checked) =>
-                  setShareSettings(prev => ({ ...prev, isPublic: checked }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Access Level</Label>
-              <Select
-                value={shareSettings.accessLevel}
-                onValueChange={(value: 'view' | 'edit' | 'comment') =>
-                  setShareSettings(prev => ({ ...prev, accessLevel: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="view">View only</SelectItem>
-                  <SelectItem value="comment">Can comment</SelectItem>
-                  <SelectItem value="edit">Can edit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {shareUrl ? (
-              <div className="space-y-2">
-                <Label>Share URL</Label>
-                <div className="flex gap-2">
-                  <Input value={shareUrl} readOnly />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(shareUrl);
-                      toast.success("Share link copied to clipboard");
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                onClick={handleShare}
-                className="w-full"
-                disabled={isSharing}
-              >
-                {isSharing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Link...
-                  </>
-                ) : (
-                  <>
-                    Share Project
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ProjectPublishDialog
         open={isPublishDialogOpen}
@@ -1502,6 +1274,25 @@ export default function ProjectPage() {
         onOpenChange={setIsVersionsDialogOpen}
         flows={flows}
         onActivateVersion={handleSetActiveVersion}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        projectId={params.projectId as string}
+        initialData={project ? {
+          name: project.name,
+          color: project.color || "#18181b",
+          onePageMode: project.onePageMode || false,
+          variables: [],
+          globalVariables: project.variables as Variable[],
+          mainStartFlowId: project.mainStartFlowId || null,
+          flows: flows.map(flow => ({
+            id: flow.id,
+            name: flow.name,
+            content: flow.content
+          }))
+        } : null}
       />
     </div>
   );

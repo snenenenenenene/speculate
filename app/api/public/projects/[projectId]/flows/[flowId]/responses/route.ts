@@ -6,8 +6,10 @@ import { nanoid } from 'nanoid';
 
 export async function POST(
   request: Request,
-  { params }: { params: { projectId: string; flowId: string } }
+  context: { params: { projectId: string; flowId: string } }
 ) {
+  const { projectId, flowId } = context.params;
+
   try {
     const session = await getServerSession(authOptions);
     const { responses, path, weights, metadata } = await request.json();
@@ -15,8 +17,8 @@ export async function POST(
     // Get the flow to verify it exists and get its version
     const flow = await prisma.chartInstance.findUnique({
       where: {
-        id: params.flowId,
-        projectId: params.projectId,
+        id: flowId,
+        projectId,
         isPublished: true,
       },
       select: {
@@ -68,8 +70,10 @@ export async function POST(
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectId: string; flowId: string } }
+  context: { params: { projectId: string; flowId: string } }
 ) {
+  const { projectId, flowId } = context.params;
+
   try {
     const session = await getServerSession(authOptions);
     const searchParams = new URL(request.url).searchParams;
@@ -78,7 +82,7 @@ export async function GET(
     // Check if user has access to the project
     const project = await prisma.project.findFirst({
       where: {
-        id: params.projectId,
+        id: projectId,
         OR: [
           { userId: session?.user?.id },
           {
@@ -102,8 +106,8 @@ export async function GET(
     // Get responses with optional version filter
     const responses = await prisma.questionnaireResponse.findMany({
       where: {
-        flowId: params.flowId,
-        ...(version ? { version: parseInt(version) } : {}),
+        flowId,
+        ...(version && !isNaN(parseInt(version)) ? { version: parseInt(version) } : {}),
       },
       orderBy: {
         startedAt: 'desc',
@@ -114,14 +118,14 @@ export async function GET(
     // Get analytics
     const analytics = await prisma.questionnaireAnalytics.findFirst({
       where: {
-        flowId: params.flowId,
-        ...(version ? { version: parseInt(version) } : {}),
+        flowId,
+        ...(version && !isNaN(parseInt(version)) ? { version: parseInt(version) } : {}),
       },
     });
 
     return NextResponse.json({
-      responses,
-      analytics,
+      responses: responses || [],
+      analytics: analytics || null,
     });
   } catch (error) {
     console.error('Error fetching responses:', error);
@@ -181,9 +185,11 @@ async function updateAnalytics(flowId: string, version: number, data: any) {
         nodeStats[nodeId] = { views: 0, selections: {}, dropouts: 0 };
       }
       nodeStats[nodeId].views++;
-      response.optionIds?.forEach((optionId: string) => {
-        nodeStats[nodeId].selections[optionId] = (nodeStats[nodeId].selections[optionId] || 0) + 1;
-      });
+      if (Array.isArray(response?.optionIds)) {
+        response.optionIds.forEach((optionId: string) => {
+          nodeStats[nodeId].selections[optionId] = (nodeStats[nodeId].selections[optionId] || 0) + 1;
+        });
+      }
     });
 
     // Update path stats
@@ -193,7 +199,7 @@ async function updateAnalytics(flowId: string, version: number, data: any) {
 
     // Update weight stats
     const weightStats = { ...analytics.weightStats as any };
-    Object.entries(weights).forEach(([key, value]: [string, any]) => {
+    Object.entries(weights || {}).forEach(([key, value]: [string, any]) => {
       const range = Math.floor(Number(value) / 10) * 10;
       const rangeKey = `${range}-${range + 9}`;
       weightStats[rangeKey] = (weightStats[rangeKey] || 0) + 1;
