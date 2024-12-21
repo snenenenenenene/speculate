@@ -359,7 +359,7 @@ export default function OrganizationSettingsPage({ params }: { params: { organiz
                 <Select
                   value={formData.type}
                   onValueChange={(value: "BUSINESS" | "SCHOOL" | "NONPROFIT") =>
-                    setFormData({ ...formData, type: value })
+                    setFormData({ ...formData, type: value as any })
                   }
                   disabled={!canManageOrganization}
                 >
@@ -389,7 +389,7 @@ export default function OrganizationSettingsPage({ params }: { params: { organiz
                 </Select>
               </div>
 
-              {formData.type === "SCHOOL" && (
+              {(formData as any).type === "SCHOOL" && (
                 <div className="space-y-2">
                   <Label htmlFor="domain">School Domain</Label>
                   <Input

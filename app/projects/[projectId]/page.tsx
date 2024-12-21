@@ -5,27 +5,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ProjectPublishDialog } from "@/components/projects/ProjectPublishDialog";
 import {
-  FileJson,
   GitBranch,
   GitCommitHorizontal,
   Globe2,
   History,
   Key,
-  LayoutDashboard,
-  List,
-  Settings,
+  LayoutDashboard, Settings,
   Users2,
   Variable,
   Copy,
@@ -51,7 +42,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { APITestRequest, APIUsageStats, APILog, AccessLog } from "@/types/api";
 import { PublishDialog } from "@/components/flow/PublishDialog";
@@ -169,8 +160,8 @@ const sideNavItems: SideNavItem[] = [
 
 export default function ProjectPage() {
   const router = useRouter();
-  const params = useParams();
-  const [project, setProject] = useState<Project | null>(null);
+  const params : any= useParams();
+  const [project, setProject] = useState<Project | any>(null);
   const [owner, setOwner] = useState<{ name: string; email: string; image: string; } | null>(null);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [stats, setStats] = useState<ProjectStats>({
@@ -204,7 +195,7 @@ export default function ProjectPage() {
     description: "",
   });
 
-  const [apiUsageStats, setApiUsageStats] = useState<APIUsageStats | null>(null);
+  const [apiUsageStats, setApiUsageStats] = useState<APIUsageStats | any>(null);
   const [apiLogs, setApiLogs] = useState<APILog[]>([]);
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
@@ -1263,7 +1254,7 @@ export default function ProjectPage() {
                     <Card>
                       <ScrollArea className="h-[300px]">
                         <div className="p-4 space-y-4">
-                          {accessLogs.map((log) => (
+                          {accessLogs.map((log: any) => (
                             <div key={log.id} className="flex items-start gap-4 border-b last:border-0 pb-4">
                               <div className="flex-shrink-0">
                                 <Globe2 className="h-5 w-5 text-muted-foreground" />
@@ -1306,9 +1297,10 @@ export default function ProjectPage() {
         open={isPublishDialogOpen}
         onOpenChange={setIsPublishDialogOpen}
         onPublish={handlePublish}
-        currentVersion={project?.version || 0}
+        // @ts-ignore
+        currentVersion={project?.version  || 0}
       />
-
+      {/* @ts-ignore */}
       <PublishDialog
         open={isPublishFlowDialogOpen}
         onOpenChange={setIsPublishFlowDialogOpen}
@@ -1354,7 +1346,7 @@ export default function ProjectPage() {
           color: project.color || "#18181b",
           onePageMode: project.onePageMode || false,
           variables: [],
-          globalVariables: project.variables as Variable[],
+          globalVariables: project.variables as any[],
           mainStartFlowId: project.mainStartFlowId || null,
           flows: flows.map(flow => ({
             id: flow.id,
