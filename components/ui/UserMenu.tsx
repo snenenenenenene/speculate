@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { CreditCard, LayoutDashboard, LogOut, Settings, User } from "lucide-react";
+import { Coins, CreditCard, LayoutDashboard, LogOut, Settings, User } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -12,12 +12,13 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCredits } from "@/hooks/use-credits";
 
 export function UserMenu() {
 	const { data: session } = useSession();
+	const { credits } = useCredits();
 
-export function UserMenu({ user }: UserMenuProps) {
-	const [isOpen, setIsOpen] = useState(false);
+	if (!session?.user) return null;
 
 	return (
 		<DropdownMenu>
@@ -51,6 +52,17 @@ export function UserMenu({ user }: UserMenuProps) {
 					<Link href="/projects" className="flex items-center gap-2 cursor-pointer">
 						<LayoutDashboard className="w-4 h-4" />
 						<span>Dashboard</span>
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link href="/credits" className="flex items-center gap-2 cursor-pointer">
+						<Coins className="w-4 h-4" />
+						<div className="flex justify-between items-center w-full">
+							<span>Credits</span>
+							<span className="text-xs font-medium bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full">
+								{credits}
+							</span>
+						</div>
 					</Link>
 				</DropdownMenuItem>
 				<DropdownMenuItem asChild>

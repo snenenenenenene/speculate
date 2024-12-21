@@ -1,4 +1,5 @@
 import { loadStripe, Stripe } from "@stripe/stripe-js";
+
 export function formatAmountForDisplay(
   amount: number,
   currency: string
@@ -39,30 +40,40 @@ export const formatter = new Intl.NumberFormat("be-NL", {
 });
 
 let stripePromise: Promise<Stripe | null>;
-const getStripe = () => {
+
+export const getStripe = () => {
   if (!stripePromise) {
     stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
   }
   return stripePromise;
 };
 
-export default getStripe;
-
 export function formatAmountForStripe(
   amount: number,
   currency: string
 ): number {
-  const numberFormat = new Intl.NumberFormat(["be-NL"], {
-    style: "currency",
-    currency: currency,
-    currencyDisplay: "symbol",
-  });
-  const parts = numberFormat.formatToParts(amount);
-  let zeroDecimalCurrency: boolean = true;
-  for (const part of parts) {
-    if (part.type === "decimal") {
-      zeroDecimalCurrency = false;
-    }
-  }
-  return zeroDecimalCurrency ? amount : Math.round(amount * 100);
+  const currencies = {
+    USD: 100, // 1 USD = 100 cents
+    EUR: 100,
+    GBP: 100,
+    JPY: 1, // Japanese Yen doesn't use cents
+  };
+
+  const multiplier = currencies[currency.toUpperCase() as keyof typeof currencies] || 100;
+  return Math.round(amount * multiplier);
+}
+
+export function formatAmountFromStripe(
+  amount: number,
+  currency: string
+): number {
+  const currencies = {
+    USD: 100,
+    EUR: 100,
+    GBP: 100,
+    JPY: 1,
+  };
+
+  const divider = currencies[currency.toUpperCase() as keyof typeof currencies] || 100;
+  return amount / divider;
 }

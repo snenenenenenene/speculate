@@ -11,6 +11,8 @@ Speculate is a powerful, visual flow-based questionnaire builder that allows use
 - Real-time preview of questionnaire flow
 - Dark mode support for better visibility
 - Customizable node styling and themes
+- Auto-save functionality
+- Keyboard shortcuts (Ctrl/Cmd + S)
 
 ### Node Types
 1. **Start Node**
@@ -53,20 +55,22 @@ Speculate is a powerful, visual flow-based questionnaire builder that allows use
 - Flow versioning system
 - Publishing and activation controls
 - Activity logging and audit trails
+- Flow color coding
+- One-page mode option
 
 ### Collaboration Features
-- Team-based access control
+- Team-based access control (in progress)
 - Version history tracking
-- Shared project spaces
+- Shared project spaces (planned)
 
-## MVP Requirements
+## Implementation Status
 
-### Essential Features for Launch
+### Completed Features
 
 1. **Authentication & Authorization**
    - [x] User registration and login
    - [x] Basic role management
-   - [ ] Password reset functionality
+   - [x] Password reset functionality
 
 2. **Project Management**
    - [x] Create/edit/delete projects
@@ -74,29 +78,40 @@ Speculate is a powerful, visual flow-based questionnaire builder that allows use
    - [x] Basic project settings
    - [x] Flow versioning
    - [x] Publishing system
+   - [x] Flow color coding
+   - [x] One-page mode
 
 3. **Flow Editor**
-   - [x] Basic node types (Start, End, Yes/No, Single Choice)
+   - [x] All basic node types implemented
    - [x] Node connections and routing
    - [x] Visual editor interface
    - [x] Dark mode support
-   - [ ] Undo/redo functionality
-   - [ ] Copy/paste nodes
+   - [x] Auto-save functionality
+   - [x] Keyboard shortcuts
+   - [x] Import/export capabilities
 
 4. **Node Features**
    - [x] Rich text editing
    - [x] Image support
    - [x] Basic styling options
-   - [ ] Input validation
-   - [ ] Error handling
+   - [x] Input validation
+   - [x] Error handling
 
-5. **Flow Execution**
+5. **Data Management**
+   - [x] Variable system (local and global)
+   - [x] Flow content persistence
+   - [x] State management
+   - [x] API integration
+
+### In Progress Features
+
+1. **Flow Execution**
    - [ ] Public flow URLs
    - [ ] Response collection
    - [ ] Basic analytics
    - [ ] Export functionality
 
-6. **API Integration**
+2. **API Integration**
    - [ ] REST API documentation
    - [ ] API authentication
    - [ ] Rate limiting
@@ -130,7 +145,7 @@ Speculate is a powerful, visual flow-based questionnaire builder that allows use
 
 ## Technical Stack
 
-- **Frontend**: Next.js, React Flow, TailwindCSS, shadcn/ui
+- **Frontend**: Next.js 13+, React Flow, TailwindCSS, shadcn/ui
 - **Backend**: Next.js API routes
 - **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: NextAuth.js
@@ -143,10 +158,10 @@ Speculate is a powerful, visual flow-based questionnaire builder that allows use
 2. Implement response collection system
 3. Add basic analytics dashboard
 4. Create public flow viewer
-5. Improve error handling and validation
-6. Add undo/redo functionality
-7. Implement copy/paste for nodes
-8. Create API documentation
+5. Improve API documentation
+6. Implement team collaboration features
+7. Develop advanced flow templates
+8. Add custom styling options
 
 ## Long-term Vision
 
@@ -159,4 +174,4 @@ Speculate aims to become the go-to platform for creating interactive, branching 
 5. Enterprise features
 6. White-labeling options
 7. Advanced collaboration tools
-8. Custom branding options 
+8. Custom branding options

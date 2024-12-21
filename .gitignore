@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/prisma/migrations/*
 /out/
 
 # production

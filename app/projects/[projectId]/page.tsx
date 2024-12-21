@@ -1,6 +1,6 @@
 "use client";
 
-import CollaboratorsModal from "@/components/projects/CollaboratorsModal";
+import CollaboratorsModal from "@/components/projects/collaborators-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1297,7 +1297,7 @@ export default function ProjectPage() {
       </div>
 
       <CollaboratorsModal
-        projectId={project?.id}
+        projectId={project.id}
         isOpen={isCollaboratorsOpen}
         onClose={() => setIsCollaboratorsOpen(false)}
       />

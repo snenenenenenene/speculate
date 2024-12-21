@@ -46,6 +46,7 @@ model User {
   email         String?         @unique
   emailVerified DateTime?
   image         String?
+  stripeCustomerId String?      @unique
   
   accounts      Account[]
   sessions      Session[]
@@ -59,6 +60,10 @@ model User {
   shareAccess   ProjectShareAccess[] // Access to shared projects
   sharedProjects ProjectShare[] // Projects shared by user
   questionnaireResponses QuestionnaireResponse[]
+  subscriptions Subscription[]  // User's subscriptions
+  organizationMember OrganizationMember[]
+  verifiedOrganizations OrganizationVerification[] @relation("verifier")
+  creditUsages CreditUsage[] @relation("userCredits")
 
   @@index([email])
   @@index([role])
@@ -99,9 +104,12 @@ model Project {
   auditLogs   AuditLog[]
   domains     AllowedDomain[]
   shares      ProjectShare[]  // Active shares of this project
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id])
 
   @@index([userId])
   @@index([mainStartFlowId])
+  @@index([organizationId])
 }
 
 model ProjectShare {
@@ -227,6 +235,7 @@ model ChartInstance {
   activeVersionId String?
   responses   QuestionnaireResponse[]
   analytics   QuestionnaireAnalytics[]
+  creditUsage CreditUsage[]
 
   @@index([userId])
   @@index([projectId])
@@ -371,4 +380,100 @@ model QuestionnaireAnalytics {
 
   @@unique([flowId, version])
   @@index([flowId])
+}
+
+model Subscription {
+  id                  String   @id @default(cuid())
+  stripeSubscriptionId String  @unique
+  stripePriceId       String
+  status              String   // active, past_due, canceled, etc.
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  cancelAtPeriodEnd   Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  organizationId  String?      @unique
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([organizationId])
+}
+
+enum OrganizationType {
+  BUSINESS
+  SCHOOL
+  NONPROFIT
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Organization {
+  id              String            @id @default(cuid())
+  name            String
+  type            OrganizationType  @default(BUSINESS)
+  credits         Int               @default(0)
+  stripeCustomerId String?         @unique
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  members         OrganizationMember[]
+  creditUsage     CreditUsage[]
+  projects        Project[]
+  subscription    Subscription?
+  domain          String?           // For automatic school email verification
+  verified        Boolean           @default(false)
+  verifications   OrganizationVerification[]
+}
+
+model OrganizationMember {
+  id              String           @id @default(cuid())
+  organizationId  String
+  userId          String
+  role            OrganizationRole @default(MEMBER)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model CreditUsage {
+  id              String       @id @default(cuid())
+  amount          Int
+  operation       String
+  createdAt       DateTime     @default(now())
+  userId          String?
+  organizationId  String?
+  flowId          String?
+  user            User?        @relation("userCredits", fields: [userId], references: [id])
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  flow            ChartInstance?        @relation(fields: [flowId], references: [id])
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([flowId])
+}
+
+model OrganizationVerification {
+  id              String           @id @default(cuid())
+  organizationId  String
+  verifiedBy      String
+  domain          String
+  type            OrganizationType
+  createdAt       DateTime         @default(now())
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verifier        User            @relation("verifier", fields: [verifiedBy], references: [id])
+
+  @@index([organizationId])
+  @@index([verifiedBy])
 }
