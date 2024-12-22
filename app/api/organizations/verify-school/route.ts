@@ -1,99 +1,44 @@
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// List of known education domain patterns
-const EDUCATION_DOMAINS = [
-  ".edu",
-  ".edu.",
-  ".ac.",
-  ".sch.",
-  "university.",
-  "college.",
-  "school.",
-];
-
-function isEducationDomain(domain: string): boolean {
-  domain = domain.toLowerCase();
-  return EDUCATION_DOMAINS.some(eduDomain => domain.includes(eduDomain));
-}
-
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const body = await request.json();
+    const { email, organizationId } = body;
+
+    if (!email || !organizationId) {
+      return NextResponse.json({ 
+        error: "Missing required fields" 
+      }, { status: 400 });
     }
 
-    const body = await req.json();
-    const { organizationId, domain } = body;
+    // For now, we'll just verify if it's a .edu email
+    const isEducationalEmail = email.toLowerCase().endsWith('.edu');
 
-    if (!organizationId || !domain) {
-      return new NextResponse("Organization ID and domain are required", { status: 400 });
-    }
-
-    // Check if user has permission to verify the organization
-    const membership = await prisma.organizationMember.findFirst({
-      where: {
-        organizationId,
-        userId: session.user.id,
-        role: {
-          in: ["OWNER", "ADMIN"],
-        },
-      },
+    return NextResponse.json({ 
+      verified: isEducationalEmail,
+      message: isEducationalEmail ? 'Email verified' : 'Not an educational email'
     });
-
-    if (!membership) {
-      return new NextResponse("Not authorized to verify organization", { status: 403 });
-    }
-
-    // Check if domain is an education domain
-    if (!isEducationDomain(domain)) {
-      return new NextResponse("Domain is not a valid education domain", { status: 400 });
-    }
-
-    // Update organization
-    const organization = await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        type: "SCHOOL",
-        domain,
-        verified: true,
-      },
-    });
-
-    // Create verification record
-    await prisma.organizationVerification.create({
-      data: {
-        organizationId,
-        verifiedBy: session.user.id,
-        domain,
-        type: "SCHOOL",
-      },
-    });
-
-    return NextResponse.json({ organization });
   } catch (error) {
-    console.error("[ORGANIZATION_VERIFY_SCHOOL]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("Error verifying school email:", error);
+    return NextResponse.json(
+      { error: "Failed to verify school email" },
+      { status: 500 }
+    );
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const domain = searchParams.get("domain");
 
     if (!domain) {
-      return new NextResponse("Domain is required", { status: 400 });
+      return NextResponse.json({ 
+        error: "Domain is required" 
+      }, { status: 400 });
     }
 
-    const isValid = isEducationDomain(domain);
+    const isValid = domain.toLowerCase().endsWith('.edu');
     return NextResponse.json({ 
       isValid,
       domain,
@@ -102,7 +47,10 @@ export async function GET(req: Request) {
         : "Domain is not a valid education domain",
     });
   } catch (error) {
-    console.error("[ORGANIZATION_CHECK_SCHOOL]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("Error checking school domain:", error);
+    return NextResponse.json(
+      { error: "Failed to check domain" },
+      { status: 500 }
+    );
   }
 } 
