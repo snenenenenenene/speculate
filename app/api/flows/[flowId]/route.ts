@@ -1,18 +1,12 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-type Props = {
-  params: {
-    flowId: string;
-  };
-};
-
 export async function GET(
   request: NextRequest,
-  props: Props
+  { params }: { params: Promise<{ flowId: string }> }
 ) {
   try {
-    const { flowId } = props.params;
+    const { flowId } = await params;
     const flow = await prisma.flow.findUnique({
       where: { id: flowId },
       include: {
@@ -39,10 +33,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  props: Props
+  { params }: { params: Promise<{ flowId: string }> }
 ) {
   try {
-    const { flowId } = props.params;
+    const { flowId } = await params;
     const body = await request.json();
     const { name, chartInstances } = body;
 
@@ -92,10 +86,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  props: Props
+  { params }: { params: Promise<{ flowId: string }> }
 ) {
   try {
-    const { flowId } = props.params;
+    const { flowId } = await params;
     await prisma.flow.delete({
       where: { id: flowId }
     });
@@ -104,7 +98,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting flow:", error);
     return Response.json(
-      { error: "Failed to delete flow" },
+      { error: "Failed to delete chart" },
       { status: 500 }
     );
   }
