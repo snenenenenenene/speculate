@@ -1,15 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
-
-interface RouteContext {
-  params: { chartId: string }
-  searchParams: { [key: string]: string | string[] | undefined }
-}
+import { type NextRequest } from "next/server";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteContext
-): Promise<NextResponse> {
+  { params }: { params: { chartId: string } }
+) {
   try {
     const { chartId } = params;
 
@@ -20,10 +15,10 @@ export async function DELETE(
       },
     });
 
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
     console.error("Error deleting chart:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to delete chart" },
       { status: 500 }
     );
