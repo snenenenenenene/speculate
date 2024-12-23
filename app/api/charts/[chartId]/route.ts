@@ -1,18 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
-type RouteContext = {
-  params: {
-    chartId: string;
-  };
-};
-
 export async function DELETE(
   _req: NextRequest,
-  { params }: RouteContext
-) {
+  context: { params: { chartId: string } }
+): Promise<NextResponse> {
   try {
-    const { chartId } = params;
+    const { chartId } = context.params;
 
     // Delete the chart instance
     await prisma.chartInstance.delete({
