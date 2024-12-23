@@ -33,9 +33,10 @@ import "reactflow/dist/style.css";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
-import { createFlowAuditLog } from '@/lib/audit';
 import { FlowAnalytics } from '@/components/flow/FlowAnalytics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSession } from "next-auth/react";
+import { createAuditLog } from '@/lib/audit';
 
 const nodeTypes = {
   startNode: StartNode,
@@ -156,8 +157,8 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
   const { theme } = useTheme();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
-  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, updateFlow, flows, removeNode, removeEdge } = useRootStore();
-  const flow = flows.find((flow) => flow.id === flowId);
+  const { updateNodes, updateEdges, setFlows, setCurrentDashboardTab, flows, removeNode } = useRootStore();
+  const flow = flows?.find((flow) => flow.id === flowId);
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -165,6 +166,9 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
   const [flowData, setFlowData] = useState<any>(null);
   const [globalVariables, setGlobalVariables] = useState<any[]>([]);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [variables, setVariables] = useState<any[]>([]);
+
+  const { data: session } = useSession();
 
   useEffect(() => {
     if (flow) {
@@ -269,7 +273,7 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
     (changes: NodeChange[]) => {
       const nextChanges = changes.map(change => {
         if (change.type === 'remove') {
-          removeNode(change.id);
+          removeNode(flowId, change.id);
           return null;
         }
         return change;
@@ -277,7 +281,7 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
       
       setNodes((nds) => applyNodeChanges(nextChanges, nds));
     },
-    [removeNode]
+    [flowId, removeNode]
   );
 
   const onEdgesChange = useCallback(
@@ -576,17 +580,24 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
 
   const handleNodeAdd = async (node: Node) => {
     try {
-      // Existing node add logic
       const updatedNodes = [...nodes, node];
       setNodes(updatedNodes);
-      await saveFlow(updatedNodes, edges);
+      await saveFlow();
 
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_NODE_ADDED', {
-        nodeId: node.id,
-        nodeType: node.type,
-        label: node.data?.label,
-      });
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_NODE_ADDED',
+          metadata: {
+            nodeId: node.id,
+            nodeType: node.type,
+            label: node.data?.label,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error adding node:', error);
       toast.error('Failed to add node');
@@ -595,17 +606,24 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
 
   const handleNodeRemove = async (node: Node) => {
     try {
-      // Existing node remove logic
       const updatedNodes = nodes.filter(n => n.id !== node.id);
       setNodes(updatedNodes);
-      await saveFlow(updatedNodes, edges);
+      await saveFlow();
 
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_NODE_REMOVED', {
-        nodeId: node.id,
-        nodeType: node.type,
-        label: node.data?.label,
-      });
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_NODE_REMOVED',
+          metadata: {
+            nodeId: node.id,
+            nodeType: node.type,
+            label: node.data?.label,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error removing node:', error);
       toast.error('Failed to remove node');
@@ -614,18 +632,25 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
 
   const handleNodeUpdate = async (node: Node) => {
     try {
-      // Existing node update logic
       const updatedNodes = nodes.map(n => n.id === node.id ? node : n);
       setNodes(updatedNodes);
-      await saveFlow(updatedNodes, edges);
+      await saveFlow();
 
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_NODE_UPDATED', {
-        nodeId: node.id,
-        nodeType: node.type,
-        label: node.data?.label,
-        changes: node.data?.changes, // If tracking specific changes
-      });
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_NODE_UPDATED',
+          metadata: {
+            nodeId: node.id,
+            nodeType: node.type,
+            label: node.data?.label,
+            changes: node.data?.changes,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error updating node:', error);
       toast.error('Failed to update node');
@@ -634,17 +659,24 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
 
   const handleEdgeAdd = async (edge: Edge) => {
     try {
-      // Existing edge add logic
       const updatedEdges = [...edges, edge];
       setEdges(updatedEdges);
-      await saveFlow(nodes, updatedEdges);
+      await saveFlow();
 
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_EDGE_ADDED', {
-        edgeId: edge.id,
-        source: edge.source,
-        target: edge.target,
-      });
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_EDGE_ADDED',
+          metadata: {
+            edgeId: edge.id,
+            source: edge.source,
+            target: edge.target,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error adding edge:', error);
       toast.error('Failed to add connection');
@@ -653,94 +685,99 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
 
   const handleEdgeRemove = async (edge: Edge) => {
     try {
-      // Existing edge remove logic
       const updatedEdges = edges.filter(e => e.id !== edge.id);
       setEdges(updatedEdges);
-      await saveFlow(nodes, updatedEdges);
+      await saveFlow();
 
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_EDGE_REMOVED', {
-        edgeId: edge.id,
-        source: edge.source,
-        target: edge.target,
-      });
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_EDGE_REMOVED',
+          metadata: {
+            edgeId: edge.id,
+            source: edge.source,
+            target: edge.target,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error removing edge:', error);
       toast.error('Failed to remove connection');
     }
   };
 
-  const handleFlowSettingsUpdate = async (settings: any) => {
+  const updateFlowSettings = async (settings: any) => {
     try {
-      // Existing settings update logic
-      await updateFlowSettings(settings);
-
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_SETTINGS_UPDATED', {
-        changes: settings,
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to update flow settings');
+      }
+
+      const data = await response.json();
+
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_SETTINGS_UPDATED',
+          metadata: {
+            changes: settings,
+          },
+        });
+      }
+
+      return data;
     } catch (error) {
       console.error('Error updating flow settings:', error);
-      toast.error('Failed to update flow settings');
+      throw error;
     }
   };
 
-  const handleVariableAdd = async (variable: any) => {
+  const updateFlowVariables = async (variables: any[]) => {
     try {
-      // Existing variable add logic
-      const updatedVariables = [...variables, variable];
-      setVariables(updatedVariables);
-      await updateFlowVariables(updatedVariables);
-
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_VARIABLE_ADDED', {
-        variable: {
-          name: variable.name,
-          type: variable.type,
+      const response = await fetch(`/api/projects/${projectId}/flows/${flowId}/variables`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ variables }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to update flow variables');
+      }
+
+      const data = await response.json();
+
+      if (session?.user?.id) {
+        await createAuditLog({
+          userId: session.user.id,
+          projectId,
+          entityId: flowId,
+          entityType: 'FLOW',
+          action: 'FLOW_VARIABLE_UPDATED',
+          metadata: {
+            variables,
+          },
+        });
+      }
+
+      return data;
     } catch (error) {
-      console.error('Error adding variable:', error);
-      toast.error('Failed to add variable');
-    }
-  };
-
-  const handleVariableUpdate = async (variable: any) => {
-    try {
-      // Existing variable update logic
-      const updatedVariables = variables.map(v => v.id === variable.id ? variable : v);
-      setVariables(updatedVariables);
-      await updateFlowVariables(updatedVariables);
-
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_VARIABLE_UPDATED', {
-        variable: {
-          id: variable.id,
-          name: variable.name,
-          type: variable.type,
-          changes: variable.changes, // If tracking specific changes
-        },
-      });
-    } catch (error) {
-      console.error('Error updating variable:', error);
-      toast.error('Failed to update variable');
-    }
-  };
-
-  const handleVariableRemove = async (variableId: string) => {
-    try {
-      // Existing variable remove logic
-      const updatedVariables = variables.filter(v => v.id !== variableId);
-      setVariables(updatedVariables);
-      await updateFlowVariables(updatedVariables);
-
-      // Create audit log
-      await createFlowAuditLog(session.user.id, projectId, flowId, 'FLOW_VARIABLE_REMOVED', {
-        variableId,
-      });
-    } catch (error) {
-      console.error('Error removing variable:', error);
-      toast.error('Failed to remove variable');
+      console.error('Error updating flow variables:', error);
+      throw error;
     }
   };
 
