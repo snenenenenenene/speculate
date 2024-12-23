@@ -486,7 +486,7 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
     }
 
     const reader = new FileReader();
-    const handleFileRead = useCallback((e: ProgressEvent<FileReader>) => {
+    reader.onload = (e: ProgressEvent<FileReader>) => {
       if (!e.target) return;
       try {
         const flow = JSON.parse(e.target?.result as string);
@@ -496,8 +496,7 @@ export default function FlowEditor({ projectId, flowId, onPublish, initialFlow }
       } catch (error) {
         toast.error("Failed to import flow: Invalid file format");
       }
-    }, [setNodes, setEdges]);
-    reader.onload = handleFileRead;
+    };
     reader.readAsText(file);
   }, [setNodes, setEdges]);
 
