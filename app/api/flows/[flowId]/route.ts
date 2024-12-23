@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { flowId: string } }
 ) {
   try {
@@ -14,16 +14,16 @@ export async function GET(
     });
 
     if (!flow) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Flow not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(flow);
+    return Response.json(flow);
   } catch (error) {
     console.error("Error fetching flow:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to fetch flow" },
       { status: 500 }
     );
@@ -31,7 +31,7 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { flowId: string } }
 ) {
   try {
@@ -72,10 +72,10 @@ export async function PATCH(
       }
     });
 
-    return NextResponse.json(flow);
+    return Response.json(flow);
   } catch (error) {
     console.error("Error updating flow:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to update flow" },
       { status: 500 }
     );
@@ -83,7 +83,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { flowId: string } }
 ) {
   try {
@@ -91,10 +91,10 @@ export async function DELETE(
       where: { id: params.flowId }
     });
 
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
     console.error("Error deleting flow:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to delete flow" },
       { status: 500 }
     );
