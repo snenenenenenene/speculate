@@ -6,15 +6,15 @@ import { OrganizationRole } from "@prisma/client";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+  context: { params: { id: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const organizationId = context.params.id;
 
     // Get organization members
     const members = await prisma.organizationMember.findMany({
@@ -42,15 +42,15 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+  context: { params: { id: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const organizationId = context.params.id;
     const body = await request.json();
     const { email, role = "MEMBER" } = body;
 
@@ -124,15 +124,15 @@ export async function POST(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+  context: { params: { id: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const organizationId = context.params.id;
     const body = await request.json();
     const { userId, role } = body;
 
@@ -202,15 +202,15 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+  context: { params: { id: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const organizationId = context.params.id;
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
