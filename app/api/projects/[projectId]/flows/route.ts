@@ -13,9 +13,9 @@ interface SessionUser {
 
 // GET /api/projects/[projectId]/flows
 export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: Request,
+  context: { params: { projectId: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     const user = session?.user as SessionUser | undefined;
@@ -27,7 +27,7 @@ export async function GET(
     // First verify project access
     const project = await prisma.project.findFirst({
       where: {
-        id: params.projectId,
+        id: context.params.projectId,
         OR: [
           { userId: user.id },
           {
@@ -48,7 +48,7 @@ export async function GET(
     // Get all flows for the project
     const flows = await prisma.chartInstance.findMany({
       where: {
-        projectId: params.projectId,
+        projectId: context.params.projectId,
         OR: [
           { userId: user.id },
           {

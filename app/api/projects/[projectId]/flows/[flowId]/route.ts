@@ -4,9 +4,9 @@ import { NextResponse } from "next/server";
 import { authOptions } from "../../../../auth/[...nextauth]/options";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string; flowId: string } }
-) {
+  request: Request,
+  context: { params: { projectId: string; flowId: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
 
@@ -18,8 +18,8 @@ export async function GET(
     const [flow, project] = await Promise.all([
       prisma.chartInstance.findFirst({
         where: {
-          id: params.flowId,
-          projectId: params.projectId,
+          id: context.params.flowId,
+          projectId: context.params.projectId,
           user: {
             email: session.user.email
           }
@@ -27,7 +27,7 @@ export async function GET(
       }),
       prisma.project.findUnique({
         where: {
-          id: params.projectId,
+          id: context.params.projectId,
           user: {
             email: session.user.email
           }

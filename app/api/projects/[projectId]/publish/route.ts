@@ -13,11 +13,11 @@ interface SessionUser {
 
 export async function POST(
   request: Request,
-  { params }: { params: { projectId: string } }
-) {
-  console.log('POST /api/projects/[projectId]/publish - Start', { params });
+  context: { params: { projectId: string } }
+): Promise<NextResponse> {
+  console.log('POST /api/projects/[projectId]/publish - Start', { context });
   
-  const projectId = params.projectId;
+  const projectId = context.params.projectId;
   console.log('Project ID:', projectId);
   
   if (!projectId) {

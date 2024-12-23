@@ -5,16 +5,16 @@ import { NextResponse } from "next/server";
 import { ProjectRole } from "@prisma/client";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: Request,
+  context: { params: { projectId: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const projectId = params.projectId;
+    const projectId = context.params.projectId;
 
     // Get project with organization and collaborators
     const project = await prisma.project.findUnique({

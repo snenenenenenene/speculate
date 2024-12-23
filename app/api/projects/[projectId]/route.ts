@@ -3,7 +3,10 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
-export async function GET(req: Request, { params }: { params: { projectId: string } }) {
+export async function GET(
+  request: Request,
+  context: { params: { projectId: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
 
@@ -14,7 +17,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     // Get project with all necessary data
     const project = await prisma.project.findFirst({
       where: {
-        id: params.projectId,
+        id: context.params.projectId,
         OR: [
           { userId: session.user.id },
           {
@@ -58,7 +61,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     // Get flows for this project
     const flows = await prisma.chartInstance.findMany({
       where: {
-        projectId: params.projectId,
+        projectId: context.params.projectId,
         OR: [
           { userId: session.user.id },
           {

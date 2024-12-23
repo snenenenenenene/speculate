@@ -4,9 +4,9 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: Request,
+  context: { params: { projectId: string } }
+): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
@@ -16,7 +16,7 @@ export async function GET(
     // Get project to verify access
     const project = await prisma.project.findFirst({
       where: {
-        id: params.projectId,
+        id: context.params.projectId,
         OR: [
           { userId: session.user.id },
           {
@@ -40,7 +40,7 @@ export async function GET(
     // Get audit logs for API usage
     const apiLogs = await prisma.auditLog.findMany({
       where: {
-        projectId: params.projectId,
+        projectId: context.params.projectId,
         action: {
           in: ['API_KEY_GENERATED', 'API_KEY_REVOKED']
         }
@@ -55,7 +55,7 @@ export async function GET(
     const accessLogs = await prisma.projectShareAccess.findMany({
       where: {
         share: {
-          projectId: params.projectId
+          projectId: context.params.projectId
         }
       },
       orderBy: {
