@@ -5,16 +5,16 @@ import { NextResponse } from "next/server";
 import { OrganizationRole } from "@prisma/client";
 
 export async function GET(
-  request: Request,
-  context: { params: { id: string } }
-): Promise<NextResponse> {
+  req: Request,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
+    const organizationId = params.id;
 
     // Get organization members
     const members = await prisma.organizationMember.findMany({
@@ -41,17 +41,17 @@ export async function GET(
 }
 
 export async function POST(
-  request: Request,
-  context: { params: { id: string } }
-): Promise<NextResponse> {
+  req: Request,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
-    const body = await request.json();
+    const organizationId = params.id;
+    const body = await req.json();
     const { email, role = "MEMBER" } = body;
 
     if (!email) {
@@ -123,17 +123,17 @@ export async function POST(
 }
 
 export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
-): Promise<NextResponse> {
+  req: Request,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
-    const body = await request.json();
+    const organizationId = params.id;
+    const body = await req.json();
     const { userId, role } = body;
 
     if (!userId || !role) {
@@ -201,17 +201,17 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
-  context: { params: { id: string } }
-): Promise<NextResponse> {
+  req: Request,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
-    const { searchParams } = new URL(request.url);
+    const organizationId = params.id;
+    const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
 
     if (!userId) {
