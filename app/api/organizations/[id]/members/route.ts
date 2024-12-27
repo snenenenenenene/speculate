@@ -4,17 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { OrganizationRole } from "@prisma/client";
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+export const GET = async (
+  request: Request,
+  context: { params: { id: string } }
+): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const organizationId = context.params.id;
 
     // Get organization members
     const members = await prisma.organizationMember.findMany({
@@ -38,20 +38,20 @@ export async function GET(
     console.error("[ORGANIZATION_MEMBERS_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
-}
+};
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+export const POST = async (
+  request: Request,
+  context: { params: { id: string } }
+): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
-    const body = await req.json();
+    const organizationId = context.params.id;
+    const body = await request.json();
     const { email, role = "MEMBER" } = body;
 
     if (!email) {
@@ -120,20 +120,20 @@ export async function POST(
     console.error("[ORGANIZATION_MEMBERS_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
-}
+};
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+export const PUT = async (
+  request: Request,
+  context: { params: { id: string } }
+): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
-    const body = await req.json();
+    const organizationId = context.params.id;
+    const body = await request.json();
     const { userId, role } = body;
 
     if (!userId || !role) {
@@ -198,20 +198,20 @@ export async function PUT(
     console.error("[ORGANIZATION_MEMBERS_PUT]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
-}
+};
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
-): Promise<Response> {
+export const DELETE = async (
+  request: Request,
+  context: { params: { id: string } }
+): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
-    const { searchParams } = new URL(req.url);
+    const organizationId = context.params.id;
+    const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
     if (!userId) {
@@ -265,4 +265,4 @@ export async function DELETE(
     console.error("[ORGANIZATION_MEMBERS_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
-} 
+}; 
