@@ -6,7 +6,7 @@ import type { OrganizationRole } from "@prisma/client";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
 
     // Get organization members
     const members = await prisma.organizationMember.findMany({
@@ -42,7 +42,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
@@ -50,7 +50,7 @@ export async function POST(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
     const body = await request.json();
     const { email, role = "MEMBER" } = body;
 
@@ -124,7 +124,7 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
@@ -132,7 +132,7 @@ export async function PUT(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
     const body = await request.json();
     const { userId, role } = body;
 
@@ -202,7 +202,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
@@ -210,7 +210,7 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
