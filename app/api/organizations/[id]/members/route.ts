@@ -2,23 +2,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import type { OrganizationRole } from ".prisma/client";
+import type { OrganizationRole } from "@prisma/client";
 
-type Props = {
-  params: {
-    id: string;
-  };
-  searchParams: { [key: string]: string | string[] | undefined };
-};
-
-export async function GET(request: NextRequest, props: Props): Promise<Response> {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = props.params.id;
+    const organizationId = params.id;
 
     // Get organization members
     const members = await prisma.organizationMember.findMany({
@@ -44,14 +40,17 @@ export async function GET(request: NextRequest, props: Props): Promise<Response>
   }
 }
 
-export async function POST(request: NextRequest, props: Props): Promise<Response> {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = props.params.id;
+    const organizationId = params.id;
     const body = await request.json();
     const { email, role = "MEMBER" } = body;
 
@@ -123,14 +122,17 @@ export async function POST(request: NextRequest, props: Props): Promise<Response
   }
 }
 
-export async function PUT(request: NextRequest, props: Props): Promise<Response> {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = props.params.id;
+    const organizationId = params.id;
     const body = await request.json();
     const { userId, role } = body;
 
@@ -198,14 +200,17 @@ export async function PUT(request: NextRequest, props: Props): Promise<Response>
   }
 }
 
-export async function DELETE(request: NextRequest, props: Props): Promise<Response> {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = props.params.id;
+    const organizationId = params.id;
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
