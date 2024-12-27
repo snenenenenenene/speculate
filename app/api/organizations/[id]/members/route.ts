@@ -1,12 +1,12 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
-import { OrganizationRole } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
+import type { OrganizationRole } from ".prisma/client";
 
 export const GET = async (
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,7 @@ export const GET = async (
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
+    const organizationId = params.id;
 
     // Get organization members
     const members = await prisma.organizationMember.findMany({
@@ -41,8 +41,8 @@ export const GET = async (
 };
 
 export const POST = async (
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
@@ -50,7 +50,7 @@ export const POST = async (
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
+    const organizationId = params.id;
     const body = await request.json();
     const { email, role = "MEMBER" } = body;
 
@@ -123,8 +123,8 @@ export const POST = async (
 };
 
 export const PUT = async (
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
@@ -132,7 +132,7 @@ export const PUT = async (
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
+    const organizationId = params.id;
     const body = await request.json();
     const { userId, role } = body;
 
@@ -201,8 +201,8 @@ export const PUT = async (
 };
 
 export const DELETE = async (
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ): Promise<Response> => {
   try {
     const session = await getServerSession(authOptions);
@@ -210,7 +210,7 @@ export const DELETE = async (
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const organizationId = context.params.id;
+    const organizationId = params.id;
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
