@@ -1,26 +1,25 @@
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
-import prisma from '@/lib/prisma';
-import { ProjectShareSettings } from '@/types';
-import bcrypt from 'bcryptjs';
-import { nanoid } from 'nanoid';
-import { getServerSession } from 'next-auth';
-import { NextResponse } from 'next/server';
-import { NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { nanoid } from "nanoid";
+import { type AuditAction, type Prisma } from "@prisma/client";
 
-export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/share
+
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Get project shares
     const shares = await prisma.projectShare.findMany({
       where: {
-        projectId: params.projectId,
+        projectId,
         project: {
           OR: [
             { userId: session.user.id },
@@ -47,7 +46,7 @@ export async function GET(
 
     return NextResponse.json({ shares });
   } catch (error) {
-    console.error('Error fetching project shares:', error);
+    console.error("[PROJECT_SHARES_GET]", error);
     return NextResponse.json(
       { error: "Failed to fetch shares" },
       { status: 500 }
@@ -55,33 +54,30 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function POST(req: Request) {
   try {
-    const { projectId } = await params;
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/share
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const body = await request.json();
-    const { enabled } = body;
-
-    const settings = await req.json() as Partial<ProjectShareSettings>;
+    const body = await req.json();
+    const { password, settings } = body;
     const shareId = nanoid();
 
     // Hash password if provided
     let hashedPassword = null;
-    if (settings.password) {
-      hashedPassword = await bcrypt.hash(settings.password, 10);
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
     }
 
     // Create share record
     const share = await prisma.projectShare.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         createdBy: session.user.id,
         shareId,
         password: hashedPassword,
@@ -100,29 +96,18 @@ export async function POST(
       },
     });
 
-    // Update project share settings
-    await prisma.project.update({
-      where: { id: params.projectId },
-      data: {
-        shareSettings: {
-          ...settings,
-          shareId,
-        },
-      },
-    });
-
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        action: 'PROJECT_SHARED',
-        entityType: 'project',
-        entityId: params.projectId,
+        action: 'SHARE_CREATED' as AuditAction,
+        entityType: 'PROJECT',
+        entityId: projectId,
         userId: session.user.id,
-        projectId: params.projectId,
+        projectId,
         metadata: {
           shareId,
           settings,
-        },
+        } as Prisma.JsonObject,
       },
     });
 
@@ -133,7 +118,7 @@ export async function POST(
       shareUrl,
     });
   } catch (error) {
-    console.error('Error sharing project:', error);
+    console.error("[PROJECT_SHARE_POST]", error);
     return NextResponse.json(
       { error: "Failed to share project" },
       { status: 500 }
@@ -141,24 +126,24 @@ export async function POST(
   }
 }
 
-// Update share settings
-export async function PATCH(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function PATCH(req: Request) {
   try {
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/share
+
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { shareId, settings } = await req.json();
+    const body = await req.json();
+    const { shareId, settings } = body;
 
     // Verify permission to update share
     const share = await prisma.projectShare.findFirst({
       where: {
         id: shareId,
-        projectId: params.projectId,
+        projectId,
         project: {
           OR: [
             { userId: session.user.id },
@@ -192,7 +177,7 @@ export async function PATCH(
     const updatedShare = await prisma.projectShare.update({
       where: { id: shareId },
       data: {
-        settings: settings,
+        settings,
         password: hashedPassword,
       },
       include: {
@@ -207,7 +192,7 @@ export async function PATCH(
 
     return NextResponse.json({ share: updatedShare });
   } catch (error) {
-    console.error('Error updating project share:', error);
+    console.error("[PROJECT_SHARE_PATCH]", error);
     return NextResponse.json(
       { error: "Failed to update share" },
       { status: 500 }
@@ -215,18 +200,17 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function DELETE(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(req.url);
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/share
+    const searchParams = new URL(req.url).searchParams;
     const shareId = searchParams.get('shareId');
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
     if (!shareId) {
       return NextResponse.json(
@@ -239,7 +223,7 @@ export async function DELETE(
     const share = await prisma.projectShare.findFirst({
       where: {
         id: shareId,
-        projectId: params.projectId,
+        projectId,
         project: {
           OR: [
             { userId: session.user.id },
@@ -271,20 +255,20 @@ export async function DELETE(
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        action: 'PROJECT_SHARE_REVOKED',
-        entityType: 'project',
-        entityId: params.projectId,
+        action: 'SHARE_DELETED' as AuditAction,
+        entityType: 'PROJECT',
+        entityId: projectId,
         userId: session.user.id,
-        projectId: params.projectId,
+        projectId,
         metadata: {
           shareId,
-        },
+        } as Prisma.JsonObject,
       },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting project share:', error);
+    console.error("[PROJECT_SHARE_DELETE]", error);
     return NextResponse.json(
       { error: "Failed to delete share" },
       { status: 500 }
