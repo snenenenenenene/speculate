@@ -1,107 +1,42 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
-    // Get API key from Authorization header
-    const authHeader = req.headers.get('authorization');
-    const apiKey = authHeader?.replace('Bearer ', '');
+    const { projectId } = await params;
+    const { searchParams } = new URL(request.url);
+    const apiKey = searchParams.get("apiKey");
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Missing API key" },
+        { error: "API key is required" },
         { status: 401 }
       );
     }
 
-    // Find project and verify API key
+    // Verify API key
     const project = await prisma.project.findFirst({
       where: {
-        id: params.projectId,
-        apiKey,
-        isPublic: true
-      },
-      include: {
-        _count: {
-          select: {
-            charts: true,
-            collaborators: true
-          }
-        }
+        id: projectId,
+        apiKey
       }
     });
 
     if (!project) {
       return NextResponse.json(
-        { error: "Project not found or unauthorized" },
-        { status: 404 }
+        { error: "Invalid API key" },
+        { status: 401 }
       );
     }
 
-    // Get all published flows for this project
-    const flows = await prisma.chartInstance.findMany({
-      where: {
-        projectId: params.projectId,
-        isPublished: true
-      },
-      select: {
-        id: true,
-        name: true,
-        content: true,
-        version: true,
-        updatedAt: true,
-        publishedAt: true,
-        variables: true,
-        isPublished: true,
-        color: true,
-        onePageMode: true
-      }
-    });
-
-    // Transform the response
-    const response = {
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      isPublic: project.isPublic,
-      updatedAt: project.updatedAt,
-      stats: {
-        flows: project._count.charts,
-        collaborators: project._count.collaborators
-      },
-      flows: flows.map(flow => {
-        // Parse the content string into a JSON object
-        let parsedContent;
-        try {
-          parsedContent = JSON.parse(flow.content);
-        } catch (err) {
-          console.error('Error parsing flow content:', err);
-          parsedContent = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } };
-        }
-
-        return {
-          id: flow.id,
-          name: flow.name,
-          content: parsedContent,
-          version: flow.version,
-          updatedAt: flow.updatedAt,
-          publishedAt: flow.publishedAt,
-          variables: flow.variables,
-          isPublished: flow.isPublished,
-          color: flow.color,
-          onePageMode: flow.onePageMode
-        };
-      })
-    };
-
-    return NextResponse.json({ project: response });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error fetching project:", error);
+    console.error("[PROJECT_API_GET]", error);
     return NextResponse.json(
-      { error: "Failed to fetch project" },
+      { error: "Internal Error" },
       { status: 500 }
     );
   }

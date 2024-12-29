@@ -7,24 +7,24 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { flowId } = await params;
-    const flow = await prisma.flow.findUnique({
+    const flow = await prisma.chartInstance.findUnique({
       where: { id: flowId },
       include: {
-        chartInstances: true
+        versions: true
       }
     });
 
     if (!flow) {
-      return Response.json(
+      return NextResponse.json(
         { error: "Flow not found" },
         { status: 404 }
       );
     }
 
-    return Response.json(flow);
+    return NextResponse.json(flow);
   } catch (error) {
-    console.error("Error fetching flow:", error);
-    return Response.json(
+    console.error("[FLOW_GET]", error);
+    return NextResponse.json(
       { error: "Failed to fetch flow" },
       { status: 500 }
     );
@@ -34,13 +34,13 @@ export async function GET(
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ flowId: string }> }
-) {
+): Promise<Response> {
   try {
     const { flowId } = await params;
     const body = await request.json();
     const { name, chartInstances } = body;
 
-    const flow = await prisma.flow.update({
+    const flow = await prisma.chartInstance.update({
       where: { id: flowId },
       data: {
         name,
@@ -74,10 +74,10 @@ export async function PATCH(
       }
     });
 
-    return Response.json(flow);
+    return NextResponse.json(flow);
   } catch (error) {
-    console.error("Error updating flow:", error);
-    return Response.json(
+    console.error("[FLOW_PATCH]", error);
+    return NextResponse.json(
       { error: "Failed to update flow" },
       { status: 500 }
     );
@@ -87,18 +87,18 @@ export async function PATCH(
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ flowId: string }> }
-) {
+): Promise<Response> {
   try {
     const { flowId } = await params;
-    await prisma.flow.delete({
+    await prisma.chartInstance.delete({
       where: { id: flowId }
     });
 
-    return Response.json({ success: true });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting flow:", error);
-    return Response.json(
-      { error: "Failed to delete chart" },
+    console.error("[FLOW_DELETE]", error);
+    return NextResponse.json(
+      { error: "Failed to delete flow" },
       { status: 500 }
     );
   }
