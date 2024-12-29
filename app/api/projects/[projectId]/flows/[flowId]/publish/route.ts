@@ -1,135 +1,80 @@
-// app/api/flows/[flowId]/publish/route.ts
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
-import prisma from '@/lib/prisma';
-import { AuditAction, Prisma } from '@prisma/client';
-
-interface SessionUser {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-}
+// app/api/projects/[projectId]/flows/[flowId]/publish/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(
-  req: Request,
-  context: { params: { projectId: string; flowId: string } }
-) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user as SessionUser;
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string; flowId: string }> }
+): Promise<Response> {
+  try {
+    const { projectId, flowId } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-  if (!user?.id || !user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    const body = await request.json();
+    const { name, content, metadata } = body;
 
-  const params = await Promise.resolve(context.params);
-  const { projectId, flowId } = params;
-
-  // Get the flow first to get its current content
-  const flow = await prisma.chartInstance.findUnique({
-    where: { id: flowId },
-  });
-
-  if (!flow) {
-    return NextResponse.json({ error: "Flow not found" }, { status: 404 });
-  }
-
-  const { versionName, description, autoActivate } = await req.json();
-
-  console.log('Publishing flow:', { projectId, flowId, versionName, autoActivate });
-
-  // Get the latest version number
-  const latestVersion = await prisma.version.findFirst({
-    where: { flowId },
-    orderBy: { version: 'desc' },
-  });
-
-  const nextVersion = (latestVersion?.version || 0) + 1;
-
-  // Create new version using the flow's current content
-  const newVersion = await prisma.version.create({
-    data: {
-      name: versionName || `Version ${nextVersion}`,
-      version: nextVersion,
-      content: flow.content,
-      flow: {
-        connect: {
-          id: flowId
-        }
-      },
-      user: {
-        connect: {
-          id: user.id
-        }
-      },
-      metadata: {
-        description,
-      } as Prisma.JsonObject,
-    },
-  });
-
-  // If autoActivate is true, set this version as active
-  if (autoActivate) {
-    await prisma.chartInstance.update({
+    // Get the flow first to verify it exists
+    const flow = await prisma.chartInstance.findUnique({
       where: { id: flowId },
+    });
+
+    if (!flow) {
+      return NextResponse.json(
+        { error: "Flow not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get the latest version number
+    const latestVersion = await prisma.version.findFirst({
+      where: { flowId },
+      orderBy: { version: 'desc' },
+    });
+
+    const nextVersion = (latestVersion?.version || 0) + 1;
+
+    // Create a new version
+    const version = await prisma.version.create({
       data: {
-        isPublished: true,
-        publishedAt: new Date(),
+        name: name || `Version ${nextVersion}`,
         version: nextVersion,
-        activeVersionId: newVersion.id,
+        content,
+        metadata,
+        flow: {
+          connect: {
+            id: flowId
+          }
+        },
+        user: {
+          connect: {
+            id: session.user.id
+          }
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
-    // Create audit log for activation
-    await prisma.auditLog.create({
-      data: {
-        action: AuditAction.PUBLISHED,
-        entityType: 'FLOW',
-        entityId: flowId,
-        userId: user.id,
-        projectId,
-        metadata: {
-          versionId: newVersion.id,
-          versionNumber: newVersion.version,
-          versionName: newVersion.name,
-          isActive: true,
-        } as Prisma.JsonObject,
-      },
-    });
+    return NextResponse.json(version);
+  } catch (error) {
+    console.error("[FLOW_PUBLISH]", error);
+    return NextResponse.json(
+      { error: "Failed to publish flow" },
+      { status: 500 }
+    );
   }
-
-  // Create audit log for publish
-  await prisma.auditLog.create({
-    data: {
-      action: AuditAction.PUBLISHED,
-      entityType: 'FLOW',
-      entityId: flowId,
-      userId: user.id,
-      projectId,
-      metadata: {
-        versionId: newVersion.id,
-        versionNumber: newVersion.version,
-        versionName: newVersion.name,
-      } as Prisma.JsonObject,
-    },
-  });
-
-  // Get the updated flow
-  const updatedFlow = await prisma.chartInstance.findUnique({
-    where: { id: flowId },
-    include: {
-      versions: {
-        orderBy: { version: 'desc' },
-      },
-    },
-  });
-
-  return NextResponse.json({ 
-    success: true,
-    version: newVersion,
-    flow: updatedFlow,
-  });
 }
 
 export async function DELETE(
