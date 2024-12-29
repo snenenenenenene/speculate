@@ -106,14 +106,14 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function POST(req: Request) {
   try {
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/usage
+
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
     const { endpoint, statusCode, duration } = await req.json();
@@ -122,10 +122,10 @@ export async function POST(
     await prisma.auditLog.create({
       data: {
         action: 'API_KEY_GENERATED',
-        entityType: 'api',
-        entityId: params.projectId,
+        entityType: 'API',
+        entityId: projectId,
         userId: session.user.id,
-        projectId: params.projectId,
+        projectId,
         metadata: {
           endpoint,
           statusCode,
@@ -136,7 +136,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error logging API usage:", error);
+    console.error("[PROJECT_USAGE_POST]", error);
     return NextResponse.json(
       { error: "Failed to log API usage" },
       { status: 500 }
