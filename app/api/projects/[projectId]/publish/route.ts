@@ -4,12 +4,11 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { prisma } from "@/lib/prisma";
 import { type AuditAction, type Prisma } from "@prisma/client";
 
-export async function POST(
-  request: NextRequest,
-  context: { params: { projectId: string } }
-): Promise<Response> {
+export async function POST(req: Request) {
   try {
-    const { projectId } = context.params;
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/publish
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -45,12 +44,11 @@ export async function POST(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: { projectId: string } }
-): Promise<Response> {
+export async function DELETE(req: Request) {
   try {
-    const { projectId } = context.params;
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/publish
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
