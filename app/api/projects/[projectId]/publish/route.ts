@@ -1,20 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { prisma } from "@/lib/prisma";
 import { type AuditAction, type Prisma } from "@prisma/client";
 
-type Props = {
-  params: { projectId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-};
-
 export async function POST(
   request: NextRequest,
-  props: Props
+  context: { params: { projectId: string } }
 ): Promise<Response> {
   try {
-    const { projectId } = props.params;
+    const { projectId } = context.params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -52,10 +47,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  props: Props
+  context: { params: { projectId: string } }
 ): Promise<Response> {
   try {
-    const { projectId } = props.params;
+    const { projectId } = context.params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
