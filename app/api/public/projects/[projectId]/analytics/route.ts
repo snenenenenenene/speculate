@@ -1,13 +1,26 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  request: Request,
-  context: { params: { projectId: string } }
-) {
-  const { projectId } = context.params;
-
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/public/projects/[projectId]/analytics
+
+    // Verify project is public
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        isPublic: true,
+      },
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found or not public" },
+        { status: 404 }
+      );
+    }
+
     // Get all responses for the project's flows
     const responses = await prisma.questionnaireResponse.findMany({
       where: {
@@ -103,9 +116,9 @@ export async function GET(
 
     return NextResponse.json({ analytics });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
+    console.error("[PUBLIC_PROJECT_ANALYTICS_GET]", error);
     return NextResponse.json(
-      { error: 'Failed to fetch analytics data' },
+      { error: "Failed to fetch project analytics" },
       { status: 500 }
     );
   }
