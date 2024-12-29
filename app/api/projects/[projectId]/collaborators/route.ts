@@ -1,20 +1,19 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ProjectRole } from "@prisma/client";
 
 export async function GET(
-  request: Request,
-  context: { params: { projectId: string } }
-): Promise<NextResponse> {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
-
-    const projectId = context.params.projectId;
 
     // Get project with organization and collaborators
     const project = await prisma.project.findUnique({

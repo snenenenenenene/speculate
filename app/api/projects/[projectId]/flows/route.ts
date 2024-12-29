@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "../../../auth/[...nextauth]/options";
 import { nanoid } from "nanoid";
+import { NextRequest } from "next/server";
 
 interface SessionUser {
   id: string;
@@ -13,10 +14,11 @@ interface SessionUser {
 
 // GET /api/projects/[projectId]/flows
 export async function GET(
-  request: Request,
-  context: { params: { projectId: string } }
-): Promise<NextResponse> {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
     const user = session?.user as SessionUser | undefined;
 
@@ -27,7 +29,7 @@ export async function GET(
     // First verify project access
     const project = await prisma.project.findFirst({
       where: {
-        id: context.params.projectId,
+        id: projectId,
         OR: [
           { userId: user.id },
           {
@@ -48,7 +50,7 @@ export async function GET(
     // Get all flows for the project
     const flows = await prisma.chartInstance.findMany({
       where: {
-        projectId: context.params.projectId,
+        projectId: projectId,
         OR: [
           { userId: user.id },
           {
