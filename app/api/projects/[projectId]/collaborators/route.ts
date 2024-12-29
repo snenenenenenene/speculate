@@ -110,17 +110,18 @@ export async function GET(
 }
 
 export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const projectId = params.projectId;
-    const { email, role = "VIEWER" } = await req.json();
+    const body = await request.json();
+    const { email, role = "VIEWER" } = body;
 
     if (!email) {
       return new NextResponse("Email is required", { status: 400 });
@@ -211,17 +212,18 @@ export async function POST(
 }
 
 export async function PUT(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const projectId = params.projectId;
-    const { userId, role } = await req.json();
+    const body = await request.json();
+    const { userId, role } = body;
 
     if (!userId || !role) {
       return new NextResponse("User ID and role are required", { status: 400 });
@@ -297,18 +299,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const projectId = params.projectId;
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
+    const body = await request.json();
+    const { userId } = body;
 
     if (!userId) {
       return new NextResponse("User ID is required", { status: 400 });

@@ -1,9 +1,8 @@
-import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
-import { authOptions } from "../../../auth/[...nextauth]/options";
+import { NextRequest, NextResponse } from "next/server";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
 import { nanoid } from "nanoid";
-import { NextRequest } from "next/server";
 
 interface SessionUser {
   id: string;
@@ -142,10 +141,11 @@ export async function GET(
 
 // POST /api/projects/[projectId]/flows - Create new flow
 export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
     const user = session?.user as SessionUser | undefined;
 
@@ -153,7 +153,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, id } = await req.json();
+    const body = await request.json();
+    const { name, id } = body;
 
     // Create a new flow with basic structure
     const flow = await prisma.chartInstance.create({

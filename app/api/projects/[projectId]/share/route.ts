@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import { NextRequest } from "next/server";
 
 export async function GET(
   req: Request,
@@ -55,14 +56,18 @@ export async function GET(
 }
 
 export async function POST(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
+
+    const body = await request.json();
+    const { enabled } = body;
 
     const settings = await req.json() as Partial<ProjectShareSettings>;
     const shareId = nanoid();
