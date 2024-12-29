@@ -3,6 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { prisma } from "@/lib/prisma";
+import { type AuditAction, type Prisma } from "@prisma/client";
+
+interface SessionUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
 
 export async function POST(
   request: NextRequest,
@@ -78,49 +86,50 @@ export async function POST(
 }
 
 export async function DELETE(
-  req: Request,
-  context: { params: { projectId: string; flowId: string } }
-) {
-  const params = await Promise.resolve(context.params);
-  const { projectId, flowId } = params;
-  
-  console.log('Unpublishing flow:', { projectId, flowId });
-  
-  const session = await getServerSession(authOptions);
-  const user = session?.user as SessionUser;
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string; flowId: string }> }
+): Promise<Response> {
+  try {
+    const { projectId, flowId } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-  if (!user?.id || !user?.email) {
-    console.log('Unauthorized: No session or email');
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.log('Updating flow to unpublish');
+    const flow = await prisma.chartInstance.update({
+      where: { id: flowId },
+      data: {
+        isPublished: false,
+        publishedAt: null,
+        activeVersionId: null,
+      },
+    });
+    console.log('Flow unpublished:', { 
+      flowId: flow.id,
+      isPublished: flow.isPublished 
+    });
+
+    // Create audit log
+    console.log('Creating audit log for unpublish');
+    await prisma.auditLog.create({
+      data: {
+        action: 'UNPUBLISHED' as AuditAction,
+        entityType: 'FLOW',
+        entityId: flowId,
+        userId: session.user.id,
+        projectId: flow.projectId,
+        metadata: {} as Prisma.JsonObject,
+      },
+    });
+    console.log('Created audit log for unpublish');
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[FLOW_UNPUBLISH]", error);
+    return NextResponse.json(
+      { error: "Failed to unpublish flow" },
+      { status: 500 }
+    );
   }
-
-  console.log('Updating flow to unpublish');
-  const flow = await prisma.chartInstance.update({
-    where: { id: flowId },
-    data: {
-      isPublished: false,
-      publishedAt: null,
-      activeVersionId: null,
-    },
-  });
-  console.log('Flow unpublished:', { 
-    flowId: flow.id,
-    isPublished: flow.isPublished 
-  });
-
-  // Create audit log
-  console.log('Creating audit log for unpublish');
-  await prisma.auditLog.create({
-    data: {
-      action: 'UNPUBLISHED' as AuditAction,
-      entityType: 'FLOW',
-      entityId: flowId,
-      userId: user.id,
-      projectId: flow.projectId,
-      metadata: {} as Prisma.JsonObject,
-    },
-  });
-  console.log('Created audit log for unpublish');
-
-  return NextResponse.json({ success: true });
 }
