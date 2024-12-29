@@ -1,67 +1,43 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
 
 export async function PUT(
-  req: Request,
-  { params }: { params: { projectId: string } }
-) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
+  try {
+    const { projectId } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-  const { mainStartFlowId } = await req.json();
+    const body = await request.json();
+    const { flowId } = body;
 
-  // Check if user has access to the project
-  const project = await prisma.project.findFirst({
-    where: {
-      id: params.projectId,
-      OR: [
-        { userId: session.user.id },
-        {
-          collaborators: {
-            some: {
-              userId: session.user.id,
-              role: {
-                in: ["ADMIN", "OWNER"],
-              },
-            },
-          },
-        },
-      ],
-    },
-  });
+    if (!flowId) {
+      return NextResponse.json(
+        { error: "Flow ID is required" },
+        { status: 400 }
+      );
+    }
 
-  if (!project) {
-    return new NextResponse("Project not found", { status: 404 });
-  }
-
-  // Update the main start flow
-  const updatedProject = await prisma.project.update({
-    where: {
-      id: params.projectId,
-    },
-    data: {
-      mainStartFlowId,
-    },
-  });
-
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      entityId: params.projectId,
-      entityType: "PROJECT",
-      action: "UPDATED",
-      userId: session.user.id,
-      projectId: params.projectId,
-      metadata: {
-        mainStartFlowId,
-        type: "MAIN_START_FLOW_UPDATE"
+    // Update project's main start flow
+    const project = await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        mainStartFlowId: flowId,
       },
-    },
-  });
+    });
 
-  return NextResponse.json(updatedProject);
+    return NextResponse.json(project);
+  } catch (error) {
+    console.error("[MAIN_START_FLOW_PUT]", error);
+    return NextResponse.json(
+      { error: "Failed to update main start flow" },
+      { status: 500 }
+    );
+  }
 } 
