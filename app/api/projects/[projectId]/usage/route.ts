@@ -1,28 +1,28 @@
-import { authOptions } from "@/app/api/auth/[...nextauth]/options";
-import prisma from "@/lib/prisma";
+import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  request: Request,
-  context: { params: { projectId: string } }
-): Promise<NextResponse> {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const projectId = url.pathname.split('/')[3]; // /api/projects/[projectId]/usage
+
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Get project to verify access
     const project = await prisma.project.findFirst({
       where: {
-        id: context.params.projectId,
+        id: projectId,
         OR: [
           { userId: session.user.id },
           {
             collaborators: {
               some: {
-                userId: session.user.id
+                userId: session.user.id,
               }
             }
           }
@@ -32,7 +32,7 @@ export async function GET(
 
     if (!project) {
       return NextResponse.json(
-        { error: "Project not found" },
+        { error: "Project not found or permission denied" },
         { status: 404 }
       );
     }
@@ -40,7 +40,7 @@ export async function GET(
     // Get audit logs for API usage
     const apiLogs = await prisma.auditLog.findMany({
       where: {
-        projectId: context.params.projectId,
+        projectId,
         action: {
           in: ['API_KEY_GENERATED', 'API_KEY_REVOKED']
         }
@@ -55,7 +55,7 @@ export async function GET(
     const accessLogs = await prisma.projectShareAccess.findMany({
       where: {
         share: {
-          projectId: context.params.projectId
+          projectId
         }
       },
       orderBy: {
@@ -98,9 +98,9 @@ export async function GET(
       accessLogs
     });
   } catch (error) {
-    console.error("Error fetching API usage:", error);
+    console.error("[PROJECT_USAGE_GET]", error);
     return NextResponse.json(
-      { error: "Failed to fetch API usage" },
+      { error: "Failed to fetch project usage" },
       { status: 500 }
     );
   }
