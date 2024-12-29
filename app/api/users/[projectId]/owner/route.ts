@@ -1,47 +1,58 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function GET(req: Request) {
   try {
-    // Get the current session
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split('/');
+    const projectId = pathParts[2]; // /api/users/[projectId]/owner
+
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Get the project and verify access
-    const project = await prisma.project.findUnique({
-      where: { id: params.projectId },
-      select: { userId: true }
+    // Get project owner
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        OR: [
+          { userId: session.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: session.user.id,
+              }
+            }
+          }
+        ]
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
     if (!project) {
-      return new NextResponse("Project not found", { status: 404 });
+      return NextResponse.json(
+        { error: "Project not found or permission denied" },
+        { status: 404 }
+      );
     }
 
-    // Get the owner's data
-    const owner = await prisma.user.findUnique({
-      where: { id: project.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-      }
-    });
-
-    if (!owner) {
-      return new NextResponse("Owner not found", { status: 404 });
-    }
-
-    return NextResponse.json({ user: owner });
+    return NextResponse.json({ owner: project.user });
   } catch (error) {
     console.error("[PROJECT_OWNER_GET]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch project owner" },
+      { status: 500 }
+    );
   }
 } 
