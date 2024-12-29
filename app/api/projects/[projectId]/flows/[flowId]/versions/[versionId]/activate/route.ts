@@ -1,94 +1,55 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
-import prisma from '@/lib/prisma';
-import { AuditAction, Prisma } from '@prisma/client';
-
-interface SessionUser {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-}
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
+import { type AuditAction, type Prisma } from "@prisma/client";
 
 export async function POST(
-  req: Request,
-  context: { params: { projectId: string; flowId: string; versionId: string } }
-) {
-  const params = await Promise.resolve(context.params);
-  const { projectId, flowId, versionId } = params;
-  
-  console.log('Activating version:', { projectId, flowId, versionId });
-  
-  const session = await getServerSession(authOptions);
-  const user = session?.user as SessionUser;
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string; flowId: string; versionId: string }> }
+): Promise<Response> {
+  try {
+    const { projectId, flowId, versionId } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-  if (!user?.id || !user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get version and check if it exists
-  const version = await prisma.version.findUnique({
-    where: { id: versionId },
-    include: {
-      flow: {
-        include: {
-          project: {
-            include: {
-              collaborators: {
-                where: {
-                  userId: user.id,
-                },
-              },
-            },
-          },
-        },
+    // Update flow to set active version
+    const flow = await prisma.chartInstance.update({
+      where: { id: flowId },
+      data: {
+        isPublished: true,
+        publishedAt: new Date(),
+        activeVersionId: versionId,
       },
-    },
-  });
+      include: {
+        activeVersion: true,
+      },
+    });
 
-  if (!version) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404 });
-  }
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        action: 'PUBLISHED' as AuditAction,
+        entityType: 'FLOW',
+        entityId: flowId,
+        userId: session.user.id,
+        projectId,
+        metadata: {
+          versionId,
+          version: flow.activeVersion?.version,
+          versionName: flow.activeVersion?.name,
+        } as Prisma.JsonObject,
+      },
+    });
 
-  // Check if user has permission
-  const canActivate = version.flow.userId === user.id || 
-    version.flow.project?.collaborators.some(c => 
-      ['OWNER', 'ADMIN', 'EDITOR'].includes(c.role)
+    return NextResponse.json(flow);
+  } catch (error) {
+    console.error("[VERSION_ACTIVATE]", error);
+    return NextResponse.json(
+      { error: "Failed to activate version" },
+      { status: 500 }
     );
-
-  if (!canActivate) {
-    return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
-
-  // Update flow with version content
-  const updatedFlow = await prisma.chartInstance.update({
-    where: { id: flowId },
-    data: {
-      content: typeof version.content === 'string' ? version.content : JSON.stringify(version.content),
-      activeVersionId: versionId,
-    },
-  });
-
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      action: AuditAction.PUBLISHED,
-      entityType: 'FLOW',
-      entityId: flowId,
-      userId: user.id,
-      projectId: version.flow.projectId,
-      metadata: {
-        versionId: version.id,
-        versionNumber: version.version,
-        versionName: version.name,
-      } as Prisma.JsonObject,
-    },
-  });
-
-  return NextResponse.json({ 
-    success: true,
-    version,
-    flow: updatedFlow,
-  });
 } 
