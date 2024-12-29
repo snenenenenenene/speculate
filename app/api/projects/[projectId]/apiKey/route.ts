@@ -1,16 +1,19 @@
 // app/api/projects/[projectId]/apikey/route.ts
-import prisma from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
-import { authOptions } from "../../../auth/[...nextauth]/options";
-import crypto from 'crypto';
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
 
-export async function POST(req: Request, { params }: { params: { projectId: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Generate new API key
@@ -18,7 +21,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     const project = await prisma.project.updateMany({
       where: {
-        id: params.projectId,
+        id: projectId,
         user: {
           email: session.user.email
         }
@@ -37,25 +40,28 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     return NextResponse.json({ apiKey: newApiKey });
   } catch (error) {
-    console.error("Error regenerating API key:", error);
+    console.error("[API_KEY_POST]", error);
     return NextResponse.json(
-      { error: "Failed to regenerate API key" },
+      { error: "Internal Error" },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { projectId: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+): Promise<Response> {
   try {
+    const { projectId } = await params;
     const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
     const project = await prisma.project.updateMany({
       where: {
-        id: params.projectId,
+        id: projectId,
         user: {
           email: session.user.email
         }
@@ -74,9 +80,9 @@ export async function DELETE(req: Request, { params }: { params: { projectId: st
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error removing API key:", error);
+    console.error("[API_KEY_DELETE]", error);
     return NextResponse.json(
-      { error: "Failed to remove API key" },
+      { error: "Internal Error" },
       { status: 500 }
     );
   }
