@@ -1,14 +1,35 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  request: Request,
-  context: { params: { projectId: string; flowId: string } }
-) {
-  const { projectId, flowId } = context.params;
+interface FlowContent {
+  nodes: any[];
+  [key: string]: any;
+}
 
+export async function GET(req: Request) {
   try {
-    const flow = await prisma.chartInstance.findUnique({
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split('/');
+    const projectId = pathParts[3]; // /api/public/projects/[projectId]/flows/[flowId]
+    const flowId = pathParts[5];
+
+    // Verify project is public
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        isPublic: true,
+      },
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found or not public" },
+        { status: 404 }
+      );
+    }
+
+    // Get flow
+    const flow = await prisma.chartInstance.findFirst({
       where: {
         id: flowId,
         projectId,
@@ -37,7 +58,7 @@ export async function GET(
 
     if (!flow) {
       return NextResponse.json(
-        { error: 'Flow not found or not published' },
+        { error: "Flow not found or not published" },
         { status: 404 }
       );
     }
@@ -47,13 +68,14 @@ export async function GET(
     try {
       const content = flow.activeVersion?.content || flow.content;
       if (typeof content === 'string') {
-        const parsedContent = JSON.parse(content);
+        const parsedContent = JSON.parse(content) as FlowContent;
         nodes = parsedContent.nodes || [];
-      } else {
-        nodes = content.nodes || [];
+      } else if (content && typeof content === 'object') {
+        const parsedContent = content as FlowContent;
+        nodes = parsedContent.nodes || [];
       }
     } catch (e) {
-      console.error('Error parsing flow content:', e);
+      console.error("[PUBLIC_FLOW_CONTENT_PARSE]", e);
     }
 
     return NextResponse.json({
@@ -65,9 +87,9 @@ export async function GET(
       }
     });
   } catch (error) {
-    console.error('Error fetching flow:', error);
+    console.error("[PUBLIC_FLOW_GET]", error);
     return NextResponse.json(
-      { error: 'Failed to fetch flow' },
+      { error: "Failed to fetch flow" },
       { status: 500 }
     );
   }
