@@ -1,25 +1,30 @@
-// app/api/flows/[flowId]/share/route.ts
-import { authOptions } from '@/app/api/auth/[...nextauth]/options';
-import { prisma } from '@/lib/prisma';
-import crypto from 'crypto';
-import { nanoid } from 'nanoid';
-import { getServerSession } from 'next-auth';
-import { NextResponse } from 'next/server';
+// app/api/projects/[projectId]/flows/[flowId]/share/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { nanoid } from "nanoid";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { flowId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string; flowId: string }> }
+): Promise<Response> {
   try {
+    const { projectId, flowId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const shares = await prisma.share.findMany({
+    // Get project shares
+    const shares = await prisma.projectShare.findMany({
       where: {
-        flowId: params.flowId,
-        createdBy: session.user.id,
+        projectId,
+        settings: {
+          path: ['flowId'],
+          equals: flowId
+        }
       },
       include: {
         user: {
@@ -33,7 +38,7 @@ export async function GET(
 
     return NextResponse.json({ shares });
   } catch (error) {
-    console.error('Error fetching shares:', error);
+    console.error("[FLOW_SHARES_GET]", error);
     return NextResponse.json(
       { error: "Failed to fetch shares" },
       { status: 500 }
@@ -42,28 +47,37 @@ export async function GET(
 }
 
 export async function POST(
-  req: Request,
-  { params }: { params: { flowId: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string; flowId: string }> }
+): Promise<Response> {
   try {
+    const { projectId, flowId } = await params;
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const settings = await req.json();
+    const body = await request.json();
+    const { password, settings } = body;
     const shareId = nanoid();
-    const accessKey = crypto.randomBytes(32).toString('hex');
+
+    // Hash password if provided
+    let hashedPassword = null;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
 
     // Create share record
-    const share = await prisma.share.create({
+    const share = await prisma.projectShare.create({
       data: {
-        flowId: params.flowId,
+        projectId,
         createdBy: session.user.id,
+        shareId,
+        password: hashedPassword,
         settings: {
           ...settings,
           shareId,
-          accessKey,
+          flowId
         },
       },
       include: {
@@ -76,42 +90,71 @@ export async function POST(
       },
     });
 
-    // Update flow share settings
-    await prisma.chartInstance.update({
-      where: { id: params.flowId },
-      data: {
-        shareSettings: {
-          ...settings,
-          shareId,
-        },
-      },
-    });
-
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'SHARE_CREATED',
-        entityType: 'flow',
-        entityId: params.flowId,
-        userId: session.user.id,
-        projectId: share.projectId,
-        metadata: {
-          shareId,
-          settings,
-        },
-      },
-    });
-
-    const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL}/share/${shareId}`;
+    const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL}/share/flow/${shareId}`;
     
     return NextResponse.json({
       share,
       shareUrl,
     });
   } catch (error) {
-    console.error('Error sharing flow:', error);
+    console.error("[FLOW_SHARE_POST]", error);
     return NextResponse.json(
       { error: "Failed to share flow" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string; flowId: string }> }
+): Promise<Response> {
+  try {
+    const { projectId, flowId } = await params;
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const shareId = searchParams.get('shareId');
+
+    if (!shareId) {
+      return NextResponse.json(
+        { error: "Share ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify permission to delete share
+    const share = await prisma.projectShare.findFirst({
+      where: {
+        id: shareId,
+        projectId,
+        settings: {
+          path: ['flowId'],
+          equals: flowId
+        }
+      },
+    });
+
+    if (!share) {
+      return NextResponse.json(
+        { error: "Share not found or permission denied" },
+        { status: 404 }
+      );
+    }
+
+    // Delete share
+    await prisma.projectShare.delete({
+      where: { id: shareId },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[FLOW_SHARE_DELETE]", error);
+    return NextResponse.json(
+      { error: "Failed to delete share" },
       { status: 500 }
     );
   }
